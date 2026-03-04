@@ -22,6 +22,10 @@ export type Database = {
           role: Database["public"]["Enums"]["team_role"];
           avatar_url: string | null;
           google_calendar_id: string | null;
+          google_access_token: string | null;
+          google_refresh_token: string | null;
+          google_token_expires_at: string | null;
+          google_calendar_connected: boolean;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -35,6 +39,10 @@ export type Database = {
           role?: Database["public"]["Enums"]["team_role"];
           avatar_url?: string | null;
           google_calendar_id?: string | null;
+          google_access_token?: string | null;
+          google_refresh_token?: string | null;
+          google_token_expires_at?: string | null;
+          google_calendar_connected?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -48,6 +56,10 @@ export type Database = {
           role?: Database["public"]["Enums"]["team_role"];
           avatar_url?: string | null;
           google_calendar_id?: string | null;
+          google_access_token?: string | null;
+          google_refresh_token?: string | null;
+          google_token_expires_at?: string | null;
+          google_calendar_connected?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
