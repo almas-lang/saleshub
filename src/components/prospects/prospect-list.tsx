@@ -118,10 +118,10 @@ function getActivityTimeColor(date: string | undefined) {
 const ALL_COLUMNS = [
   { key: "first_name", label: "Name", sortable: true, defaultVisible: true },
   { key: "email", label: "Email", sortable: true, defaultVisible: true },
-  { key: "phone", label: "Phone", sortable: true, defaultVisible: true },
+  { key: "phone", label: "Phone", sortable: false, defaultVisible: true },
   { key: "source", label: "Source", sortable: true, defaultVisible: false },
-  { key: "current_stage_id", label: "Stage", sortable: true, defaultVisible: true },
-  { key: "assigned_to", label: "Assigned To", sortable: true, defaultVisible: true },
+  { key: "current_stage_id", label: "Stage", sortable: false, defaultVisible: true },
+  { key: "assigned_to", label: "Assigned To", sortable: false, defaultVisible: true },
   { key: "created_at", label: "Created", sortable: true, defaultVisible: true },
   { key: "call_booked", label: "Call Booked", sortable: false, defaultVisible: true },
   { key: "watch_link", label: "Watch Link", sortable: false, defaultVisible: true },

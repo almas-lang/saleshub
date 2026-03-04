@@ -5,7 +5,7 @@ import { formatPhone } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
   // ── Step 1: Verify secret ──────────────────────────
-  const secret = process.env.WEBHOOK_SECRET;
+  const secret = process.env.SALESHUB_WEBHOOK_SECRET;
   if (!secret) {
     return NextResponse.json(
       { error: "Webhook not configured" },
