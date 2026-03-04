@@ -8,7 +8,14 @@
 
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+let _resend: Resend | null = null;
+
+function getResend(): Resend {
+  if (!_resend) {
+    _resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return _resend;
+}
 
 const DEFAULT_FROM = "Xperience Wave <team@xperiencewave.com>";
 
@@ -55,7 +62,7 @@ export async function sendEmail(
   options: EmailSendOptions
 ): Promise<EmailSendResult> {
   try {
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await getResend().emails.send({
       from: options.from ?? DEFAULT_FROM,
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: options.subject,
@@ -97,7 +104,7 @@ export async function sendBatchEmails(
   }
 
   try {
-    const { data, error } = await resend.batch.send(
+    const { data, error } = await getResend().batch.send(
       emails.map((e) => ({
         from: e.from ?? DEFAULT_FROM,
         to: Array.isArray(e.to) ? e.to : [e.to],
