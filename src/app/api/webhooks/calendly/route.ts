@@ -431,19 +431,24 @@ export async function POST(request: NextRequest) {
   });
 
   // ── Step 8.5: Send booking confirmation email ────
+  const emailErrors: string[] = [];
   try {
     const { subject, html } = await renderBookingConfirmationEmail({
       firstName: firstName || "there",
     });
-    await sendEmail({ to: email, subject, html });
-    await supabaseAdmin.from("activities").insert({
-      contact_id: contactId,
-      type: "email_sent",
-      title: "Booking confirmation email sent",
-      metadata: { template: "booking-confirmation" },
-    });
+    const result = await sendEmail({ to: email, subject, html });
+    if (!result.success) {
+      emailErrors.push(`confirmation: ${result.error}`);
+    } else {
+      await supabaseAdmin.from("activities").insert({
+        contact_id: contactId,
+        type: "email_sent",
+        title: "Booking confirmation email sent",
+        metadata: { template: "booking-confirmation" },
+      });
+    }
   } catch (emailErr) {
-    console.error("[Calendly Webhook] Confirmation email failed:", emailErr);
+    emailErrors.push(`confirmation: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);
   }
 
   // ── Step 8.6: Send booking reminder email (TEST — remove after testing) ──
@@ -456,23 +461,29 @@ export async function POST(request: NextRequest) {
       hostName,
       meetLink: meetLink || "#",
     });
-    await sendEmail({ to: email, subject: remSubject, html: remHtml });
-    await supabaseAdmin.from("activities").insert({
-      contact_id: contactId,
-      type: "email_sent",
-      title: "Booking reminder email sent (TEST)",
-      metadata: { template: "booking-reminder" },
-    });
+    const remResult = await sendEmail({ to: email, subject: remSubject, html: remHtml });
+    if (!remResult.success) {
+      emailErrors.push(`reminder: ${remResult.error}`);
+    } else {
+      await supabaseAdmin.from("activities").insert({
+        contact_id: contactId,
+        type: "email_sent",
+        title: "Booking reminder email sent (TEST)",
+        metadata: { template: "booking-reminder" },
+      });
+    }
   } catch (emailErr) {
-    console.error("[Calendly Webhook] Reminder email failed:", emailErr);
+    emailErrors.push(`reminder: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);
   }
 
   // ── Step 9: Return 200 ──────────────────────────
   console.log(
-    `[Calendly Webhook] Processed booking for ${email} (contact: ${contactId})`
+    `[Calendly Webhook] Processed booking for ${email} (contact: ${contactId})`,
+    emailErrors.length ? `Email errors: ${emailErrors.join("; ")}` : "Emails sent OK"
   );
   return NextResponse.json({
     success: true,
     contact_id: contactId,
+    email_errors: emailErrors.length ? emailErrors : undefined,
   });
 }
