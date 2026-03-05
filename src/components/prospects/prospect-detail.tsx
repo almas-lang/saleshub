@@ -411,7 +411,7 @@ export function ProspectDetail({
             {lastActivity && (
               <>
                 {" · "}
-                Last activity {timeAgo(lastActivity)}
+                <span suppressHydrationWarning>Last activity {timeAgo(lastActivity)}</span>
               </>
             )}
           </p>
@@ -842,7 +842,7 @@ export function ProspectDetail({
                             {activity.body}
                           </p>
                           <div className="mt-3 flex items-center justify-between border-t pt-3">
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground" suppressHydrationWarning>
                               {timeAgo(activity.created_at)}
                             </span>
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1013,7 +1013,7 @@ function TimelineContent({
                       )}
                     </div>
                   )}
-                  <p className="mt-1.5 text-xs text-muted-foreground/70">
+                  <p className="mt-1.5 text-xs text-muted-foreground/70" suppressHydrationWarning>
                     {timeAgo(activity.created_at)}
                     {userName && (
                       <span> by {userName}</span>
