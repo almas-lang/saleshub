@@ -232,9 +232,18 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (bookedStage) {
-      // 8b. Move contact to "121 Booked" stage
+      // 8b. Move contact to "121 Booked" stage + set metadata.call_booked
+      const { data: currentContact } = await supabaseAdmin
+        .from("contacts")
+        .select("metadata")
+        .eq("id", contactId)
+        .single();
+
+      const existingMeta = (currentContact?.metadata as Record<string, unknown>) ?? {};
+
       const stageUpdate: Record<string, unknown> = {
         current_stage_id: bookedStage.id,
+        metadata: { ...existingMeta, call_booked: "yes", booked_at: bookedAt },
       };
       if (lead.linkedin_url) {
         stageUpdate.linkedin_url = lead.linkedin_url;
