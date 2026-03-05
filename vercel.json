@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/overdue-tasks",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/no-book-drip",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/booking-reminder",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

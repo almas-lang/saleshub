@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { leadCaptureSchema } from "@/lib/validations";
 import { formatPhone } from "@/lib/utils";
+import { sendEmail } from "@/lib/email/client";
+import { renderWelcomeEmail } from "@/lib/email/templates/welcome";
 
 /** Map variant field names (PascalCase, Title Case, etc.) to snake_case schema keys */
 const FIELD_ALIASES: Record<string, string> = {
@@ -213,6 +215,24 @@ export async function POST(request: NextRequest) {
       source,
     },
   });
+
+  // ── Step 7.5: Send welcome email (new contacts only) ─
+  if (!isDuplicate) {
+    try {
+      const { subject, html } = await renderWelcomeEmail({
+        firstName: first_name,
+      });
+      await sendEmail({ to: email, subject, html });
+      await supabaseAdmin.from("activities").insert({
+        contact_id: contactId,
+        type: "email_sent",
+        title: "Welcome email sent",
+        metadata: { template: "welcome" },
+      });
+    } catch (emailErr) {
+      console.error("[Lead Capture] Welcome email failed:", emailErr);
+    }
+  }
 
   // ── Step 8: Process booking (if call was booked) ───
   const isBooked = ["yes", "true", "1"].includes(

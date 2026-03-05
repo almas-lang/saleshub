@@ -7,6 +7,10 @@ import {
   normalizeFinancialReadiness,
   normalizeUrgency,
 } from "@/lib/import-utils";
+import { sendEmail } from "@/lib/email/client";
+import { renderBookingConfirmationEmail } from "@/lib/email/templates/booking-confirmation";
+import { renderBookingReminderEmail } from "@/lib/email/templates/booking-reminder";
+import { format } from "date-fns";
 
 // ──────────────────────────────────────────
 // Question → field mapping (matches FORM_RESPONSE_SYNONYM_MAP patterns)
@@ -370,6 +374,24 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── Step 6.5: Create a bookings row ──────────────
+  const startTime = scheduledEvent?.start_time as string | undefined;
+  const endTime = scheduledEvent?.end_time as string | undefined;
+  const location = scheduledEvent?.location as Record<string, unknown> | undefined;
+  const meetLink = (location?.join_url as string) ?? null;
+  const eventMemberships = (scheduledEvent?.event_memberships ?? []) as Array<{ user_name?: string }>;
+  const hostName = eventMemberships[0]?.user_name ?? "Shaik Murad";
+
+  if (startTime && endTime) {
+    await supabaseAdmin.from("bookings").insert({
+      contact_id: contactId,
+      starts_at: startTime,
+      ends_at: endTime,
+      meet_link: meetLink,
+      status: "confirmed",
+    });
+  }
+
   // ── Step 7: Insert contact_form_responses ────────
   await supabaseAdmin.from("contact_form_responses").insert({
     contact_id: contactId,
@@ -407,6 +429,43 @@ export async function POST(request: NextRequest) {
     title: "Call booked via Calendly",
     metadata: { source: "calendly", booked_at: bookedAt },
   });
+
+  // ── Step 8.5: Send booking confirmation email ────
+  try {
+    const { subject, html } = await renderBookingConfirmationEmail({
+      firstName: firstName || "there",
+    });
+    await sendEmail({ to: email, subject, html });
+    await supabaseAdmin.from("activities").insert({
+      contact_id: contactId,
+      type: "email_sent",
+      title: "Booking confirmation email sent",
+      metadata: { template: "booking-confirmation" },
+    });
+  } catch (emailErr) {
+    console.error("[Calendly Webhook] Confirmation email failed:", emailErr);
+  }
+
+  // ── Step 8.6: Send booking reminder email (TEST — remove after testing) ──
+  try {
+    const startsAt = startTime ? new Date(startTime) : new Date();
+    const { subject: remSubject, html: remHtml } = await renderBookingReminderEmail({
+      firstName: firstName || "there",
+      date: format(startsAt, "MMMM d, yyyy"),
+      time: format(startsAt, "h:mm a"),
+      hostName,
+      meetLink: meetLink || "#",
+    });
+    await sendEmail({ to: email, subject: remSubject, html: remHtml });
+    await supabaseAdmin.from("activities").insert({
+      contact_id: contactId,
+      type: "email_sent",
+      title: "Booking reminder email sent (TEST)",
+      metadata: { template: "booking-reminder" },
+    });
+  } catch (emailErr) {
+    console.error("[Calendly Webhook] Reminder email failed:", emailErr);
+  }
 
   // ── Step 9: Return 200 ──────────────────────────
   console.log(
