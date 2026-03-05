@@ -553,7 +553,7 @@ export function autoMapFormResponseColumns(headers: string[]): ImportMapping[] {
 // Value normalization for enum fields
 // ──────────────────────────────────────────
 
-function normalizeWorkExperience(raw: string): string {
+export function normalizeWorkExperience(raw: string): string {
   const lower = raw.toLowerCase().trim();
   if (lower === "none" || lower.includes("fresher") || lower.includes("no experience")) return "fresher";
   if (lower.includes("<2") || lower.includes("less than 2") || lower.includes("0-2") || lower.includes("1-2")) return "<2_years";
@@ -567,7 +567,7 @@ function normalizeWorkExperience(raw: string): string {
   return raw; // store as-is if unrecognized
 }
 
-function normalizeFinancialReadiness(raw: string): string {
+export function normalizeFinancialReadiness(raw: string): string {
   // Normalize smart quotes before matching
   const lower = raw.toLowerCase().trim().replace(/[\u2018\u2019\u2032]/g, "'").replace(/[\u201C\u201D\u2033]/g, '"');
   if (lower.startsWith("i'm ready") || lower.startsWith("i am ready") || lower.includes("ready to invest") || lower.includes("have the financial resources")) return "ready";
@@ -576,7 +576,7 @@ function normalizeFinancialReadiness(raw: string): string {
   return raw;
 }
 
-function normalizeUrgency(raw: string): string {
+export function normalizeUrgency(raw: string): string {
   const lower = raw.toLowerCase().trim().replace(/[\u2018\u2019\u2032]/g, "'").replace(/[\u201C\u201D\u2033]/g, '"');
   if (lower.startsWith("right now") || lower.includes("let's get started") || lower.includes("lets get started") || lower.includes("immediately") || lower.includes("i'm all in")) return "right_now";
   if (lower.startsWith("within 90") || lower.includes("within 90 days") || lower.includes("next 3 months") || lower.includes("little time to prepare")) return "within_90_days";
