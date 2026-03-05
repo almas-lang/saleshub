@@ -405,7 +405,6 @@ export async function POST(request: NextRequest) {
     contact_id: contactId,
     type: "booking_created",
     title: "Call booked via Calendly",
-    created_at: bookedAt,
     metadata: { source: "calendly", booked_at: bookedAt },
   });
 
