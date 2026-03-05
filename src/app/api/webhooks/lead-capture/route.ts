@@ -3,6 +3,44 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { leadCaptureSchema } from "@/lib/validations";
 import { formatPhone } from "@/lib/utils";
 
+/** Map variant field names (PascalCase, Title Case, etc.) to snake_case schema keys */
+const FIELD_ALIASES: Record<string, string> = {
+  CallBooked: "call_booked",
+  "Call Booked": "call_booked",
+  "call booked": "call_booked",
+  "Booked At": "booked_at",
+  BookedAt: "booked_at",
+  "Work Experience": "work_experience",
+  WorkExperience: "work_experience",
+  "Current Role": "current_role",
+  CurrentRole: "current_role",
+  "Key Challenge": "key_challenge",
+  KeyChallenge: "key_challenge",
+  "Desired Salary": "desired_salary",
+  DesiredSalary: "desired_salary",
+  Blocker: "blocker",
+  "Financial Readiness": "financial_readiness",
+  FinancialReadiness: "financial_readiness",
+  Urgency: "urgency",
+  "LinkedIn URL": "linkedin_url",
+  LinkedinUrl: "linkedin_url",
+  linkedin_url: "linkedin_url",
+};
+
+function normalizeFieldNames(
+  body: Record<string, unknown>
+): Record<string, unknown> {
+  const normalized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(body)) {
+    const mappedKey = FIELD_ALIASES[key] ?? key;
+    // Don't overwrite if the canonical key is already present
+    if (!(mappedKey in normalized)) {
+      normalized[mappedKey] = value;
+    }
+  }
+  return normalized;
+}
+
 export async function POST(request: NextRequest) {
   // ── Step 1: Verify secret ──────────────────────────
   const secret = process.env.SALESHUB_WEBHOOK_SECRET;
@@ -31,7 +69,10 @@ export async function POST(request: NextRequest) {
     rawBody = await request.json();
   }
 
-  const parsed = leadCaptureSchema.safeParse(rawBody);
+  // Normalize variant field names to snake_case before validation
+  const normalizedBody = normalizeFieldNames(rawBody);
+
+  const parsed = leadCaptureSchema.safeParse(normalizedBody);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.flatten().fieldErrors },
@@ -173,9 +214,85 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // ── Step 8: Return response ────────────────────────
+  // ── Step 8: Process booking (if call was booked) ───
+  const isBooked = ["yes", "true", "1"].includes(
+    (lead.call_booked ?? "").toLowerCase().trim()
+  );
+
+  if (isBooked && funnelId) {
+    const bookedAt = lead.booked_at ?? new Date().toISOString();
+
+    // 8a. Find "121 Booked" stage in the contact's funnel
+    const contactFunnelId = existingContact?.funnel_id ?? funnelId;
+    const { data: bookedStage } = await supabaseAdmin
+      .from("funnel_stages")
+      .select("id")
+      .eq("funnel_id", contactFunnelId)
+      .eq("name", "121 Booked")
+      .maybeSingle();
+
+    if (bookedStage) {
+      // 8b. Move contact to "121 Booked" stage
+      const stageUpdate: Record<string, unknown> = {
+        current_stage_id: bookedStage.id,
+      };
+      if (lead.linkedin_url) {
+        stageUpdate.linkedin_url = lead.linkedin_url;
+      }
+      await supabaseAdmin
+        .from("contacts")
+        .update(stageUpdate)
+        .eq("id", contactId);
+
+      // 8c. Insert form response (with enum validation)
+      const VALID_WORK_EXPERIENCE = ["fresher", "<2_years", "3-5_years", "5-10_years", "10+_years"] as const;
+      const VALID_FINANCIAL_READINESS = ["ready", "careful_but_open", "not_ready"] as const;
+      const VALID_URGENCY = ["right_now", "within_90_days", "more_than_90_days"] as const;
+
+      type WorkExp = (typeof VALID_WORK_EXPERIENCE)[number];
+      type FinReady = (typeof VALID_FINANCIAL_READINESS)[number];
+      type Urg = (typeof VALID_URGENCY)[number];
+
+      await supabaseAdmin
+        .from("contact_form_responses")
+        .insert({
+          contact_id: contactId,
+          form_email: email,
+          created_at: bookedAt,
+          work_experience: lead.work_experience && (VALID_WORK_EXPERIENCE as readonly string[]).includes(lead.work_experience)
+            ? (lead.work_experience as WorkExp)
+            : null,
+          current_role: lead.current_role ?? null,
+          key_challenge: lead.key_challenge ?? null,
+          desired_salary: lead.desired_salary ?? null,
+          blocker: lead.blocker ?? null,
+          financial_readiness: lead.financial_readiness && (VALID_FINANCIAL_READINESS as readonly string[]).includes(lead.financial_readiness)
+            ? (lead.financial_readiness as FinReady)
+            : null,
+          urgency: lead.urgency && (VALID_URGENCY as readonly string[]).includes(lead.urgency)
+            ? (lead.urgency as Urg)
+            : null,
+        });
+
+      // 8d. Log booking activity
+      await supabaseAdmin.from("activities").insert({
+        contact_id: contactId,
+        type: "booking_created",
+        title: "Call booked via landing page",
+        created_at: bookedAt,
+        metadata: { source, booked_at: bookedAt },
+      });
+    }
+  }
+
+  // ── Step 9: Return response ────────────────────────
   return NextResponse.json(
-    { success: true, contact_id: contactId, is_duplicate: isDuplicate },
+    {
+      success: true,
+      contact_id: contactId,
+      is_duplicate: isDuplicate,
+      booking_processed: isBooked,
+    },
     { status: isDuplicate ? 200 : 201 }
   );
 }

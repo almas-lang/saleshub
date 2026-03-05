@@ -99,6 +99,18 @@ export const leadCaptureSchema = z.object({
   utm_campaign: z.string().optional(),
   utm_content: z.string().optional(),
   utm_term: z.string().optional(),
+  // Booking fields (from landing page call booking)
+  call_booked: z.string().optional(),
+  booked_at: z.string().optional(),
+  // Calendly form response fields
+  work_experience: z.string().optional(),
+  current_role: z.string().optional(),
+  key_challenge: z.string().optional(),
+  desired_salary: z.string().optional(),
+  blocker: z.string().optional(),
+  financial_readiness: z.string().optional(),
+  urgency: z.string().optional(),
+  linkedin_url: z.string().optional(),
 });
 
 export type LeadCaptureValues = z.infer<typeof leadCaptureSchema>;
