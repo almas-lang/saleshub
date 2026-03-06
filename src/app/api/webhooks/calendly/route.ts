@@ -432,11 +432,15 @@ export async function POST(request: NextRequest) {
 
   // ── Step 8.5: Send booking confirmation email ────
   const emailErrors: string[] = [];
+  console.log("[Calendly Webhook] Starting email send to:", email);
   try {
+    console.log("[Calendly Webhook] Rendering confirmation template...");
     const { subject, html } = await renderBookingConfirmationEmail({
       firstName: firstName || "there",
     });
+    console.log("[Calendly Webhook] Rendered OK, sending via Resend...");
     const result = await sendEmail({ to: email, subject, html });
+    console.log("[Calendly Webhook] Resend result:", JSON.stringify(result));
     if (!result.success) {
       emailErrors.push(`confirmation: ${result.error}`);
     } else {
