@@ -1,1367 +1,1583 @@
-// Generated from supabase/migrations/001_initial_schema.sql
-// Re-generate with: npx supabase gen types --lang=typescript --project-id <id>
-
 export type Json =
   | string
   | number
   | boolean
   | null
   | { [key: string]: Json | undefined }
-  | Json[];
+  | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
   public: {
     Tables: {
-      team_members: {
-        Row: {
-          id: string;
-          auth_user_id: string | null;
-          name: string;
-          email: string;
-          phone: string | null;
-          role: Database["public"]["Enums"]["team_role"];
-          avatar_url: string | null;
-          google_calendar_id: string | null;
-          google_access_token: string | null;
-          google_refresh_token: string | null;
-          google_token_expires_at: string | null;
-          google_calendar_connected: boolean;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          auth_user_id?: string | null;
-          name: string;
-          email: string;
-          phone?: string | null;
-          role?: Database["public"]["Enums"]["team_role"];
-          avatar_url?: string | null;
-          google_calendar_id?: string | null;
-          google_access_token?: string | null;
-          google_refresh_token?: string | null;
-          google_token_expires_at?: string | null;
-          google_calendar_connected?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          auth_user_id?: string | null;
-          name?: string;
-          email?: string;
-          phone?: string | null;
-          role?: Database["public"]["Enums"]["team_role"];
-          avatar_url?: string | null;
-          google_calendar_id?: string | null;
-          google_access_token?: string | null;
-          google_refresh_token?: string | null;
-          google_token_expires_at?: string | null;
-          google_calendar_connected?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      companies: {
-        Row: {
-          id: string;
-          name: string;
-          gst_number: string | null;
-          website: string | null;
-          industry: string | null;
-          address: string | null;
-          city: string | null;
-          state: string | null;
-          pincode: string | null;
-          created_at: string;
-          updated_at: string;
-          deleted_at: string | null;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          gst_number?: string | null;
-          website?: string | null;
-          industry?: string | null;
-          address?: string | null;
-          city?: string | null;
-          state?: string | null;
-          pincode?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          deleted_at?: string | null;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          gst_number?: string | null;
-          website?: string | null;
-          industry?: string | null;
-          address?: string | null;
-          city?: string | null;
-          state?: string | null;
-          pincode?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          deleted_at?: string | null;
-        };
-        Relationships: [];
-      };
-      funnels: {
-        Row: {
-          id: string;
-          name: string;
-          description: string | null;
-          sales_type: Database["public"]["Enums"]["sales_type"];
-          is_default: boolean;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          description?: string | null;
-          sales_type?: Database["public"]["Enums"]["sales_type"];
-          is_default?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          description?: string | null;
-          sales_type?: Database["public"]["Enums"]["sales_type"];
-          is_default?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      funnel_stages: {
-        Row: {
-          id: string;
-          funnel_id: string;
-          name: string;
-          order: number;
-          color: string;
-          is_terminal: boolean;
-          auto_action: Json | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          funnel_id: string;
-          name: string;
-          order: number;
-          color?: string;
-          is_terminal?: boolean;
-          auto_action?: Json | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          funnel_id?: string;
-          name?: string;
-          order?: number;
-          color?: string;
-          is_terminal?: boolean;
-          auto_action?: Json | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "funnel_stages_funnel_id_fkey";
-            columns: ["funnel_id"];
-            isOneToOne: false;
-            referencedRelation: "funnels";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      contacts: {
-        Row: {
-          id: string;
-          type: Database["public"]["Enums"]["contact_type"];
-          account_type: Database["public"]["Enums"]["account_type"];
-          first_name: string;
-          last_name: string | null;
-          email: string | null;
-          phone: string | null;
-          linkedin_url: string | null;
-          source: string | null;
-          utm_source: string | null;
-          utm_medium: string | null;
-          utm_campaign: string | null;
-          utm_content: string | null;
-          utm_term: string | null;
-          assigned_to: string | null;
-          funnel_id: string | null;
-          current_stage_id: string | null;
-          tags: string[];
-          company_name: string | null;
-          company_id: string | null;
-          created_at: string;
-          updated_at: string;
-          converted_at: string | null;
-          deleted_at: string | null;
-          metadata: Record<string, unknown> | null;
-        };
-        Insert: {
-          id?: string;
-          type?: Database["public"]["Enums"]["contact_type"];
-          account_type?: Database["public"]["Enums"]["account_type"];
-          first_name: string;
-          last_name?: string | null;
-          email?: string | null;
-          phone?: string | null;
-          linkedin_url?: string | null;
-          source?: string | null;
-          utm_source?: string | null;
-          utm_medium?: string | null;
-          utm_campaign?: string | null;
-          utm_content?: string | null;
-          utm_term?: string | null;
-          assigned_to?: string | null;
-          funnel_id?: string | null;
-          current_stage_id?: string | null;
-          tags?: string[];
-          company_name?: string | null;
-          company_id?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          converted_at?: string | null;
-          deleted_at?: string | null;
-          metadata?: Record<string, unknown> | null;
-        };
-        Update: {
-          id?: string;
-          type?: Database["public"]["Enums"]["contact_type"];
-          account_type?: Database["public"]["Enums"]["account_type"];
-          first_name?: string;
-          last_name?: string | null;
-          email?: string | null;
-          phone?: string | null;
-          linkedin_url?: string | null;
-          source?: string | null;
-          utm_source?: string | null;
-          utm_medium?: string | null;
-          utm_campaign?: string | null;
-          utm_content?: string | null;
-          utm_term?: string | null;
-          assigned_to?: string | null;
-          funnel_id?: string | null;
-          current_stage_id?: string | null;
-          tags?: string[];
-          company_name?: string | null;
-          company_id?: string | null;
-          created_at?: string;
-          updated_at?: string;
-          converted_at?: string | null;
-          deleted_at?: string | null;
-          metadata?: Record<string, unknown> | null;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "contacts_assigned_to_fkey";
-            columns: ["assigned_to"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "contacts_funnel_id_fkey";
-            columns: ["funnel_id"];
-            isOneToOne: false;
-            referencedRelation: "funnels";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "contacts_current_stage_id_fkey";
-            columns: ["current_stage_id"];
-            isOneToOne: false;
-            referencedRelation: "funnel_stages";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "contacts_company_id_fkey";
-            columns: ["company_id"];
-            isOneToOne: false;
-            referencedRelation: "companies";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      contact_form_responses: {
-        Row: {
-          id: string;
-          contact_id: string;
-          booking_id: string | null;
-          work_experience: Database["public"]["Enums"]["work_experience"] | null;
-          current_role: string | null;
-          key_challenge: string | null;
-          desired_salary: string | null;
-          blocker: string | null;
-          financial_readiness: Database["public"]["Enums"]["financial_readiness"] | null;
-          urgency: Database["public"]["Enums"]["urgency_level"] | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          contact_id: string;
-          booking_id?: string | null;
-          work_experience?: Database["public"]["Enums"]["work_experience"] | null;
-          current_role?: string | null;
-          key_challenge?: string | null;
-          desired_salary?: string | null;
-          blocker?: string | null;
-          financial_readiness?: Database["public"]["Enums"]["financial_readiness"] | null;
-          urgency?: Database["public"]["Enums"]["urgency_level"] | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          contact_id?: string;
-          booking_id?: string | null;
-          work_experience?: Database["public"]["Enums"]["work_experience"] | null;
-          current_role?: string | null;
-          key_challenge?: string | null;
-          desired_salary?: string | null;
-          blocker?: string | null;
-          financial_readiness?: Database["public"]["Enums"]["financial_readiness"] | null;
-          urgency?: Database["public"]["Enums"]["urgency_level"] | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "contact_form_responses_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "fk_form_responses_booking";
-            columns: ["booking_id"];
-            isOneToOne: false;
-            referencedRelation: "bookings";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
       activities: {
         Row: {
-          id: string;
-          contact_id: string;
-          user_id: string | null;
-          type: Database["public"]["Enums"]["activity_type"];
-          title: string;
-          body: string | null;
-          metadata: Json;
-          created_at: string;
-        };
+          body: string | null
+          contact_id: string
+          created_at: string
+          "email success":
+            | Database["public"]["Enums"]["email_send_status"]
+            | null
+          id: string
+          metadata: Json | null
+          title: string
+          type: Database["public"]["Enums"]["activity_type"]
+          user_id: string | null
+        }
         Insert: {
-          id?: string;
-          contact_id: string;
-          user_id?: string | null;
-          type: Database["public"]["Enums"]["activity_type"];
-          title: string;
-          body?: string | null;
-          metadata?: Json;
-          created_at?: string;
-        };
+          body?: string | null
+          contact_id: string
+          created_at?: string
+          "email success"?:
+            | Database["public"]["Enums"]["email_send_status"]
+            | null
+          id?: string
+          metadata?: Json | null
+          title: string
+          type: Database["public"]["Enums"]["activity_type"]
+          user_id?: string | null
+        }
         Update: {
-          id?: string;
-          contact_id?: string;
-          user_id?: string | null;
-          type?: Database["public"]["Enums"]["activity_type"];
-          title?: string;
-          body?: string | null;
-          metadata?: Json;
-          created_at?: string;
-        };
+          body?: string | null
+          contact_id?: string
+          created_at?: string
+          "email success"?:
+            | Database["public"]["Enums"]["email_send_status"]
+            | null
+          id?: string
+          metadata?: Json | null
+          title?: string
+          type?: Database["public"]["Enums"]["activity_type"]
+          user_id?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "activities_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
+            foreignKeyName: "activities_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "activities_user_id_fkey";
-            columns: ["user_id"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
+            foreignKeyName: "activities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-      tasks: {
-        Row: {
-          id: string;
-          contact_id: string | null;
-          assigned_to: string | null;
-          title: string;
-          description: string | null;
-          due_at: string | null;
-          priority: Database["public"]["Enums"]["task_priority"];
-          status: Database["public"]["Enums"]["task_status"];
-          type: Database["public"]["Enums"]["task_type"];
-          completed_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          contact_id?: string | null;
-          assigned_to?: string | null;
-          title: string;
-          description?: string | null;
-          due_at?: string | null;
-          priority?: Database["public"]["Enums"]["task_priority"];
-          status?: Database["public"]["Enums"]["task_status"];
-          type?: Database["public"]["Enums"]["task_type"];
-          completed_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          contact_id?: string | null;
-          assigned_to?: string | null;
-          title?: string;
-          description?: string | null;
-          due_at?: string | null;
-          priority?: Database["public"]["Enums"]["task_priority"];
-          status?: Database["public"]["Enums"]["task_status"];
-          type?: Database["public"]["Enums"]["task_type"];
-          completed_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "tasks_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "tasks_assigned_to_fkey";
-            columns: ["assigned_to"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      email_templates: {
-        Row: {
-          id: string;
-          name: string;
-          subject: string;
-          body_html: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          subject: string;
-          body_html: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          subject?: string;
-          body_html?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      email_campaigns: {
-        Row: {
-          id: string;
-          name: string;
-          type: Database["public"]["Enums"]["campaign_type"];
-          status: Database["public"]["Enums"]["campaign_status"];
-          trigger_event: string | null;
-          stop_condition: Json | null;
-          audience_filter: Json | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          type?: Database["public"]["Enums"]["campaign_type"];
-          status?: Database["public"]["Enums"]["campaign_status"];
-          trigger_event?: string | null;
-          stop_condition?: Json | null;
-          audience_filter?: Json | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          type?: Database["public"]["Enums"]["campaign_type"];
-          status?: Database["public"]["Enums"]["campaign_status"];
-          trigger_event?: string | null;
-          stop_condition?: Json | null;
-          audience_filter?: Json | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      email_steps: {
-        Row: {
-          id: string;
-          campaign_id: string;
-          order: number;
-          delay_hours: number;
-          subject: string;
-          body_html: string;
-          condition: Json | null;
-          template_id: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          campaign_id: string;
-          order: number;
-          delay_hours?: number;
-          subject: string;
-          body_html: string;
-          condition?: Json | null;
-          template_id?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          campaign_id?: string;
-          order?: number;
-          delay_hours?: number;
-          subject?: string;
-          body_html?: string;
-          condition?: Json | null;
-          template_id?: string | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "email_steps_campaign_id_fkey";
-            columns: ["campaign_id"];
-            isOneToOne: false;
-            referencedRelation: "email_campaigns";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "email_steps_template_id_fkey";
-            columns: ["template_id"];
-            isOneToOne: false;
-            referencedRelation: "email_templates";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      email_sends: {
-        Row: {
-          id: string;
-          contact_id: string;
-          campaign_id: string | null;
-          step_id: string | null;
-          status: Database["public"]["Enums"]["email_send_status"];
-          resend_message_id: string | null;
-          opened_at: string | null;
-          clicked_at: string | null;
-          sent_at: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          contact_id: string;
-          campaign_id?: string | null;
-          step_id?: string | null;
-          status?: Database["public"]["Enums"]["email_send_status"];
-          resend_message_id?: string | null;
-          opened_at?: string | null;
-          clicked_at?: string | null;
-          sent_at?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          contact_id?: string;
-          campaign_id?: string | null;
-          step_id?: string | null;
-          status?: Database["public"]["Enums"]["email_send_status"];
-          resend_message_id?: string | null;
-          opened_at?: string | null;
-          clicked_at?: string | null;
-          sent_at?: string | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "email_sends_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "email_sends_campaign_id_fkey";
-            columns: ["campaign_id"];
-            isOneToOne: false;
-            referencedRelation: "email_campaigns";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "email_sends_step_id_fkey";
-            columns: ["step_id"];
-            isOneToOne: false;
-            referencedRelation: "email_steps";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      wa_templates: {
-        Row: {
-          id: string;
-          name: string;
-          language: string;
-          category: string | null;
-          body_text: string | null;
-          header_text: string | null;
-          footer_text: string | null;
-          buttons: Json | null;
-          meta_template_id: string | null;
-          status: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          language?: string;
-          category?: string | null;
-          body_text?: string | null;
-          header_text?: string | null;
-          footer_text?: string | null;
-          buttons?: Json | null;
-          meta_template_id?: string | null;
-          status?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          language?: string;
-          category?: string | null;
-          body_text?: string | null;
-          header_text?: string | null;
-          footer_text?: string | null;
-          buttons?: Json | null;
-          meta_template_id?: string | null;
-          status?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      wa_campaigns: {
-        Row: {
-          id: string;
-          name: string;
-          type: Database["public"]["Enums"]["campaign_type"];
-          status: Database["public"]["Enums"]["campaign_status"];
-          trigger_event: string | null;
-          stop_condition: Json | null;
-          audience_filter: Json | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          name: string;
-          type?: Database["public"]["Enums"]["campaign_type"];
-          status?: Database["public"]["Enums"]["campaign_status"];
-          trigger_event?: string | null;
-          stop_condition?: Json | null;
-          audience_filter?: Json | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          name?: string;
-          type?: Database["public"]["Enums"]["campaign_type"];
-          status?: Database["public"]["Enums"]["campaign_status"];
-          trigger_event?: string | null;
-          stop_condition?: Json | null;
-          audience_filter?: Json | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      wa_steps: {
-        Row: {
-          id: string;
-          campaign_id: string;
-          order: number;
-          delay_hours: number;
-          wa_template_name: string;
-          wa_template_params: Json;
-          condition: Json | null;
-          template_id: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          campaign_id: string;
-          order: number;
-          delay_hours?: number;
-          wa_template_name: string;
-          wa_template_params?: Json;
-          condition?: Json | null;
-          template_id?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          campaign_id?: string;
-          order?: number;
-          delay_hours?: number;
-          wa_template_name?: string;
-          wa_template_params?: Json;
-          condition?: Json | null;
-          template_id?: string | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "wa_steps_campaign_id_fkey";
-            columns: ["campaign_id"];
-            isOneToOne: false;
-            referencedRelation: "wa_campaigns";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wa_steps_template_id_fkey";
-            columns: ["template_id"];
-            isOneToOne: false;
-            referencedRelation: "wa_templates";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      wa_sends: {
-        Row: {
-          id: string;
-          contact_id: string;
-          campaign_id: string | null;
-          step_id: string | null;
-          status: Database["public"]["Enums"]["wa_send_status"];
-          wa_message_id: string | null;
-          delivered_at: string | null;
-          read_at: string | null;
-          replied: boolean;
-          sent_at: string | null;
-          created_at: string;
-        };
-        Insert: {
-          id?: string;
-          contact_id: string;
-          campaign_id?: string | null;
-          step_id?: string | null;
-          status?: Database["public"]["Enums"]["wa_send_status"];
-          wa_message_id?: string | null;
-          delivered_at?: string | null;
-          read_at?: string | null;
-          replied?: boolean;
-          sent_at?: string | null;
-          created_at?: string;
-        };
-        Update: {
-          id?: string;
-          contact_id?: string;
-          campaign_id?: string | null;
-          step_id?: string | null;
-          status?: Database["public"]["Enums"]["wa_send_status"];
-          wa_message_id?: string | null;
-          delivered_at?: string | null;
-          read_at?: string | null;
-          replied?: boolean;
-          sent_at?: string | null;
-          created_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "wa_sends_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wa_sends_campaign_id_fkey";
-            columns: ["campaign_id"];
-            isOneToOne: false;
-            referencedRelation: "wa_campaigns";
-            referencedColumns: ["id"];
-          },
-          {
-            foreignKeyName: "wa_sends_step_id_fkey";
-            columns: ["step_id"];
-            isOneToOne: false;
-            referencedRelation: "wa_steps";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
+        ]
+      }
       booking_pages: {
         Row: {
-          id: string;
-          slug: string;
-          title: string;
-          description: string | null;
-          duration_minutes: number;
-          form_fields: Json;
-          availability_rules: Json;
-          google_calendar_id: string | null;
-          assigned_to: string[];
-          confirmation_email: boolean;
-          confirmation_wa: boolean;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
+          assigned_to: string[] | null
+          availability_rules: Json | null
+          confirmation_email: boolean | null
+          confirmation_wa: boolean | null
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          form_fields: Json | null
+          google_calendar_id: string | null
+          id: string
+          is_active: boolean
+          slug: string
+          title: string
+          updated_at: string
+        }
         Insert: {
-          id?: string;
-          slug: string;
-          title: string;
-          description?: string | null;
-          duration_minutes?: number;
-          form_fields?: Json;
-          availability_rules?: Json;
-          google_calendar_id?: string | null;
-          assigned_to?: string[];
-          confirmation_email?: boolean;
-          confirmation_wa?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
+          assigned_to?: string[] | null
+          availability_rules?: Json | null
+          confirmation_email?: boolean | null
+          confirmation_wa?: boolean | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          form_fields?: Json | null
+          google_calendar_id?: string | null
+          id?: string
+          is_active?: boolean
+          slug: string
+          title: string
+          updated_at?: string
+        }
         Update: {
-          id?: string;
-          slug?: string;
-          title?: string;
-          description?: string | null;
-          duration_minutes?: number;
-          form_fields?: Json;
-          availability_rules?: Json;
-          google_calendar_id?: string | null;
-          assigned_to?: string[];
-          confirmation_email?: boolean;
-          confirmation_wa?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
+          assigned_to?: string[] | null
+          availability_rules?: Json | null
+          confirmation_email?: boolean | null
+          confirmation_wa?: boolean | null
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          form_fields?: Json | null
+          google_calendar_id?: string | null
+          id?: string
+          is_active?: boolean
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
-          id: string;
-          booking_page_id: string | null;
-          contact_id: string;
-          assigned_to: string | null;
-          starts_at: string;
-          ends_at: string;
-          status: Database["public"]["Enums"]["booking_status"];
-          google_event_id: string | null;
-          meet_link: string | null;
-          notes: string | null;
-          outcome: Database["public"]["Enums"]["booking_outcome"] | null;
-          created_at: string;
-          updated_at: string;
-        };
+          assigned_to: string | null
+          booking_page_id: string | null
+          contact_id: string
+          created_at: string
+          ends_at: string
+          google_event_id: string | null
+          id: string
+          meet_link: string | null
+          notes: string | null
+          outcome: Database["public"]["Enums"]["booking_outcome"] | null
+          starts_at: string
+          status: Database["public"]["Enums"]["booking_status"]
+          updated_at: string
+        }
         Insert: {
-          id?: string;
-          booking_page_id?: string | null;
-          contact_id: string;
-          assigned_to?: string | null;
-          starts_at: string;
-          ends_at: string;
-          status?: Database["public"]["Enums"]["booking_status"];
-          google_event_id?: string | null;
-          meet_link?: string | null;
-          notes?: string | null;
-          outcome?: Database["public"]["Enums"]["booking_outcome"] | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          assigned_to?: string | null
+          booking_page_id?: string | null
+          contact_id: string
+          created_at?: string
+          ends_at: string
+          google_event_id?: string | null
+          id?: string
+          meet_link?: string | null
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["booking_outcome"] | null
+          starts_at: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+        }
         Update: {
-          id?: string;
-          booking_page_id?: string | null;
-          contact_id?: string;
-          assigned_to?: string | null;
-          starts_at?: string;
-          ends_at?: string;
-          status?: Database["public"]["Enums"]["booking_status"];
-          google_event_id?: string | null;
-          meet_link?: string | null;
-          notes?: string | null;
-          outcome?: Database["public"]["Enums"]["booking_outcome"] | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          assigned_to?: string | null
+          booking_page_id?: string | null
+          contact_id?: string
+          created_at?: string
+          ends_at?: string
+          google_event_id?: string | null
+          id?: string
+          meet_link?: string | null
+          notes?: string | null
+          outcome?: Database["public"]["Enums"]["booking_outcome"] | null
+          starts_at?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          updated_at?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "bookings_booking_page_id_fkey";
-            columns: ["booking_page_id"];
-            isOneToOne: false;
-            referencedRelation: "booking_pages";
-            referencedColumns: ["id"];
+            foreignKeyName: "bookings_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bookings_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
+            foreignKeyName: "bookings_booking_page_id_fkey"
+            columns: ["booking_page_id"]
+            isOneToOne: false
+            referencedRelation: "booking_pages"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "bookings_assigned_to_fkey";
-            columns: ["assigned_to"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
+            foreignKeyName: "bookings_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-      invoices: {
+        ]
+      }
+      companies: {
         Row: {
-          id: string;
-          invoice_number: string;
-          contact_id: string;
-          type: Database["public"]["Enums"]["invoice_type"];
-          status: Database["public"]["Enums"]["invoice_status"];
-          items: Json;
-          subtotal: number;
-          gst_rate: number | null;
-          gst_amount: number | null;
-          total: number;
-          gst_number: string | null;
-          due_date: string | null;
-          payment_gateway: Database["public"]["Enums"]["payment_gateway"] | null;
-          payment_link: string | null;
-          payment_id: string | null;
-          paid_at: string | null;
-          is_recurring: boolean;
-          recurrence_day: number | null;
-          pdf_url: string | null;
-          notes: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+          address: string | null
+          city: string | null
+          created_at: string
+          deleted_at: string | null
+          gst_number: string | null
+          id: string
+          industry: string | null
+          name: string
+          pincode: string | null
+          state: string | null
+          updated_at: string
+          website: string | null
+        }
         Insert: {
-          id?: string;
-          invoice_number: string;
-          contact_id: string;
-          type?: Database["public"]["Enums"]["invoice_type"];
-          status?: Database["public"]["Enums"]["invoice_status"];
-          items?: Json;
-          subtotal?: number;
-          gst_rate?: number | null;
-          gst_amount?: number | null;
-          total?: number;
-          gst_number?: string | null;
-          due_date?: string | null;
-          payment_gateway?: Database["public"]["Enums"]["payment_gateway"] | null;
-          payment_link?: string | null;
-          payment_id?: string | null;
-          paid_at?: string | null;
-          is_recurring?: boolean;
-          recurrence_day?: number | null;
-          pdf_url?: string | null;
-          notes?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          gst_number?: string | null
+          id?: string
+          industry?: string | null
+          name: string
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
         Update: {
-          id?: string;
-          invoice_number?: string;
-          contact_id?: string;
-          type?: Database["public"]["Enums"]["invoice_type"];
-          status?: Database["public"]["Enums"]["invoice_status"];
-          items?: Json;
-          subtotal?: number;
-          gst_rate?: number | null;
-          gst_amount?: number | null;
-          total?: number;
-          gst_number?: string | null;
-          due_date?: string | null;
-          payment_gateway?: Database["public"]["Enums"]["payment_gateway"] | null;
-          payment_link?: string | null;
-          payment_id?: string | null;
-          paid_at?: string | null;
-          is_recurring?: boolean;
-          recurrence_day?: number | null;
-          pdf_url?: string | null;
-          notes?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [
-          {
-            foreignKeyName: "invoices_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
-          },
-        ];
-      };
-      transactions: {
+          address?: string | null
+          city?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          gst_number?: string | null
+          id?: string
+          industry?: string | null
+          name?: string
+          pincode?: string | null
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      contact_form_responses: {
         Row: {
-          id: string;
-          type: Database["public"]["Enums"]["transaction_type"];
-          category: string;
-          amount: number;
-          description: string | null;
-          invoice_id: string | null;
-          contact_id: string | null;
-          date: string;
-          gst_applicable: boolean;
-          receipt_url: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+          blocker: string | null
+          booking_id: string | null
+          contact_id: string
+          created_at: string
+          current_role: string | null
+          desired_salary: string | null
+          financial_readiness:
+            | Database["public"]["Enums"]["financial_readiness"]
+            | null
+          form_email: string | null
+          id: string
+          key_challenge: string | null
+          urgency: Database["public"]["Enums"]["urgency_level"] | null
+          work_experience: Database["public"]["Enums"]["work_experience"] | null
+        }
         Insert: {
-          id?: string;
-          type: Database["public"]["Enums"]["transaction_type"];
-          category: string;
-          amount: number;
-          description?: string | null;
-          invoice_id?: string | null;
-          contact_id?: string | null;
-          date?: string;
-          gst_applicable?: boolean;
-          receipt_url?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          blocker?: string | null
+          booking_id?: string | null
+          contact_id: string
+          created_at?: string
+          current_role?: string | null
+          desired_salary?: string | null
+          financial_readiness?:
+            | Database["public"]["Enums"]["financial_readiness"]
+            | null
+          form_email?: string | null
+          id?: string
+          key_challenge?: string | null
+          urgency?: Database["public"]["Enums"]["urgency_level"] | null
+          work_experience?:
+            | Database["public"]["Enums"]["work_experience"]
+            | null
+        }
         Update: {
-          id?: string;
-          type?: Database["public"]["Enums"]["transaction_type"];
-          category?: string;
-          amount?: number;
-          description?: string | null;
-          invoice_id?: string | null;
-          contact_id?: string | null;
-          date?: string;
-          gst_applicable?: boolean;
-          receipt_url?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          blocker?: string | null
+          booking_id?: string | null
+          contact_id?: string
+          created_at?: string
+          current_role?: string | null
+          desired_salary?: string | null
+          financial_readiness?:
+            | Database["public"]["Enums"]["financial_readiness"]
+            | null
+          form_email?: string | null
+          id?: string
+          key_challenge?: string | null
+          urgency?: Database["public"]["Enums"]["urgency_level"] | null
+          work_experience?:
+            | Database["public"]["Enums"]["work_experience"]
+            | null
+        }
         Relationships: [
           {
-            foreignKeyName: "transactions_invoice_id_fkey";
-            columns: ["invoice_id"];
-            isOneToOne: false;
-            referencedRelation: "invoices";
-            referencedColumns: ["id"];
+            foreignKeyName: "contact_form_responses_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "transactions_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
+            foreignKeyName: "fk_form_responses_booking"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-      notifications: {
+        ]
+      }
+      contacts: {
         Row: {
-          id: string;
-          user_id: string;
-          title: string;
-          body: string | null;
-          read: boolean;
-          link: string | null;
-          created_at: string;
-        };
+          account_type: Database["public"]["Enums"]["account_type"]
+          assigned_to: string | null
+          company_id: string | null
+          company_name: string | null
+          converted_at: string | null
+          created_at: string
+          current_stage_id: string | null
+          deleted_at: string | null
+          email: string | null
+          first_name: string
+          funnel_id: string | null
+          id: string
+          last_name: string | null
+          linkedin_url: string | null
+          metadata: Json | null
+          phone: string | null
+          source: string | null
+          tags: string[] | null
+          type: Database["public"]["Enums"]["contact_type"]
+          updated_at: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
         Insert: {
-          id?: string;
-          user_id: string;
-          title: string;
-          body?: string | null;
-          read?: boolean;
-          link?: string | null;
-          created_at?: string;
-        };
+          account_type?: Database["public"]["Enums"]["account_type"]
+          assigned_to?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          converted_at?: string | null
+          created_at?: string
+          current_stage_id?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          first_name: string
+          funnel_id?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_url?: string | null
+          metadata?: Json | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[] | null
+          type?: Database["public"]["Enums"]["contact_type"]
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
         Update: {
-          id?: string;
-          user_id?: string;
-          title?: string;
-          body?: string | null;
-          read?: boolean;
-          link?: string | null;
-          created_at?: string;
-        };
+          account_type?: Database["public"]["Enums"]["account_type"]
+          assigned_to?: string | null
+          company_id?: string | null
+          company_name?: string | null
+          converted_at?: string | null
+          created_at?: string
+          current_stage_id?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          first_name?: string
+          funnel_id?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_url?: string | null
+          metadata?: Json | null
+          phone?: string | null
+          source?: string | null
+          tags?: string[] | null
+          type?: Database["public"]["Enums"]["contact_type"]
+          updated_at?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "notifications_user_id_fkey";
-            columns: ["user_id"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
+            foreignKeyName: "contacts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+          {
+            foreignKeyName: "contacts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_current_stage_id_fkey"
+            columns: ["current_stage_id"]
+            isOneToOne: false
+            referencedRelation: "funnel_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_programs: {
         Row: {
-          id: string;
-          contact_id: string;
-          program_name: string;
-          start_date: string | null;
-          end_date: string | null;
-          sessions_total: number | null;
-          sessions_completed: number;
-          mentor_id: string | null;
-          status: string | null;
-          amount: number | null;
-          notes: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+          amount: number | null
+          contact_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          mentor_id: string | null
+          notes: string | null
+          program_name: string
+          sessions_completed: number | null
+          sessions_total: number | null
+          start_date: string | null
+          status: string | null
+          updated_at: string
+        }
         Insert: {
-          id?: string;
-          contact_id: string;
-          program_name: string;
-          start_date?: string | null;
-          end_date?: string | null;
-          sessions_total?: number | null;
-          sessions_completed?: number;
-          mentor_id?: string | null;
-          status?: string | null;
-          amount?: number | null;
-          notes?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          amount?: number | null
+          contact_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          mentor_id?: string | null
+          notes?: string | null
+          program_name: string
+          sessions_completed?: number | null
+          sessions_total?: number | null
+          start_date?: string | null
+          status?: string | null
+          updated_at?: string
+        }
         Update: {
-          id?: string;
-          contact_id?: string;
-          program_name?: string;
-          start_date?: string | null;
-          end_date?: string | null;
-          sessions_total?: number | null;
-          sessions_completed?: number;
-          mentor_id?: string | null;
-          status?: string | null;
-          amount?: number | null;
-          notes?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          amount?: number | null
+          contact_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          mentor_id?: string | null
+          notes?: string | null
+          program_name?: string
+          sessions_completed?: number | null
+          sessions_total?: number | null
+          start_date?: string | null
+          status?: string | null
+          updated_at?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "customer_programs_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
+            foreignKeyName: "customer_programs_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "customer_programs_mentor_id_fkey";
-            columns: ["mentor_id"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
+            foreignKeyName: "customer_programs_mentor_id_fkey"
+            columns: ["mentor_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
           },
-        ];
-      };
+        ]
+      }
+      drip_enrollments: {
+        Row: {
+          campaign_id: string
+          campaign_type: string
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string | null
+          current_step_order: number | null
+          enrolled_at: string | null
+          id: string
+          next_send_at: string | null
+          status: string
+          stopped_reason: string | null
+        }
+        Insert: {
+          campaign_id: string
+          campaign_type?: string
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          current_step_order?: number | null
+          enrolled_at?: string | null
+          id?: string
+          next_send_at?: string | null
+          status?: string
+          stopped_reason?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          campaign_type?: string
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string | null
+          current_step_order?: number | null
+          enrolled_at?: string | null
+          id?: string
+          next_send_at?: string | null
+          status?: string
+          stopped_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drip_enrollments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_campaigns: {
+        Row: {
+          audience_filter: Json | null
+          created_at: string
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["campaign_status"]
+          stop_condition: Json | null
+          trigger_event: string | null
+          type: Database["public"]["Enums"]["campaign_type"]
+          updated_at: string
+        }
+        Insert: {
+          audience_filter?: Json | null
+          created_at?: string
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["campaign_status"]
+          stop_condition?: Json | null
+          trigger_event?: string | null
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Update: {
+          audience_filter?: Json | null
+          created_at?: string
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["campaign_status"]
+          stop_condition?: Json | null
+          trigger_event?: string | null
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_sends: {
+        Row: {
+          campaign_id: string | null
+          clicked_at: string | null
+          contact_id: string
+          created_at: string
+          id: string
+          opened_at: string | null
+          resend_message_id: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["email_send_status"]
+          step_id: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          clicked_at?: string | null
+          contact_id: string
+          created_at?: string
+          id?: string
+          opened_at?: string | null
+          resend_message_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["email_send_status"]
+          step_id?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          clicked_at?: string | null
+          contact_id?: string
+          created_at?: string
+          id?: string
+          opened_at?: string | null
+          resend_message_id?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["email_send_status"]
+          step_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_sends_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_sends_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "email_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_steps: {
+        Row: {
+          body_html: string
+          campaign_id: string
+          condition: Json | null
+          created_at: string
+          delay_hours: number
+          id: string
+          order: number
+          subject: string
+          template_id: string | null
+        }
+        Insert: {
+          body_html: string
+          campaign_id: string
+          condition?: Json | null
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          order: number
+          subject: string
+          template_id?: string | null
+        }
+        Update: {
+          body_html?: string
+          campaign_id?: string
+          condition?: Json | null
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          order?: number
+          subject?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_steps_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body_html: string
+          created_at: string
+          id: string
+          name: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body_html: string
+          created_at?: string
+          id?: string
+          name: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body_html?: string
+          created_at?: string
+          id?: string
+          name?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       files: {
         Row: {
-          id: string;
-          contact_id: string | null;
-          uploaded_by: string | null;
-          file_name: string;
-          file_type: string | null;
-          file_size: number | null;
-          storage_path: string;
-          created_at: string;
-        };
+          contact_id: string | null
+          created_at: string
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          storage_path: string
+          uploaded_by: string | null
+        }
         Insert: {
-          id?: string;
-          contact_id?: string | null;
-          uploaded_by?: string | null;
-          file_name: string;
-          file_type?: string | null;
-          file_size?: number | null;
-          storage_path: string;
-          created_at?: string;
-        };
+          contact_id?: string | null
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          storage_path: string
+          uploaded_by?: string | null
+        }
         Update: {
-          id?: string;
-          contact_id?: string | null;
-          uploaded_by?: string | null;
-          file_name?: string;
-          file_type?: string | null;
-          file_size?: number | null;
-          storage_path?: string;
-          created_at?: string;
-        };
+          contact_id?: string | null
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          storage_path?: string
+          uploaded_by?: string | null
+        }
         Relationships: [
           {
-            foreignKeyName: "files_contact_id_fkey";
-            columns: ["contact_id"];
-            isOneToOne: false;
-            referencedRelation: "contacts";
-            referencedColumns: ["id"];
+            foreignKeyName: "files_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "files_uploaded_by_fkey";
-            columns: ["uploaded_by"];
-            isOneToOne: false;
-            referencedRelation: "team_members";
-            referencedColumns: ["id"];
+            foreignKeyName: "files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
           },
-        ];
-      };
-    };
+        ]
+      }
+      funnel_stages: {
+        Row: {
+          auto_action: Json | null
+          color: string
+          created_at: string
+          funnel_id: string
+          id: string
+          is_terminal: boolean
+          name: string
+          order: number
+        }
+        Insert: {
+          auto_action?: Json | null
+          color?: string
+          created_at?: string
+          funnel_id: string
+          id?: string
+          is_terminal?: boolean
+          name: string
+          order: number
+        }
+        Update: {
+          auto_action?: Json | null
+          color?: string
+          created_at?: string
+          funnel_id?: string
+          id?: string
+          is_terminal?: boolean
+          name?: string
+          order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funnel_stages_funnel_id_fkey"
+            columns: ["funnel_id"]
+            isOneToOne: false
+            referencedRelation: "funnels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      funnels: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          sales_type: Database["public"]["Enums"]["sales_type"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          sales_type?: Database["public"]["Enums"]["sales_type"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          sales_type?: Database["public"]["Enums"]["sales_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      invoices: {
+        Row: {
+          contact_id: string
+          created_at: string
+          due_date: string | null
+          gst_amount: number | null
+          gst_number: string | null
+          gst_rate: number | null
+          id: string
+          invoice_number: string
+          is_recurring: boolean | null
+          items: Json
+          notes: string | null
+          paid_at: string | null
+          payment_gateway: Database["public"]["Enums"]["payment_gateway"] | null
+          payment_id: string | null
+          payment_link: string | null
+          pdf_url: string | null
+          recurrence_day: number | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          total: number
+          type: Database["public"]["Enums"]["invoice_type"]
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          due_date?: string | null
+          gst_amount?: number | null
+          gst_number?: string | null
+          gst_rate?: number | null
+          id?: string
+          invoice_number: string
+          is_recurring?: boolean | null
+          items?: Json
+          notes?: string | null
+          paid_at?: string | null
+          payment_gateway?:
+            | Database["public"]["Enums"]["payment_gateway"]
+            | null
+          payment_id?: string | null
+          payment_link?: string | null
+          pdf_url?: string | null
+          recurrence_day?: number | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          total?: number
+          type?: Database["public"]["Enums"]["invoice_type"]
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          due_date?: string | null
+          gst_amount?: number | null
+          gst_number?: string | null
+          gst_rate?: number | null
+          id?: string
+          invoice_number?: string
+          is_recurring?: boolean | null
+          items?: Json
+          notes?: string | null
+          paid_at?: string | null
+          payment_gateway?:
+            | Database["public"]["Enums"]["payment_gateway"]
+            | null
+          payment_id?: string | null
+          payment_link?: string | null
+          pdf_url?: string | null
+          recurrence_day?: number | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          total?: number
+          type?: Database["public"]["Enums"]["invoice_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          created_at: string
+          id: string
+          link: string | null
+          read: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          id?: string
+          link?: string | null
+          read?: boolean
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tasks: {
+        Row: {
+          assigned_to: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          description: string | null
+          due_at: string | null
+          id: string
+          priority: Database["public"]["Enums"]["task_priority"]
+          status: Database["public"]["Enums"]["task_status"]
+          title: string
+          type: Database["public"]["Enums"]["task_type"]
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          title: string
+          type?: Database["public"]["Enums"]["task_type"]
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          description?: string | null
+          due_at?: string | null
+          id?: string
+          priority?: Database["public"]["Enums"]["task_priority"]
+          status?: Database["public"]["Enums"]["task_status"]
+          title?: string
+          type?: Database["public"]["Enums"]["task_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          auth_user_id: string | null
+          avatar_url: string | null
+          created_at: string
+          email: string
+          google_access_token: string | null
+          google_calendar_connected: boolean | null
+          google_calendar_id: string | null
+          google_refresh_token: string | null
+          google_token_expires_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          phone: string | null
+          role: Database["public"]["Enums"]["team_role"]
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          email: string
+          google_access_token?: string | null
+          google_calendar_connected?: boolean | null
+          google_calendar_id?: string | null
+          google_refresh_token?: string | null
+          google_token_expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["team_role"]
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          google_access_token?: string | null
+          google_calendar_connected?: boolean | null
+          google_calendar_id?: string | null
+          google_refresh_token?: string | null
+          google_token_expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          phone?: string | null
+          role?: Database["public"]["Enums"]["team_role"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          category: string
+          contact_id: string | null
+          created_at: string
+          date: string
+          description: string | null
+          gst_applicable: boolean | null
+          id: string
+          invoice_id: string | null
+          receipt_url: string | null
+          type: Database["public"]["Enums"]["transaction_type"]
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          contact_id?: string | null
+          created_at?: string
+          date?: string
+          description?: string | null
+          gst_applicable?: boolean | null
+          id?: string
+          invoice_id?: string | null
+          receipt_url?: string | null
+          type: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          contact_id?: string | null
+          created_at?: string
+          date?: string
+          description?: string | null
+          gst_applicable?: boolean | null
+          id?: string
+          invoice_id?: string | null
+          receipt_url?: string | null
+          type?: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_campaigns: {
+        Row: {
+          audience_filter: Json | null
+          created_at: string
+          flow_data: Json | null
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["campaign_status"]
+          stop_condition: Json | null
+          trigger_event: string | null
+          type: Database["public"]["Enums"]["campaign_type"]
+          updated_at: string
+        }
+        Insert: {
+          audience_filter?: Json | null
+          created_at?: string
+          flow_data?: Json | null
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["campaign_status"]
+          stop_condition?: Json | null
+          trigger_event?: string | null
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Update: {
+          audience_filter?: Json | null
+          created_at?: string
+          flow_data?: Json | null
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["campaign_status"]
+          stop_condition?: Json | null
+          trigger_event?: string | null
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      wa_sends: {
+        Row: {
+          campaign_id: string | null
+          contact_id: string
+          created_at: string
+          delivered_at: string | null
+          id: string
+          read_at: string | null
+          replied: boolean | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["wa_send_status"]
+          step_id: string | null
+          wa_message_id: string | null
+        }
+        Insert: {
+          campaign_id?: string | null
+          contact_id: string
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          read_at?: string | null
+          replied?: boolean | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["wa_send_status"]
+          step_id?: string | null
+          wa_message_id?: string | null
+        }
+        Update: {
+          campaign_id?: string | null
+          contact_id?: string
+          created_at?: string
+          delivered_at?: string | null
+          id?: string
+          read_at?: string | null
+          replied?: boolean | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["wa_send_status"]
+          step_id?: string | null
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_sends_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "wa_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sends_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_sends_step_id_fkey"
+            columns: ["step_id"]
+            isOneToOne: false
+            referencedRelation: "wa_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_steps: {
+        Row: {
+          campaign_id: string
+          condition: Json | null
+          created_at: string
+          delay_hours: number
+          id: string
+          order: number
+          template_id: string | null
+          wa_template_name: string
+          wa_template_params: Json | null
+        }
+        Insert: {
+          campaign_id: string
+          condition?: Json | null
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          order: number
+          template_id?: string | null
+          wa_template_name: string
+          wa_template_params?: Json | null
+        }
+        Update: {
+          campaign_id?: string
+          condition?: Json | null
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          order?: number
+          template_id?: string | null
+          wa_template_name?: string
+          wa_template_params?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_steps_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "wa_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "wa_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_templates: {
+        Row: {
+          body_text: string | null
+          buttons: Json | null
+          category: string | null
+          created_at: string
+          footer_text: string | null
+          header_text: string | null
+          id: string
+          language: string
+          meta_template_id: string | null
+          name: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          body_text?: string | null
+          buttons?: Json | null
+          category?: string | null
+          created_at?: string
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          language?: string
+          meta_template_id?: string | null
+          name: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body_text?: string | null
+          buttons?: Json | null
+          category?: string | null
+          created_at?: string
+          footer_text?: string | null
+          header_text?: string | null
+          id?: string
+          language?: string
+          meta_template_id?: string | null
+          name?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+    }
     Views: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Functions: {
-      [_ in never]: never;
-    };
+      [_ in never]: never
+    }
     Enums: {
-      contact_type: "prospect" | "customer" | "lead";
-      account_type: "individual" | "business";
-      work_experience: "fresher" | "<2_years" | "3-5_years" | "5-10_years" | "10+_years";
-      financial_readiness: "ready" | "careful_but_open" | "not_ready";
-      urgency_level: "right_now" | "within_90_days" | "more_than_90_days";
-      sales_type: "vsl" | "webinar" | "workshop" | "short_course" | "direct_outreach" | "custom";
-      activity_type: "note" | "call" | "email_sent" | "email_opened" | "wa_sent" | "wa_delivered" | "wa_read" | "stage_change" | "booking_created" | "payment_received" | "invoice_sent" | "form_submitted";
-      task_priority: "low" | "medium" | "high" | "urgent";
-      task_status: "pending" | "completed" | "overdue" | "cancelled";
-      task_type: "follow_up" | "call" | "email" | "general";
-      campaign_type: "drip" | "one_time" | "newsletter";
-      campaign_status: "draft" | "active" | "paused" | "completed";
-      email_send_status: "queued" | "sent" | "delivered" | "opened" | "clicked" | "bounced" | "failed";
-      wa_send_status: "queued" | "sent" | "delivered" | "read" | "failed";
-      booking_status: "confirmed" | "cancelled" | "completed" | "no_show";
-      booking_outcome: "qualified" | "not_qualified" | "needs_follow_up" | "converted";
-      invoice_type: "estimate" | "invoice";
-      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled";
-      payment_gateway: "cashfree" | "stripe" | "manual";
-      transaction_type: "income" | "expense";
-      team_role: "admin" | "sales" | "marketing" | "viewer";
-    };
+      account_type: "individual" | "business"
+      activity_type:
+        | "note"
+        | "call"
+        | "email_sent"
+        | "email_opened"
+        | "wa_sent"
+        | "wa_delivered"
+        | "wa_read"
+        | "stage_change"
+        | "booking_created"
+        | "payment_received"
+        | "invoice_sent"
+        | "form_submitted"
+      booking_outcome:
+        | "qualified"
+        | "not_qualified"
+        | "needs_follow_up"
+        | "converted"
+      booking_status: "confirmed" | "cancelled" | "completed" | "no_show"
+      campaign_status: "draft" | "active" | "paused" | "completed"
+      campaign_type: "drip" | "one_time" | "newsletter"
+      contact_type: "prospect" | "customer" | "lead"
+      email_send_status:
+        | "queued"
+        | "sent"
+        | "delivered"
+        | "opened"
+        | "clicked"
+        | "bounced"
+        | "failed"
+      financial_readiness: "ready" | "careful_but_open" | "not_ready"
+      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
+      invoice_type: "estimate" | "invoice"
+      payment_gateway: "cashfree" | "stripe" | "manual"
+      sales_type:
+        | "vsl"
+        | "webinar"
+        | "workshop"
+        | "short_course"
+        | "direct_outreach"
+        | "custom"
+      task_priority: "low" | "medium" | "high" | "urgent"
+      task_status: "pending" | "completed" | "overdue" | "cancelled"
+      task_type: "follow_up" | "call" | "email" | "general"
+      team_role: "admin" | "sales" | "marketing" | "viewer"
+      transaction_type: "income" | "expense"
+      urgency_level: "right_now" | "within_90_days" | "more_than_90_days"
+      wa_send_status: "queued" | "sent" | "delivered" | "read" | "failed"
+      work_experience:
+        | "fresher"
+        | "<2_years"
+        | "3-5_years"
+        | "5-10_years"
+        | "10+_years"
+    }
     CompositeTypes: {
-      [_ in never]: never;
-    };
-  };
-};
+      [_ in never]: never
+    }
+  }
+}
 
-// Helper types for cleaner imports
-type PublicSchema = Database[Extract<keyof Database, "public">];
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
-      Row: infer R;
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
-        Row: infer R;
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
       }
       ? R
       : never
-    : never;
+    : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Insert: infer I;
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
-        Insert: infer I;
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
       }
       ? I
       : never
-    : never;
+    : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
-    | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
-      Update: infer U;
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
-        Update: infer U;
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
       }
       ? U
       : never
-    : never;
+    : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
-    | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
-    : never;
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      account_type: ["individual", "business"],
+      activity_type: [
+        "note",
+        "call",
+        "email_sent",
+        "email_opened",
+        "wa_sent",
+        "wa_delivered",
+        "wa_read",
+        "stage_change",
+        "booking_created",
+        "payment_received",
+        "invoice_sent",
+        "form_submitted",
+      ],
+      booking_outcome: [
+        "qualified",
+        "not_qualified",
+        "needs_follow_up",
+        "converted",
+      ],
+      booking_status: ["confirmed", "cancelled", "completed", "no_show"],
+      campaign_status: ["draft", "active", "paused", "completed"],
+      campaign_type: ["drip", "one_time", "newsletter"],
+      contact_type: ["prospect", "customer", "lead"],
+      email_send_status: [
+        "queued",
+        "sent",
+        "delivered",
+        "opened",
+        "clicked",
+        "bounced",
+        "failed",
+      ],
+      financial_readiness: ["ready", "careful_but_open", "not_ready"],
+      invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
+      invoice_type: ["estimate", "invoice"],
+      payment_gateway: ["cashfree", "stripe", "manual"],
+      sales_type: [
+        "vsl",
+        "webinar",
+        "workshop",
+        "short_course",
+        "direct_outreach",
+        "custom",
+      ],
+      task_priority: ["low", "medium", "high", "urgent"],
+      task_status: ["pending", "completed", "overdue", "cancelled"],
+      task_type: ["follow_up", "call", "email", "general"],
+      team_role: ["admin", "sales", "marketing", "viewer"],
+      transaction_type: ["income", "expense"],
+      urgency_level: ["right_now", "within_90_days", "more_than_90_days"],
+      wa_send_status: ["queued", "sent", "delivered", "read", "failed"],
+      work_experience: [
+        "fresher",
+        "<2_years",
+        "3-5_years",
+        "5-10_years",
+        "10+_years",
+      ],
+    },
+  },
+} as const

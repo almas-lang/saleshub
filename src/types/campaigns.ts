@@ -1,0 +1,106 @@
+import type { Tables, TablesInsert, TablesUpdate, Enums } from "@/lib/supabase/types";
+
+// Row types (what you get back from a SELECT)
+export type WACampaign = Tables<"wa_campaigns">;
+export type WAStep = Tables<"wa_steps">;
+export type WASend = Tables<"wa_sends">;
+export type WATemplate = Tables<"wa_templates">;
+
+// Insert types (what you pass to an INSERT)
+export type WACampaignInsert = TablesInsert<"wa_campaigns">;
+export type WAStepInsert = TablesInsert<"wa_steps">;
+export type WASendInsert = TablesInsert<"wa_sends">;
+
+// Update types (what you pass to an UPDATE)
+export type WACampaignUpdate = TablesUpdate<"wa_campaigns">;
+export type WAStepUpdate = TablesUpdate<"wa_steps">;
+export type WASendUpdate = TablesUpdate<"wa_sends">;
+
+// Enum aliases
+export type CampaignType = Enums<"campaign_type">;     // "drip" | "one_time" | "newsletter"
+export type CampaignStatus = Enums<"campaign_status">; // "draft" | "active" | "paused" | "completed"
+export type WASendStatus = Enums<"wa_send_status">;    // "queued" | "sent" | "delivered" | "read" | "failed"
+
+// Audience filter for campaign targeting
+export interface AudienceFilter {
+  source?: string;
+  funnel_id?: string;
+  stage_id?: string;
+  assigned_to?: string;
+  tags?: string[];
+}
+
+// Draft step shape used in the campaign wizard
+export interface CampaignStepDraft {
+  template_id: string;
+  wa_template_name: string;
+  delay_hours: number;
+  wa_template_params: string[];
+  condition?: { check: string; value?: string };
+}
+
+// ── Flow builder node data types ──
+
+export interface TriggerNodeData {
+  nodeType: "trigger";
+  event: "manual" | "lead_created";
+}
+
+export interface SendNodeData {
+  nodeType: "send";
+  templateId: string;
+  templateName: string;
+  templateParams: string[];
+}
+
+export interface DelayNodeData {
+  nodeType: "delay";
+  hours: number;
+}
+
+export interface ConditionNodeData {
+  nodeType: "condition";
+  check: "booking_created" | "replied";
+}
+
+export interface StopNodeData {
+  nodeType: "stop";
+  reason: "completed" | "booked";
+}
+
+export type FlowNodeData =
+  | TriggerNodeData
+  | SendNodeData
+  | DelayNodeData
+  | ConditionNodeData
+  | StopNodeData;
+
+export interface FlowNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: FlowNodeData;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string | null;
+  targetHandle?: string | null;
+}
+
+export interface FlowData {
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+}
+
+// Campaign with aggregated send stats (for list view)
+export type WACampaignWithStats = WACampaign & {
+  step_count: number;
+  recipient_count: number;
+  sent_count: number;
+  delivered_count: number;
+  read_count: number;
+  failed_count: number;
+};

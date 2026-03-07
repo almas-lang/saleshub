@@ -198,6 +198,29 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── React Flow dark mode overrides ─── */
+.dark .drip-flow .react-flow__background {
+  background-color: hsl(225 45% 7%);
+}
+.dark .drip-flow .react-flow__minimap {
+  background-color: hsl(225 38% 11%);
+}
+.dark .drip-flow .react-flow__controls button {
+  background-color: hsl(225 38% 15%);
+  border-color: hsl(225 28% 19%);
+  color: hsl(220 15% 90%);
+  fill: hsl(220 15% 90%);
+}
+.dark .drip-flow .react-flow__controls button:hover {
+  background-color: hsl(225 28% 22%);
+}
+.dark .drip-flow .react-flow__edge-path {
+  stroke: hsl(231 90% 68%);
+}
+.dark .drip-flow .react-flow__connection-line {
+  stroke: hsl(231 90% 68%);
+}
+
 /* Kanban drop splash */
 @keyframes dropSplash {
   0%   { box-shadow: 0 0 0 0 hsl(231 92% 63% / 0.4); }

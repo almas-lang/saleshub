@@ -61,6 +61,7 @@ import { FollowUpDialog } from "./follow-up-dialog";
 import { ActivitySummaryCard } from "./activity-summary-card";
 import { TagsCard } from "./tags-card";
 import { MobileFab } from "./mobile-fab";
+import { SendWhatsAppDialog } from "./send-whatsapp-dialog";
 
 interface FunnelOption {
   id: string;
@@ -132,6 +133,7 @@ export function ProspectDetail({
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [sendWaOpen, setSendWaOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -429,15 +431,13 @@ export function ProspectDetail({
             </a>
           )}
           {prospect.phone && (
-            <a
-              href={`https://wa.me/${prospect.phone.replace(/\D/g, "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               className="flex items-center gap-2.5 h-9 px-3 rounded-lg border text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+              onClick={() => setSendWaOpen(true)}
             >
               <MessageSquare className="size-4" />
               WhatsApp
-            </a>
+            </button>
           )}
           <button
             className="flex items-center gap-2.5 h-9 px-3 rounded-lg border text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
@@ -469,6 +469,18 @@ export function ProspectDetail({
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              {prospect.phone && (
+                <DropdownMenuItem asChild>
+                  <a
+                    href={`https://wa.me/${prospect.phone.replace(/\D/g, "")}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="mr-2 size-4" />
+                    Open in WhatsApp
+                  </a>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setFormOpen(true)}>
                 <Pencil className="mr-2 size-4" />
                 Edit
@@ -492,6 +504,7 @@ export function ProspectDetail({
         onFollowUp={() => setFollowUpOpen(true)}
         onEdit={() => setFormOpen(true)}
         onDelete={() => setDeleteOpen(true)}
+        onSendWhatsApp={() => setSendWaOpen(true)}
       />
 
       {/* Tabs */}
@@ -909,6 +922,16 @@ export function ProspectDetail({
         contactId={prospect.id}
         contactFirstName={prospect.first_name}
       />
+
+      {prospect.phone && (
+        <SendWhatsAppDialog
+          open={sendWaOpen}
+          onOpenChange={setSendWaOpen}
+          contactId={prospect.id}
+          contactFirstName={prospect.first_name}
+          contactPhone={formatPhone(prospect.phone)}
+        />
+      )}
 
       <ConfirmDialog
         open={!!deletingNoteId}

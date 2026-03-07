@@ -9,8 +9,6 @@ import {
 } from "@/lib/import-utils";
 import { sendEmail } from "@/lib/email/client";
 import { renderBookingConfirmationEmail } from "@/lib/email/templates/booking-confirmation";
-import { renderBookingReminderEmail } from "@/lib/email/templates/booking-reminder";
-import { format } from "date-fns";
 
 // ──────────────────────────────────────────
 // Question → field mapping (matches FORM_RESPONSE_SYNONYM_MAP patterns)
@@ -455,30 +453,7 @@ export async function POST(request: NextRequest) {
     emailErrors.push(`confirmation: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);
   }
 
-  // ── Step 8.6: Send booking reminder email (TEST — remove after testing) ──
-  try {
-    const startsAt = startTime ? new Date(startTime) : new Date();
-    const { subject: remSubject, html: remHtml } = await renderBookingReminderEmail({
-      firstName: firstName || "there",
-      date: format(startsAt, "MMMM d, yyyy"),
-      time: format(startsAt, "h:mm a"),
-      hostName,
-      meetLink: meetLink || "#",
-    });
-    const remResult = await sendEmail({ to: email, subject: remSubject, html: remHtml });
-    if (!remResult.success) {
-      emailErrors.push(`reminder: ${remResult.error}`);
-    } else {
-      await supabaseAdmin.from("activities").insert({
-        contact_id: contactId,
-        type: "email_sent",
-        title: "Booking reminder email sent (TEST)",
-        metadata: { template: "booking-reminder" },
-      });
-    }
-  } catch (emailErr) {
-    emailErrors.push(`reminder: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);
-  }
+  // Booking reminder is handled by the booking-reminder cron job (23-25h before start)
 
   // ── Step 9: Return 200 ──────────────────────────
   console.log(

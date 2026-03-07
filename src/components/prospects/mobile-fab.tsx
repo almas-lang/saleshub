@@ -23,6 +23,7 @@ interface MobileFabProps {
   onFollowUp: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSendWhatsApp?: () => void;
 }
 
 export function MobileFab({
@@ -31,6 +32,7 @@ export function MobileFab({
   onFollowUp,
   onEdit,
   onDelete,
+  onSendWhatsApp,
 }: MobileFabProps) {
   const [open, setOpen] = useState(false);
 
@@ -50,7 +52,7 @@ export function MobileFab({
           {
             icon: MessageSquare,
             label: "WhatsApp",
-            href: `https://wa.me/${phone.replace(/\D/g, "")}`,
+            onClick: () => handleAction(onSendWhatsApp ?? (() => {})),
           },
         ]
       : []),

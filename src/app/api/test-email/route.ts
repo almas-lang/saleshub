@@ -8,10 +8,9 @@ import { renderBookingReminderEmail } from "@/lib/email/templates/booking-remind
 import { renderNoBook48hEmail } from "@/lib/email/templates/no-book-48h";
 
 export async function GET(request: Request) {
-  // TODO: re-enable production check after testing
-  // if (process.env.NODE_ENV === "production") {
-  //   return NextResponse.json({ error: "Not available in production" }, { status: 403 });
-  // }
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not available in production" }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const to = searchParams.get("to");

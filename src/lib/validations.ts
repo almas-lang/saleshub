@@ -188,3 +188,48 @@ export const importFormResponseBatchSchema = z.object({
 });
 
 export type ImportFormResponseBatchValues = z.infer<typeof importFormResponseBatchSchema>;
+
+// ──────────────────────────────────────────
+// WhatsApp Campaigns
+// ──────────────────────────────────────────
+
+export const createCampaignSchema = z.object({
+  name: z.string().min(1, "Campaign name is required").max(100),
+  type: z.enum(["drip", "one_time", "newsletter"]),
+  audience_filter: z.object({
+    source: z.string().optional(),
+    funnel_id: z.string().optional(),
+    stage_id: z.string().optional(),
+    assigned_to: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }).optional(),
+  steps: z.array(z.object({
+    order: z.number().int().min(1),
+    wa_template_name: z.string().min(1, "Template name is required"),
+    template_id: z.string().optional().or(z.literal("")),
+    delay_hours: z.number().int().min(0),
+    wa_template_params: z.array(z.string()),
+    condition: z.object({
+      check: z.string(),
+      value: z.string().optional(),
+    }).optional(),
+  })).min(1, "At least one step is required"),
+  activate: z.boolean().optional(),
+  flow_data: z.object({
+    nodes: z.array(z.object({
+      id: z.string(),
+      type: z.string(),
+      position: z.object({ x: z.number(), y: z.number() }),
+      data: z.record(z.string(), z.unknown()),
+    })),
+    edges: z.array(z.object({
+      id: z.string(),
+      source: z.string(),
+      target: z.string(),
+      sourceHandle: z.string().nullable().optional(),
+      targetHandle: z.string().nullable().optional(),
+    })),
+  }).optional(),
+});
+
+export type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
