@@ -15,9 +15,14 @@ const BATCH_LIMIT = 50;
  * sends via Resend, and updates status.
  */
 export async function GET(request: NextRequest) {
-  // Auth check
+  // Auth check (header or query param)
   const authHeader = request.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const { searchParams } = new URL(request.url);
+  const querySecret = searchParams.get("secret");
+  const isAuthed =
+    authHeader === `Bearer ${process.env.CRON_SECRET}` ||
+    querySecret === process.env.CRON_SECRET;
+  if (!isAuthed) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
