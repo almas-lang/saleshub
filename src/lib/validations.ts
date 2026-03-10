@@ -233,3 +233,33 @@ export const createCampaignSchema = z.object({
 });
 
 export type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
+
+// ──────────────────────────────────────────
+// Email Campaigns
+// ──────────────────────────────────────────
+
+export const createEmailCampaignSchema = z.object({
+  name: z.string().min(1, "Campaign name is required").max(100),
+  type: z.enum(["drip", "one_time", "newsletter"]),
+  audience_filter: z.object({
+    source: z.string().optional(),
+    funnel_id: z.string().optional(),
+    stage_id: z.string().optional(),
+    assigned_to: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    extra_emails: z.array(z.string().email()).optional(),
+  }).optional(),
+  steps: z.array(z.object({
+    order: z.number().int().min(1),
+    subject: z.string().min(1, "Subject is required"),
+    body_html: z.string().min(1, "Body is required"),
+    delay_hours: z.number().int().min(0),
+    condition: z.object({
+      check: z.string(),
+      value: z.string().optional(),
+    }).optional(),
+  })).min(1, "At least one step is required"),
+  activate: z.boolean().optional(),
+});
+
+export type CreateEmailCampaignValues = z.infer<typeof createEmailCampaignSchema>;

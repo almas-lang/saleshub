@@ -1,0 +1,293 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { safeFetch } from "@/lib/fetch";
+import type {
+  AudienceFilter,
+  EmailStepDraft,
+  CampaignType,
+  FlowData,
+} from "@/types/campaigns";
+import { CampaignStepDetails } from "./campaign-step-details";
+import { CampaignStepAudience } from "./campaign-step-audience";
+import { EmailCampaignStepMessages } from "./email-campaign-step-messages";
+import { EmailCampaignStepReview } from "./email-campaign-step-review";
+import { EmailDripFlowCanvas, validateEmailFlow, flowToEmailSteps } from "./email-drip-flow-canvas";
+
+interface FilterOption {
+  id: string;
+  name: string;
+}
+
+interface StageOption extends FilterOption {
+  funnel_id: string;
+  order: number;
+}
+
+interface EmailCampaignWizardProps {
+  funnels: FilterOption[];
+  stages: StageOption[];
+  teamMembers: FilterOption[];
+  sources: string[];
+}
+
+const STEPS = [
+  { label: "Details" },
+  { label: "Audience" },
+  { label: "Messages" },
+  { label: "Review" },
+];
+
+export function EmailCampaignWizard({
+  funnels,
+  stages,
+  teamMembers,
+  sources,
+}: EmailCampaignWizardProps) {
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+
+  // Step 1 -- Details
+  const [name, setName] = useState("");
+  const [type, setType] = useState<CampaignType>("one_time");
+
+  // Step 2 -- Audience
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>({});
+  const [audienceCount, setAudienceCount] = useState(0);
+  const [countLoading, setCountLoading] = useState(false);
+
+  // Step 3 -- Messages (one-time / newsletter)
+  const [campaignSteps, setCampaignSteps] = useState<EmailStepDraft[]>([
+    { subject: "", body_html: "", delay_hours: 0 },
+  ]);
+
+  // Step 3 -- Flow builder (drip only)
+  const [flowData, setFlowData] = useState<FlowData | null>(null);
+
+  // Step 4 -- Review / saving
+  const [saving, setSaving] = useState(false);
+
+  // Reset steps when campaign type changes
+  const prevType = useRef(type);
+  useEffect(() => {
+    if (prevType.current !== type) {
+      prevType.current = type;
+      setCampaignSteps([{ subject: "", body_html: "", delay_hours: 0 }]);
+      setFlowData(null);
+    }
+  }, [type]);
+
+  // Audience count -- debounced
+  useEffect(() => {
+    setCountLoading(true);
+    const params = new URLSearchParams();
+    if (audienceFilter.source) params.set("source", audienceFilter.source);
+    if (audienceFilter.funnel_id) params.set("funnel_id", audienceFilter.funnel_id);
+    if (audienceFilter.stage_id) params.set("stage_id", audienceFilter.stage_id);
+    if (audienceFilter.assigned_to) params.set("assigned_to", audienceFilter.assigned_to);
+    if (audienceFilter.tags?.length) params.set("tags", audienceFilter.tags.join(","));
+
+    const timeout = setTimeout(() => {
+      safeFetch<{ count: number }>(
+        `/api/campaigns/email/audience-count?${params.toString()}`
+      ).then((result) => {
+        setCountLoading(false);
+        if (result.ok) {
+          setAudienceCount(result.data.count);
+        }
+      });
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [audienceFilter]);
+
+  // canProceed
+  const canProceed = (() => {
+    switch (step) {
+      case 0:
+        return name.trim().length > 0;
+      case 1:
+        return (audienceCount + (audienceFilter.extra_emails?.length ?? 0)) > 0;
+      case 2:
+        if (type === "drip") {
+          return flowData !== null && validateEmailFlow(flowData);
+        }
+        return campaignSteps.every((s) => s.subject.trim().length > 0 && s.body_html.trim().length > 0);
+      case 3:
+        return true;
+      default:
+        return false;
+    }
+  })();
+
+  const handleSave = useCallback(
+    async (activate: boolean) => {
+      setSaving(true);
+
+      const isDrip = type === "drip";
+      const resolvedSteps = isDrip && flowData
+        ? flowToEmailSteps(flowData)
+        : campaignSteps;
+
+      const payload = {
+        name: name.trim(),
+        type,
+        audience_filter: audienceFilter,
+        steps: resolvedSteps.map((s, i) => ({
+          order: i + 1,
+          subject: s.subject,
+          body_html: s.body_html,
+          delay_hours: i === 0 ? 0 : s.delay_hours,
+          ...(s.condition ? { condition: s.condition } : {}),
+        })),
+        activate,
+      };
+
+      const result = await safeFetch("/api/campaigns/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      setSaving(false);
+
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+
+      toast.success(
+        activate ? "Campaign created and activated" : "Campaign saved as draft"
+      );
+      router.push("/email");
+    },
+    [name, type, audienceFilter, campaignSteps, flowData, router]
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Step indicator */}
+      <div className="flex items-center justify-center gap-0">
+        {STEPS.map((s, i) => (
+          <div key={s.label} className="flex items-center">
+            <div className="flex flex-col items-center gap-1">
+              <div
+                className={cn(
+                  "flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors",
+                  i < step
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : i === step
+                      ? "border-primary text-primary"
+                      : "border-muted-foreground/30 text-muted-foreground/50"
+                )}
+              >
+                {i < step ? "\u2713" : i + 1}
+              </div>
+              <span
+                className={cn(
+                  "text-[11px] font-medium",
+                  i <= step
+                    ? "text-foreground"
+                    : "text-muted-foreground/50"
+                )}
+              >
+                {s.label}
+              </span>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div
+                className={cn(
+                  "mx-2 mb-5 h-0.5 w-8 sm:w-12",
+                  i < step ? "bg-primary" : "bg-muted-foreground/20"
+                )}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Step content */}
+      <div className={cn(
+        "mx-auto",
+        step === 2 && type === "drip" ? "max-w-5xl" : "max-w-2xl",
+      )}>
+        {step === 0 && (
+          <CampaignStepDetails
+            name={name}
+            onNameChange={setName}
+            type={type}
+            onTypeChange={setType}
+          />
+        )}
+
+        {step === 1 && (
+          <CampaignStepAudience
+            filter={audienceFilter}
+            onFilterChange={setAudienceFilter}
+            sources={sources}
+            funnels={funnels}
+            stages={stages}
+            teamMembers={teamMembers}
+            audienceCount={audienceCount}
+            countLoading={countLoading}
+            channel="email"
+          />
+        )}
+
+        {step === 2 && type === "drip" && (
+          <EmailDripFlowCanvas
+            flowData={flowData}
+            onFlowChange={setFlowData}
+          />
+        )}
+
+        {step === 2 && type !== "drip" && (
+          <EmailCampaignStepMessages
+            steps={campaignSteps}
+            onStepsChange={setCampaignSteps}
+            campaignType={type}
+          />
+        )}
+
+        {step === 3 && (
+          <EmailCampaignStepReview
+            name={name}
+            type={type}
+            filter={audienceFilter}
+            steps={type === "drip" && flowData ? flowToEmailSteps(flowData) : campaignSteps}
+            audienceCount={audienceCount}
+            saving={saving}
+            onSave={handleSave}
+            funnels={funnels}
+            stages={stages}
+            teamMembers={teamMembers}
+            sources={sources}
+          />
+        )}
+      </div>
+
+      {/* Navigation */}
+      {step < 3 && (
+        <div className={cn(
+          "mx-auto flex justify-between",
+          step === 2 && type === "drip" ? "max-w-5xl" : "max-w-2xl",
+        )}>
+          {step > 0 ? (
+            <Button variant="outline" onClick={() => setStep(step - 1)}>
+              Back
+            </Button>
+          ) : (
+            <div />
+          )}
+          <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
+            Continue
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}

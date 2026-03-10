@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/drip-processor",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/email-dispatcher",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

@@ -28,6 +28,7 @@ export interface AudienceFilter {
   stage_id?: string;
   assigned_to?: string;
   tags?: string[];
+  extra_emails?: string[];
 }
 
 // Draft step shape used in the campaign wizard
@@ -102,5 +103,50 @@ export type WACampaignWithStats = WACampaign & {
   sent_count: number;
   delivered_count: number;
   read_count: number;
+  failed_count: number;
+};
+
+// ── Email Campaign Types ──
+
+// Row types
+export type EmailCampaign = Tables<"email_campaigns">;
+export type EmailStep = Tables<"email_steps">;
+export type EmailSend = Tables<"email_sends">;
+
+// Insert types
+export type EmailCampaignInsert = TablesInsert<"email_campaigns">;
+export type EmailStepInsert = TablesInsert<"email_steps">;
+export type EmailSendInsert = TablesInsert<"email_sends">;
+
+// Update types
+export type EmailCampaignUpdate = TablesUpdate<"email_campaigns">;
+export type EmailStepUpdate = TablesUpdate<"email_steps">;
+
+// Enum alias
+export type EmailSendStatus = Enums<"email_send_status">;
+
+// Draft step shape used in the email campaign wizard
+export interface EmailStepDraft {
+  subject: string;
+  body_html: string;
+  delay_hours: number;
+  condition?: { check: string; value?: string };
+}
+
+// Email-specific flow node data
+export interface EmailSendNodeData {
+  nodeType: "email_send";
+  subject: string;
+  bodyHtml: string;
+}
+
+// Email campaign with aggregated send stats (for list view)
+export type EmailCampaignWithStats = EmailCampaign & {
+  step_count: number;
+  recipient_count: number;
+  sent_count: number;
+  opened_count: number;
+  clicked_count: number;
+  bounced_count: number;
   failed_count: number;
 };
