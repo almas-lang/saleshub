@@ -38,23 +38,34 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<BookingPageWithCount | null>(null);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deletePage, setDeletePage] = useState<BookingPageWithCount | null>(null);
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
 
   function handleDelete() {
-    if (!deleteId) return;
-    const id = deleteId;
-    setDeleteId(null);
+    if (!deletePage) return;
+    const page = deletePage;
+    setDeletePage(null);
 
-    toast.promise(
-      throwOnError(safeFetch(`/api/booking-pages/${id}`, { method: "DELETE" }))
-        .then(() => router.refresh()),
-      {
-        loading: "Deleting booking page...",
-        success: "Booking page deleted",
-        error: (err) => err.message,
-      }
-    );
+    // Optimistic removal with animation
+    setRemovedIds((prev) => new Set(prev).add(page.id));
+
+    throwOnError(safeFetch(`/api/booking-pages/${page.id}`, { method: "DELETE" }))
+      .then(() => {
+        toast.success("Booking page deleted");
+        router.refresh();
+      })
+      .catch((err) => {
+        // Rollback on failure
+        setRemovedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(page.id);
+          return next;
+        });
+        toast.error(err.message);
+      });
   }
+
+  const visiblePages = pages.filter((p) => !removedIds.has(p.id));
 
   function copyLink(slug: string) {
     const url = `${window.location.origin}/book/${slug}`;
@@ -71,7 +82,7 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
         </Button>
       </div>
 
-      {pages.length === 0 ? (
+      {visiblePages.length === 0 ? (
         <Card className="flex flex-col items-center justify-center py-16 shadow-sm">
           <div className="flex size-16 items-center justify-center rounded-2xl bg-primary/10">
             <Calendar className="size-8 text-primary" />
@@ -87,7 +98,7 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {pages.map((page) => (
+          {visiblePages.map((page) => (
             <Card
               key={page.id}
               className="group relative cursor-pointer shadow-sm transition-all duration-150 hover:border-foreground/20 hover:shadow-md"
@@ -149,7 +160,7 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
                           className="text-destructive"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDeleteId(page.id);
+                            setDeletePage(page);
                           }}
                         >
                           <Trash2 className="mr-2 size-4" />
@@ -205,12 +216,16 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
       )}
 
       <ConfirmDialog
-        open={!!deleteId}
+        open={!!deletePage}
         onOpenChange={(open) => {
-          if (!open) setDeleteId(null);
+          if (!open) setDeletePage(null);
         }}
-        title="Delete booking page?"
-        description="This will permanently delete this booking page. Existing bookings will not be affected."
+        title={`Delete "${deletePage?.title}"?`}
+        description={
+          deletePage?.booking_count
+            ? `This page has ${deletePage.booking_count} booking${deletePage.booking_count !== 1 ? "s" : ""}. The public link will stop working but existing bookings and calendar events are preserved.`
+            : "This will permanently delete this booking page and its public link."
+        }
         onConfirm={handleDelete}
         destructive
       />
