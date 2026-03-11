@@ -359,18 +359,12 @@ async function autoEnrollIntoDrips(contactId: string) {
   // Find active email drip campaigns with lead_created trigger
   const { data: emailCampaigns } = await supabaseAdmin
     .from("email_campaigns")
-    .select("id, flow_data")
+    .select("id")
     .eq("type", "drip")
-    .eq("status", "active");
+    .eq("status", "active")
+    .eq("trigger_event", "lead_created");
 
-  const emailToEnroll: string[] = [];
-  for (const c of emailCampaigns ?? []) {
-    const flow = c.flow_data as { nodes?: { data?: { event?: string; nodeType?: string } }[] } | null;
-    const hasTrigger = flow?.nodes?.some(
-      (n) => n.data?.nodeType === "trigger" && n.data?.event === "lead_created"
-    );
-    if (hasTrigger) emailToEnroll.push(c.id);
-  }
+  const emailToEnroll: string[] = (emailCampaigns ?? []).map((c) => c.id);
 
   if (!waToEnroll.length && !emailToEnroll.length) return;
 
