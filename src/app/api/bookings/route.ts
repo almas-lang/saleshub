@@ -1,0 +1,409 @@
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { createEvent } from "@/lib/google/calendar";
+import { sendEmail } from "@/lib/email/client";
+import type { AvailabilityRules } from "@/types/bookings";
+
+/**
+ * POST /api/bookings
+ * Public endpoint — creates a booking from the public booking page.
+ *
+ * Body: {
+ *   slug: string,
+ *   date: string (YYYY-MM-DD),
+ *   time: string (HH:MM),
+ *   assignedTo: string (team member ID),
+ *   formData: Record<string, string>,
+ * }
+ *
+ * Steps:
+ * 1. Validate booking page + slot availability
+ * 2. Find or create contact
+ * 3. Move contact to "121 Booked" stage
+ * 4. Create booking record
+ * 5. Create Google Calendar event with Meet link
+ * 6. Send confirmation email (if enabled)
+ * 7. Log activities
+ */
+export async function POST(request: Request) {
+  const body = await request.json();
+  const { slug, date, time, assignedTo, formData } = body as {
+    slug?: string;
+    date?: string;
+    time?: string;
+    assignedTo?: string;
+    formData?: Record<string, string>;
+  };
+
+  if (!slug || !date || !time || !formData) {
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 }
+    );
+  }
+
+  // ── Step 1: Fetch booking page ─────────────────
+  const { data: page, error: pageError } = await supabaseAdmin
+    .from("booking_pages")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .single();
+
+  if (pageError || !page) {
+    return NextResponse.json({ error: "Booking page not found" }, { status: 404 });
+  }
+
+  const rules = page.availability_rules as unknown as AvailabilityRules | null;
+  const duration = page.duration_minutes;
+  const tz = rules?.timezone ?? "Asia/Kolkata";
+
+  // Calculate start and end times
+  const startStr = `${date}T${time}:00`;
+  const startDate = parseDateInTz(startStr, tz);
+  const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
+
+  // Determine assigned team member
+  let teamMemberId = assignedTo || null;
+  if (!teamMemberId) {
+    // Fallback to first assigned or first active member
+    const assignedIds: string[] = page.assigned_to ?? [];
+    if (assignedIds.length > 0) {
+      teamMemberId = assignedIds[0];
+    } else {
+      const { data: firstMember } = await supabaseAdmin
+        .from("team_members")
+        .select("id")
+        .eq("is_active", true)
+        .eq("google_calendar_connected", true)
+        .limit(1)
+        .maybeSingle();
+      teamMemberId = firstMember?.id ?? null;
+    }
+  }
+
+  // Extract form data by field type from the booking page's form_fields config,
+  // then fall back to hardcoded label names for backwards compatibility.
+  const fields: { label: string; type: string }[] =
+    (page.form_fields as unknown as { label: string; type: string }[]) || [];
+
+  function findByType(type: string): string {
+    const field = fields.find((f) => f.type === type);
+    if (!field || !formData) return "";
+    return (formData[field.label] || "").trim();
+  }
+
+  const emailByType = findByType("email");
+  const email = emailByType || formData["Email"] || formData["email"] || "";
+  const phoneByType = findByType("phone");
+  const phone = phoneByType || formData["Whatsapp/Phone number"] || formData["Phone Number"] || formData["phone"] || "";
+  const linkedinUrl = formData["Share your LinkedIn profile link"] || formData["LinkedIn Profile"] || formData["linkedin_url"] || "";
+
+  let firstName: string;
+  let lastName: string | undefined;
+
+  // Try to find a name from a text field whose label contains "name"
+  const nameFields = fields.filter((f) => f.type === "text" && /name/i.test(f.label));
+  const firstNameField = nameFields.find((f) => /first/i.test(f.label));
+  const lastNameField = nameFields.find((f) => /last/i.test(f.label));
+
+  if (firstNameField || lastNameField) {
+    const fnLabel = firstNameField ? firstNameField.label : "";
+    const lnLabel = lastNameField ? lastNameField.label : "";
+    firstName = (formData[fnLabel] || "").trim() || "Unknown";
+    lastName = (formData[lnLabel] || "").trim() || undefined;
+  } else if (formData["First Name"] || formData["Last Name"]) {
+    firstName = (formData["First Name"] || "").trim() || "Unknown";
+    lastName = (formData["Last Name"] || "").trim() || undefined;
+  } else {
+    // Fall back to any field with "name" in label, then first required text field
+    const fullNameField = nameFields[0];
+    const rawName = fullNameField ? formData[fullNameField.label] : null;
+    const firstTextField = !rawName
+      ? fields.find((f) => f.type === "text" && formData[f.label])
+      : null;
+    const fullName = rawName || formData["Full Name"] || formData["full_name"] || (firstTextField ? formData[firstTextField.label] : "") || "";
+    const nameParts = fullName.trim().split(/\s+/);
+    firstName = nameParts[0] || "Unknown";
+    lastName = nameParts.slice(1).join(" ") || undefined;
+  }
+
+  const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
+  if (!email) {
+    return NextResponse.json(
+      { error: "Email is required. Please add an email field to your booking page form." },
+      { status: 400 }
+    );
+  }
+
+  // ── Step 2: Find or create contact ─────────────
+  const { data: existingContact } = await supabaseAdmin
+    .from("contacts")
+    .select("id, funnel_id, current_stage_id, metadata, linkedin_url, phone")
+    .eq("email", email)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  let contactId: string;
+  let contactFunnelId: string | null;
+
+  if (existingContact) {
+    contactId = existingContact.id;
+    contactFunnelId = existingContact.funnel_id;
+  } else {
+    // Get default funnel + first stage
+    const { data: defaultFunnel } = await supabaseAdmin
+      .from("funnels")
+      .select("id")
+      .eq("is_default", true)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    const funnelId = defaultFunnel?.id ?? null;
+    let firstStageId: string | null = null;
+
+    if (funnelId) {
+      const { data: firstStage } = await supabaseAdmin
+        .from("funnel_stages")
+        .select("id")
+        .eq("funnel_id", funnelId)
+        .order("order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      firstStageId = firstStage?.id ?? null;
+    }
+
+    const { data: newContact, error: insertError } = await supabaseAdmin
+      .from("contacts")
+      .insert({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone: phone || null,
+        linkedin_url: linkedinUrl || null,
+        source: "booking_page",
+        type: "prospect",
+        tags: ["booking"],
+        funnel_id: funnelId,
+        current_stage_id: firstStageId,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      console.error("[Booking] Contact insert error:", insertError.message);
+      return NextResponse.json({ error: insertError.message }, { status: 500 });
+    }
+
+    contactId = newContact.id;
+    contactFunnelId = funnelId;
+  }
+
+  // ── Step 3: Move to "121 Booked" stage ─────────
+  if (contactFunnelId) {
+    const { data: bookedStage } = await supabaseAdmin
+      .from("funnel_stages")
+      .select("id")
+      .eq("funnel_id", contactFunnelId)
+      .eq("name", "121 Booked")
+      .maybeSingle();
+
+    if (bookedStage) {
+      const { data: currentContact } = await supabaseAdmin
+        .from("contacts")
+        .select("metadata, linkedin_url, phone")
+        .eq("id", contactId)
+        .single();
+
+      const existingMeta =
+        (currentContact?.metadata as Record<string, unknown>) ?? {};
+
+      const stageUpdate: Record<string, unknown> = {
+        current_stage_id: bookedStage.id,
+        metadata: {
+          ...existingMeta,
+          call_booked: "yes",
+          booked_at: startDate.toISOString(),
+          booking_page: slug,
+          form_responses: formData,
+        },
+      };
+
+      // Fill linkedin_url if provided and missing
+      if (linkedinUrl && !currentContact?.linkedin_url) {
+        stageUpdate.linkedin_url = linkedinUrl;
+      }
+      // Fill phone if missing
+      if (phone && !currentContact?.phone) {
+        stageUpdate.phone = phone;
+      }
+
+      await supabaseAdmin
+        .from("contacts")
+        .update(stageUpdate)
+        .eq("id", contactId);
+    }
+  }
+
+  // ── Step 4: Create booking record ──────────────
+  let meetLink: string | null = null;
+  let googleEventId: string | null = null;
+
+  // ── Step 5: Create Google Calendar event ───────
+  if (teamMemberId) {
+    const eventResult = await createEvent(teamMemberId, {
+      summary: `${page.title} — ${fullName}`,
+      description: formatEventDescription(formData, page.title),
+      start: startDate,
+      end: endDate,
+      attendeeEmail: email,
+      timeZone: tz,
+    });
+
+    if (eventResult.success) {
+      googleEventId = eventResult.eventId ?? null;
+      meetLink = eventResult.meetLink ?? null;
+    } else {
+      console.error("[Booking] Calendar event error:", eventResult.error);
+    }
+  }
+
+  const { data: booking, error: bookingError } = await supabaseAdmin
+    .from("bookings")
+    .insert({
+      contact_id: contactId,
+      booking_page_id: page.id,
+      starts_at: startDate.toISOString(),
+      ends_at: endDate.toISOString(),
+      assigned_to: teamMemberId,
+      meet_link: meetLink,
+      google_event_id: googleEventId,
+      status: "confirmed",
+      notes: JSON.stringify(formData),
+    })
+    .select("id")
+    .single();
+
+  if (bookingError) {
+    console.error("[Booking] Insert error:", bookingError.message);
+    return NextResponse.json({ error: bookingError.message }, { status: 500 });
+  }
+
+  // ── Step 6: Log activity ───────────────────────
+  await supabaseAdmin.from("activities").insert({
+    contact_id: contactId,
+    type: "booking_created",
+    title: `Call booked: ${page.title}`,
+    metadata: {
+      source: "booking_page",
+      booking_id: booking.id,
+      slug,
+      booked_at: startDate.toISOString(),
+    },
+  });
+
+  // ── Step 7: Send confirmation email ────────────
+  if (page.confirmation_email && email) {
+    try {
+      const formattedDate = startDate.toLocaleDateString("en-IN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        timeZone: tz,
+      });
+      const formattedTime = startDate.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: tz,
+      });
+
+      const result = await sendEmail({
+        to: email,
+        subject: `Booking Confirmed: ${page.title}`,
+        html: `
+          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2>Your booking is confirmed!</h2>
+            <p>Hi ${firstName},</p>
+            <p>Your <strong>${page.title}</strong> has been scheduled.</p>
+            <div style="background: #f9fafb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+              <p style="margin: 4px 0;"><strong>Date:</strong> ${formattedDate}</p>
+              <p style="margin: 4px 0;"><strong>Time:</strong> ${formattedTime} IST</p>
+              <p style="margin: 4px 0;"><strong>Duration:</strong> ${duration} minutes</p>
+              ${meetLink ? `<p style="margin: 4px 0;"><strong>Meet Link:</strong> <a href="${meetLink}">${meetLink}</a></p>` : ""}
+            </div>
+            <p>We look forward to speaking with you!</p>
+            <p>— Team Xperience Wave</p>
+          </div>
+        `,
+      });
+
+      if (result.success) {
+        await supabaseAdmin.from("activities").insert({
+          contact_id: contactId,
+          type: "email_sent",
+          title: "Booking confirmation email sent",
+          metadata: { template: "booking-confirmation", booking_id: booking.id },
+        });
+      }
+    } catch (err) {
+      console.error("[Booking] Email error:", err);
+    }
+  }
+
+  // ── Step 8: Return success ─────────────────────
+  console.log(`[Booking] Created for ${email} (contact: ${contactId}, booking: ${booking.id})`);
+
+  return NextResponse.json({
+    success: true,
+    booking_id: booking.id,
+    meet_link: meetLink,
+  }, { status: 201 });
+}
+
+// ── Helpers ──────────────────────────────────────
+
+function parseDateInTz(dateStr: string, tz: string): Date {
+  if (dateStr.includes("Z") || dateStr.includes("+")) {
+    return new Date(dateStr);
+  }
+
+  // Parse components from the string directly (no new Date() which uses local tz)
+  const [datePart, timePart] = dateStr.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute, second] = (timePart || "00:00:00").split(":").map(Number);
+
+  // Create a UTC date with these components first
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, second || 0));
+
+  // Find out what wall-clock time `utcGuess` would show in the target timezone
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "numeric", day: "numeric",
+    hour: "numeric", minute: "numeric", second: "numeric",
+    hour12: false,
+  });
+  const parts = fmt.formatToParts(utcGuess);
+  const p = (type: string) => Number(parts.find((x) => x.type === type)?.value || 0);
+  const wallInTz = Date.UTC(p("year"), p("month") - 1, p("day"), p("hour") === 24 ? 0 : p("hour"), p("minute"), p("second"));
+
+  // The difference tells us the timezone offset at that moment
+  const offset = wallInTz - utcGuess.getTime();
+  return new Date(utcGuess.getTime() - offset);
+}
+
+function formatEventDescription(
+  formData: Record<string, string>,
+  pageTitle: string
+): string {
+  const lines = [`Booking: ${pageTitle}`, ""];
+  for (const [key, value] of Object.entries(formData)) {
+    if (value) {
+      lines.push(`${key}: ${value}`);
+    }
+  }
+  lines.push("", "Booked via SalesHub");
+  return lines.join("\n");
+}

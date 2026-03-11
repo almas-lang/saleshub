@@ -1,7 +1,8 @@
 "use client";
 
 import { useTheme } from "next-themes";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, Monitor, Puzzle, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const THEMES = [
@@ -46,6 +47,23 @@ export default function SettingsPage() {
           ))}
         </div>
       </div>
+
+      {/* Integrations */}
+      <Link
+        href="/settings/integrations"
+        className="flex items-center justify-between rounded-xl border bg-card p-6 transition-colors hover:bg-accent/50"
+      >
+        <div className="flex items-center gap-3">
+          <Puzzle className="size-5 text-muted-foreground" />
+          <div>
+            <h2 className="text-sm font-semibold">Integrations</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Connect Google Calendar and other services.
+            </p>
+          </div>
+        </div>
+        <ChevronRight className="size-4 text-muted-foreground" />
+      </Link>
     </div>
   );
 }

@@ -14,16 +14,19 @@ export async function GET(request: NextRequest) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
+  // Determine redirect target — connect page if from admin flow
+  const redirectBase = `${appUrl}/settings/integrations`;
+
   // User denied access
   if (error) {
     return NextResponse.redirect(
-      `${appUrl}/settings/integrations?error=google_denied`
+      `${redirectBase}/connect?error=google_denied`
     );
   }
 
   if (!code || !state) {
     return NextResponse.redirect(
-      `${appUrl}/settings/integrations?error=missing_params`
+      `${redirectBase}/connect?error=missing_params`
     );
   }
 
@@ -31,11 +34,11 @@ export async function GET(request: NextRequest) {
 
   if (!result.success) {
     return NextResponse.redirect(
-      `${appUrl}/settings/integrations?error=google_failed`
+      `${redirectBase}/connect?error=google_failed`
     );
   }
 
   return NextResponse.redirect(
-    `${appUrl}/settings/integrations?google=connected`
+    `${redirectBase}/connect?google=connected`
   );
 }

@@ -263,3 +263,48 @@ export const createEmailCampaignSchema = z.object({
 });
 
 export type CreateEmailCampaignValues = z.infer<typeof createEmailCampaignSchema>;
+
+// ──────────────────────────────────────────
+// Booking Pages
+// ──────────────────────────────────────────
+
+export const formFieldSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1, "Label is required"),
+  type: z.enum(["text", "email", "phone", "textarea", "radio", "select"]),
+  required: z.boolean(),
+  placeholder: z.string().optional(),
+  options: z.array(z.string()).optional(),
+  defaultValue: z.string().optional(),
+});
+
+export const dayScheduleSchema = z.object({
+  day: z.number().int().min(0).max(6),
+  enabled: z.boolean(),
+  start_time: z.string().regex(/^\d{2}:\d{2}$/, "Must be HH:MM"),
+  end_time: z.string().regex(/^\d{2}:\d{2}$/, "Must be HH:MM"),
+});
+
+export const availabilityRulesSchema = z.object({
+  timezone: z.string(),
+  schedule: z.array(dayScheduleSchema).length(7),
+  buffer_minutes: z.number().int().min(0).max(120),
+  max_per_day: z.number().int().min(1).max(50),
+  blocked_dates: z.array(z.string()),
+  assignment_mode: z.enum(["round_robin", "specific"]),
+});
+
+export const bookingPageSchema = z.object({
+  title: z.string().min(1, "Title is required").max(200),
+  slug: z.string().min(1, "Slug is required").max(100),
+  description: z.string().nullable().optional(),
+  duration_minutes: z.number().int().min(15).max(480),
+  form_fields: z.array(formFieldSchema).nullable().optional(),
+  availability_rules: availabilityRulesSchema.nullable().optional(),
+  assigned_to: z.array(z.string().uuid()).nullable().optional(),
+  confirmation_email: z.boolean().optional(),
+  confirmation_wa: z.boolean().optional(),
+  is_active: z.boolean().optional(),
+});
+
+export type BookingPageValues = z.infer<typeof bookingPageSchema>;
