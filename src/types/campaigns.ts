@@ -140,6 +140,17 @@ export interface EmailSendNodeData {
   bodyHtml: string;
 }
 
+// Joined types for communication history
+export type WASendWithDetails = WASend & {
+  wa_campaigns: { name: string } | null;
+  wa_steps: { wa_template_name: string } | null;
+};
+
+export type EmailSendWithDetails = EmailSend & {
+  email_campaigns: { name: string } | null;
+  email_steps: { subject: string } | null;
+};
+
 // Email campaign with aggregated send stats (for list view)
 export type EmailCampaignWithStats = EmailCampaign & {
   step_count: number;

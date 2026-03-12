@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ProspectDetail } from "@/components/prospects/prospect-detail";
 import { SetBreadcrumb } from "@/components/layout/breadcrumb-context";
 import type { ContactWithStage, ActivityWithUser, Task, ContactFormResponse } from "@/types/contacts";
+import type { WASendWithDetails, EmailSendWithDetails } from "@/types/campaigns";
 
 export default async function ProspectDetailPage({
   params,
@@ -14,7 +15,7 @@ export default async function ProspectDetailPage({
   const supabase = await createClient();
 
   // Fetch all data in parallel
-  const [contactResult, activitiesResult, tasksResult, funnelsResult, membersResult, formResponsesResult, emailSendsResult] =
+  const [contactResult, activitiesResult, tasksResult, funnelsResult, membersResult, formResponsesResult, emailSendsResult, waSendsResult, emailSendRecordsResult] =
     await Promise.all([
       supabase
         .from("contacts")
@@ -57,6 +58,20 @@ export default async function ProspectDetailPage({
         .select("type")
         .eq("contact_id", id)
         .in("type", ["email_sent", "email_opened"]),
+      // WhatsApp sends with campaign/step joins
+      supabase
+        .from("wa_sends")
+        .select("*, wa_campaigns(name), wa_steps(wa_template_name)")
+        .eq("contact_id", id)
+        .order("created_at", { ascending: false })
+        .limit(200),
+      // Email sends with campaign/step joins
+      supabase
+        .from("email_sends")
+        .select("*, email_campaigns(name), email_steps(subject)")
+        .eq("contact_id", id)
+        .order("created_at", { ascending: false })
+        .limit(200),
     ]);
 
   if (contactResult.error || !contactResult.data) {
@@ -130,6 +145,8 @@ export default async function ProspectDetailPage({
           emailOpenRate,
           lastContactDate,
         }}
+        waSends={(waSendsResult.data ?? []) as WASendWithDetails[]}
+        emailSendRecords={(emailSendRecordsResult.data ?? []) as EmailSendWithDetails[]}
       />
     </div>
   );

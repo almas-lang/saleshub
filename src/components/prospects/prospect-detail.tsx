@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
 import { cn, formatDate, timeAgo, formatPhone } from "@/lib/utils";
 import type { ContactWithStage, Activity, ActivityWithUser, Task, ContactFormResponse } from "@/types/contacts";
+import type { WASendWithDetails, EmailSendWithDetails } from "@/types/campaigns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +95,8 @@ interface ProspectDetailProps {
   teamMembers: TeamMemberOption[];
   formResponses: ContactFormResponse[];
   activitySummary: ActivitySummaryData;
+  waSends: WASendWithDetails[];
+  emailSendRecords: EmailSendWithDetails[];
 }
 
 const ACTIVITY_ICON_CONFIG: Record<
@@ -127,6 +130,8 @@ export function ProspectDetail({
   teamMembers,
   formResponses,
   activitySummary,
+  waSends,
+  emailSendRecords,
 }: ProspectDetailProps) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
@@ -729,15 +734,11 @@ export function ProspectDetail({
 
         {/* Communication Tab */}
         <TabsContent value="communication" className="mt-6">
-          <div className="py-12 text-center">
-            <Mail className="mx-auto mb-3 size-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Coming in Phase 2
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Email and WhatsApp communication history will appear here.
-            </p>
-          </div>
+          <CommunicationContent
+            waSends={waSends}
+            emailSendRecords={emailSendRecords}
+            firstName={prospect.first_name}
+          />
         </TabsContent>
 
         {/* Bookings Tab */}
@@ -1111,4 +1112,214 @@ function displayUrgency(val: string | null | undefined): string | null {
     more_than_90_days: "More than 90 days: It's on my list, but not urgent.",
   };
   return map[val] ?? val;
+}
+
+// ── Communication Tab Components ──
+
+type ChannelFilter = "all" | "whatsapp" | "email";
+
+type UnifiedMessage =
+  | { channel: "whatsapp"; data: WASendWithDetails }
+  | { channel: "email"; data: EmailSendWithDetails };
+
+const COMM_PAGE_SIZE = 20;
+
+function CommunicationContent({
+  waSends,
+  emailSendRecords,
+  firstName,
+}: {
+  waSends: WASendWithDetails[];
+  emailSendRecords: EmailSendWithDetails[];
+  firstName: string;
+}) {
+  const [filter, setFilter] = useState<ChannelFilter>("all");
+  const [visibleCount, setVisibleCount] = useState(COMM_PAGE_SIZE);
+
+  // Merge and sort by created_at desc
+  const allMessages: UnifiedMessage[] = [
+    ...waSends.map((s) => ({ channel: "whatsapp" as const, data: s })),
+    ...emailSendRecords.map((s) => ({ channel: "email" as const, data: s })),
+  ].sort(
+    (a, b) =>
+      new Date(b.data.created_at).getTime() -
+      new Date(a.data.created_at).getTime()
+  );
+
+  const filtered =
+    filter === "all"
+      ? allMessages
+      : allMessages.filter((m) => m.channel === filter);
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
+
+  if (allMessages.length === 0) {
+    return (
+      <div className="max-w-2xl py-12 text-center">
+        <Send className="mx-auto mb-3 size-10 text-muted-foreground/40" />
+        <p className="text-sm font-medium text-muted-foreground">
+          No messages sent to {firstName} yet
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Send a WhatsApp message or email to get started.
+        </p>
+      </div>
+    );
+  }
+
+  const waCount = waSends.length;
+  const emailCount = emailSendRecords.length;
+
+  return (
+    <div className="max-w-2xl">
+      {/* Filter buttons */}
+      <div className="flex gap-2 mb-4">
+        {(
+          [
+            { key: "all", label: "All", count: allMessages.length },
+            { key: "whatsapp", label: "WhatsApp", count: waCount },
+            { key: "email", label: "Email", count: emailCount },
+          ] as const
+        ).map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => {
+              setFilter(key);
+              setVisibleCount(COMM_PAGE_SIZE);
+            }}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+              filter === key
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            )}
+          >
+            {label}
+            <span
+              className={cn(
+                "text-xs",
+                filter === key
+                  ? "text-primary-foreground/70"
+                  : "text-muted-foreground/70"
+              )}
+            >
+              {count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Message list */}
+      <div className="flex flex-col gap-2">
+        {visible.map((msg) => (
+          <CommunicationRow key={msg.data.id} message={msg} />
+        ))}
+      </div>
+
+      {hasMore && (
+        <div className="mt-4 text-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setVisibleCount((c) => c + COMM_PAGE_SIZE)}
+          >
+            Load more ({filtered.length - visibleCount} remaining)
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommunicationRow({ message }: { message: UnifiedMessage }) {
+  const { channel, data } = message;
+
+  let label: string;
+  let campaignName: string | null = null;
+
+  if (channel === "whatsapp") {
+    const wa = data as WASendWithDetails;
+    label = wa.wa_steps?.wa_template_name ?? "WhatsApp Message";
+    campaignName = wa.wa_campaigns?.name ?? null;
+  } else {
+    const email = data as EmailSendWithDetails;
+    label = email.email_steps?.subject ?? "Email";
+    campaignName = email.email_campaigns?.name ?? null;
+  }
+
+  return (
+    <Card>
+      <CardContent className="flex items-center gap-3 py-3">
+        {/* Channel icon */}
+        <div
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full",
+            channel === "whatsapp" ? "bg-emerald-50" : "bg-blue-50"
+          )}
+        >
+          {channel === "whatsapp" ? (
+            <MessageSquare className="size-3.5 text-emerald-500" />
+          ) : (
+            <Mail className="size-3.5 text-blue-500" />
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">{label}</p>
+          <div className="flex items-center gap-2 mt-0.5">
+            {campaignName && (
+              <span className="truncate text-xs text-muted-foreground">
+                {campaignName}
+              </span>
+            )}
+            <span className="text-xs text-muted-foreground/70" suppressHydrationWarning>
+              {timeAgo(data.created_at)}
+            </span>
+          </div>
+        </div>
+
+        {/* Status */}
+        <StatusBadge channel={channel} status={data.status} />
+      </CardContent>
+    </Card>
+  );
+}
+
+const WA_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon?: string }> = {
+  queued: { label: "Queued", variant: "secondary" },
+  sent: { label: "Sent \u2713", variant: "outline" },
+  delivered: { label: "Delivered \u2713\u2713", variant: "outline" },
+  read: { label: "Read \u2713\u2713", variant: "default" },
+  failed: { label: "Failed \u2717", variant: "destructive" },
+};
+
+const EMAIL_STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  queued: { label: "Queued", variant: "secondary" },
+  sent: { label: "Sent", variant: "outline" },
+  delivered: { label: "Delivered", variant: "outline" },
+  opened: { label: "Opened", variant: "default" },
+  clicked: { label: "Clicked", variant: "default" },
+  bounced: { label: "Bounced", variant: "destructive" },
+  failed: { label: "Failed", variant: "destructive" },
+};
+
+function StatusBadge({
+  channel,
+  status,
+}: {
+  channel: "whatsapp" | "email";
+  status: string;
+}) {
+  const config =
+    channel === "whatsapp"
+      ? WA_STATUS_CONFIG[status] ?? { label: status, variant: "secondary" as const }
+      : EMAIL_STATUS_CONFIG[status] ?? { label: status, variant: "secondary" as const };
+
+  return (
+    <Badge variant={config.variant} className="shrink-0 text-xs">
+      {config.label}
+    </Badge>
+  );
 }
