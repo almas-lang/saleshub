@@ -127,25 +127,14 @@ export default async function WhatsAppCampaignsPage({
   }
 
   return (
-    <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          WhatsApp Campaigns
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Send one-time broadcasts and drip sequences via WhatsApp.
-        </p>
-      </div>
-
-      <Suspense>
-        <WACampaignList
-          campaigns={campaignsWithStats}
-          total={total}
-          page={page}
-          perPage={perPage}
-          totalPages={totalPages}
-        />
-      </Suspense>
-    </div>
+    <Suspense>
+      <WACampaignList
+        campaigns={campaignsWithStats}
+        total={total}
+        page={page}
+        perPage={perPage}
+        totalPages={totalPages}
+      />
+    </Suspense>
   );
 }
