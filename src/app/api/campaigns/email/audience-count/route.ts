@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
   const stageId = params.get("stage_id") ?? "";
   const assignedTo = params.get("assigned_to") ?? "";
   const tags = params.get("tags") ?? "";
+  const includeArchived = params.get("include_archived") === "true";
 
   // "Custom emails only" — no filter-based contacts
   if (source === "__custom_only__") {
@@ -22,6 +23,10 @@ export async function GET(request: NextRequest) {
     .eq("type", "prospect")
     .is("deleted_at", null)
     .not("email", "is", null);
+
+  if (!includeArchived) {
+    query = query.is("archived_at", null);
+  }
 
   if (source) query = query.eq("source", source);
   if (funnelId) query = query.eq("funnel_id", funnelId);

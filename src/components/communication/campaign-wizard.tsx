@@ -135,6 +135,7 @@ export function CampaignWizard({
     if (audienceFilter.stage_id) params.set("stage_id", audienceFilter.stage_id);
     if (audienceFilter.assigned_to) params.set("assigned_to", audienceFilter.assigned_to);
     if (audienceFilter.tags?.length) params.set("tags", audienceFilter.tags.join(","));
+    if (audienceFilter.include_archived) params.set("include_archived", "true");
 
     const timeout = setTimeout(() => {
       safeFetch<{ count: number }>(

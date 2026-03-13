@@ -9,6 +9,8 @@ import {
   Pencil,
   Trash2,
   Plus,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import {
   Sheet,
@@ -24,6 +26,8 @@ interface MobileFabProps {
   onEdit: () => void;
   onDelete: () => void;
   onSendWhatsApp?: () => void;
+  onArchive?: () => void;
+  isArchived?: boolean;
 }
 
 export function MobileFab({
@@ -33,6 +37,8 @@ export function MobileFab({
   onEdit,
   onDelete,
   onSendWhatsApp,
+  onArchive,
+  isArchived,
 }: MobileFabProps) {
   const [open, setOpen] = useState(false);
 
@@ -71,6 +77,15 @@ export function MobileFab({
       label: "Edit",
       onClick: () => handleAction(onEdit),
     },
+    ...(onArchive
+      ? [
+          {
+            icon: isArchived ? ArchiveRestore : Archive,
+            label: isArchived ? "Unarchive" : "Archive",
+            onClick: () => handleAction(onArchive),
+          },
+        ]
+      : []),
     {
       icon: Trash2,
       label: "Delete",

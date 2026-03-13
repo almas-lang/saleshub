@@ -29,6 +29,7 @@ export interface AudienceFilter {
   assigned_to?: string;
   tags?: string[];
   extra_emails?: string[];
+  include_archived?: boolean;
 }
 
 // Draft step shape used in the campaign wizard

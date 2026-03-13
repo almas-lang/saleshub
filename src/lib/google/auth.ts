@@ -4,9 +4,11 @@
  *
  * Handles OAuth2 flow for connecting Google Calendar per team member.
  * Tokens are stored in the team_members table.
+ *
+ * Uses google-auth-library (lightweight) instead of full googleapis SDK.
  */
 
-import { google } from "googleapis";
+import { OAuth2Client } from "google-auth-library";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
@@ -29,7 +31,7 @@ export interface GoogleAuthResult {
 
 /** Create a fresh OAuth2 client */
 export function createOAuth2Client() {
-  return new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+  return new OAuth2Client(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
 }
 
 /**
@@ -70,6 +72,18 @@ export async function getAuthenticatedClient(teamMemberId: string) {
   }
 
   return oauth2Client;
+}
+
+/**
+ * Get a valid access token string for direct REST API calls.
+ */
+export async function getAccessToken(
+  teamMemberId: string
+): Promise<string | null> {
+  const client = await getAuthenticatedClient(teamMemberId);
+  if (!client) return null;
+  const tokenRes = await client.getAccessToken();
+  return tokenRes.token ?? null;
 }
 
 // ── Public API ──────────────────────────────────────
@@ -131,7 +145,7 @@ export async function handleCallback(
  */
 export async function refreshToken(
   teamMemberId: string,
-  existingClient?: InstanceType<typeof google.auth.OAuth2>
+  existingClient?: OAuth2Client
 ): Promise<GoogleAuthResult> {
   try {
     let oauth2Client = existingClient;

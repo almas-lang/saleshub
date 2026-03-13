@@ -30,6 +30,8 @@ import {
   CalendarPlus,
   Check,
   MoreHorizontal,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -260,6 +262,21 @@ export function ProspectDetail({
     });
   }
 
+  async function handleArchiveToggle() {
+    const action = prospect.archived_at ? "unarchive" : "archive";
+    const result = await safeFetch("/api/contacts/bulk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, contact_ids: [prospect.id] }),
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(action === "archive" ? "Prospect archived" : "Prospect unarchived");
+    router.refresh();
+  }
+
   async function handleEditNote(activityId: string, newBody: string) {
     const result = await safeFetch(`/api/activities/${activityId}`, {
       method: "PATCH",
@@ -314,9 +331,17 @@ export function ProspectDetail({
 
             <div className="min-w-0">
               {/* Name */}
-              <h1 className="text-xl font-semibold tracking-tight">
-                {prospect.first_name} {prospect.last_name ?? ""}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight">
+                  {prospect.first_name} {prospect.last_name ?? ""}
+                </h1>
+                {prospect.archived_at && (
+                  <Badge variant="secondary" className="text-xs">
+                    <Archive className="mr-1 size-3" />
+                    Archived
+                  </Badge>
+                )}
+              </div>
 
               {/* Contact details */}
               <div className="mt-1 flex flex-col gap-0.5">
@@ -490,6 +515,13 @@ export function ProspectDetail({
                 <Pencil className="mr-2 size-4" />
                 Edit
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleArchiveToggle}>
+                {prospect.archived_at ? (
+                  <><ArchiveRestore className="mr-2 size-4" /> Unarchive</>
+                ) : (
+                  <><Archive className="mr-2 size-4" /> Archive</>
+                )}
+              </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setDeleteOpen(true)}
@@ -510,6 +542,8 @@ export function ProspectDetail({
         onEdit={() => setFormOpen(true)}
         onDelete={() => setDeleteOpen(true)}
         onSendWhatsApp={() => setSendWaOpen(true)}
+        onArchive={handleArchiveToggle}
+        isArchived={!!prospect.archived_at}
       />
 
       {/* Tabs */}

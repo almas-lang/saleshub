@@ -57,6 +57,10 @@ export async function enrollAudience(
     .is("deleted_at", null)
     .not("phone", "is", null);
 
+  if (!audienceFilter?.include_archived) {
+    query = query.is("archived_at", null);
+  }
+
   if (audienceFilter) {
     if (audienceFilter.source) query = query.eq("source", audienceFilter.source);
     if (audienceFilter.funnel_id) query = query.eq("funnel_id", audienceFilter.funnel_id);

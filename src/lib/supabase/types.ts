@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activities: {
@@ -192,6 +217,54 @@ export type Database = {
           },
         ]
       }
+      business_settings: {
+        Row: {
+          address_line1: string | null
+          address_line2: string | null
+          business_name: string
+          city: string | null
+          created_at: string | null
+          default_sender_name: string | null
+          gst_number: string | null
+          id: string
+          logo_url: string | null
+          pincode: string | null
+          state: string | null
+          support_email: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          address_line1?: string | null
+          address_line2?: string | null
+          business_name?: string
+          city?: string | null
+          created_at?: string | null
+          default_sender_name?: string | null
+          gst_number?: string | null
+          id?: string
+          logo_url?: string | null
+          pincode?: string | null
+          state?: string | null
+          support_email?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          address_line1?: string | null
+          address_line2?: string | null
+          business_name?: string
+          city?: string | null
+          created_at?: string | null
+          default_sender_name?: string | null
+          gst_number?: string | null
+          id?: string
+          logo_url?: string | null
+          pincode?: string | null
+          state?: string | null
+          support_email?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           address: string | null
@@ -310,6 +383,7 @@ export type Database = {
       contacts: {
         Row: {
           account_type: Database["public"]["Enums"]["account_type"]
+          archived_at: string | null
           assigned_to: string | null
           company_id: string | null
           company_name: string | null
@@ -337,6 +411,7 @@ export type Database = {
         }
         Insert: {
           account_type?: Database["public"]["Enums"]["account_type"]
+          archived_at?: string | null
           assigned_to?: string | null
           company_id?: string | null
           company_name?: string | null
@@ -364,6 +439,7 @@ export type Database = {
         }
         Update: {
           account_type?: Database["public"]["Enums"]["account_type"]
+          archived_at?: string | null
           assigned_to?: string | null
           company_id?: string | null
           company_name?: string | null
@@ -1029,6 +1105,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          notification_preferences: Json | null
           phone: string | null
           role: Database["public"]["Enums"]["team_role"]
           updated_at: string
@@ -1046,6 +1123,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          notification_preferences?: Json | null
           phone?: string | null
           role?: Database["public"]["Enums"]["team_role"]
           updated_at?: string
@@ -1063,6 +1141,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          notification_preferences?: Json | null
           phone?: string | null
           role?: Database["public"]["Enums"]["team_role"]
           updated_at?: string
@@ -1516,6 +1595,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       account_type: ["individual", "business"],

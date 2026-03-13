@@ -130,25 +130,14 @@ export default async function EmailCampaignsPage({
   }
 
   return (
-    <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          Email Campaigns
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Send one-time broadcasts and drip sequences via email.
-        </p>
-      </div>
-
-      <Suspense>
-        <EmailCampaignList
-          campaigns={campaignsWithStats}
-          total={total}
-          page={page}
-          perPage={perPage}
-          totalPages={totalPages}
-        />
-      </Suspense>
-    </div>
+    <Suspense>
+      <EmailCampaignList
+        campaigns={campaignsWithStats}
+        total={total}
+        page={page}
+        perPage={perPage}
+        totalPages={totalPages}
+      />
+    </Suspense>
   );
 }

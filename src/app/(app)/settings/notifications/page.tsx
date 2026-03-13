@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { IntegrationsSettings } from "@/components/settings/integrations-settings";
+import { NotificationPreferences } from "@/components/settings/notification-preferences";
 
-export default async function IntegrationsPage() {
+export default async function NotificationsPage() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -12,26 +12,29 @@ export default async function IntegrationsPage() {
 
   if (!user) redirect("/login");
 
-  // Look up team member for connection status
-  let connected = false;
+  // Resolve team member preferences
+  let preferences: Record<string, boolean> = {};
 
-  let { data: member } = await supabase
+  let member = null;
+  const { data: byAuth } = await supabase
     .from("team_members")
-    .select("google_calendar_connected")
+    .select("notification_preferences")
     .eq("auth_user_id", user.id)
     .single();
 
-  if (!member && user.email) {
+  if (byAuth) {
+    member = byAuth;
+  } else if (user.email) {
     const { data: byEmail } = await supabase
       .from("team_members")
-      .select("google_calendar_connected")
+      .select("notification_preferences")
       .eq("email", user.email)
       .single();
     member = byEmail;
   }
 
-  if (member) {
-    connected = member.google_calendar_connected ?? false;
+  if (member?.notification_preferences) {
+    preferences = member.notification_preferences as Record<string, boolean>;
   }
 
   return (
@@ -47,17 +50,13 @@ export default async function IntegrationsPage() {
       </div>
 
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Integrations</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Notifications</h1>
         <p className="mt-0.5 text-sm text-muted-foreground">
-          Connect external services to SalesHub.
+          Choose which notifications you want to receive.
         </p>
       </div>
 
-      <IntegrationsSettings
-        initialConnected={connected}
-        whatsappDisplay={process.env.WHATSAPP_PHONE_DISPLAY || ""}
-        emailDomain={process.env.RESEND_DOMAIN || ""}
-      />
+      <NotificationPreferences initialPreferences={preferences} />
     </div>
   );
 }

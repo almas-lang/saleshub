@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { List, Columns3 } from "lucide-react";
+import { List, Columns3, Archive, UserCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { cn } from "@/lib/utils";
 import type { ContactWithStage } from "@/types/contacts";
@@ -15,6 +15,7 @@ export default async function ProspectsPage({
   const params = await searchParams;
   const supabase = await createClient();
 
+  const tab = (params.tab ?? "active") as "active" | "archived";
   const view = params.view ?? "list";
   const page = Math.max(1, parseInt(params.page ?? "1"));
   const ALLOWED_PER_PAGE = [10, 25, 50, 100];
@@ -54,6 +55,13 @@ export default async function ProspectsPage({
     )
     .eq("type", "prospect")
     .is("deleted_at", null);
+
+  // Archived tab filter
+  if (tab === "archived") {
+    query = query.not("archived_at", "is", null);
+  } else {
+    query = query.is("archived_at", null);
+  }
 
   if (search) {
     query = query.or(
@@ -95,8 +103,23 @@ export default async function ProspectsPage({
     query = query.order("created_at", { ascending: false }).limit(500);
   }
 
-  // Fetch contacts + filter options in parallel
-  const [contactsResult, funnelsResult, membersResult, sourcesResult] = await Promise.all([
+  // Tab count queries
+  const activeCountQuery = supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("type", "prospect")
+    .is("deleted_at", null)
+    .is("archived_at", null);
+
+  const archivedCountQuery = supabase
+    .from("contacts")
+    .select("id", { count: "exact", head: true })
+    .eq("type", "prospect")
+    .is("deleted_at", null)
+    .not("archived_at", "is", null);
+
+  // Fetch contacts + filter options + tab counts + booked IDs in parallel
+  const [contactsResult, funnelsResult, membersResult, sourcesResult, activeCountResult, archivedCountResult, bookedResult] = await Promise.all([
     query,
     supabase
       .from("funnels")
@@ -114,11 +137,47 @@ export default async function ProspectsPage({
       .eq("type", "prospect")
       .is("deleted_at", null)
       .not("source", "is", null),
+    activeCountQuery,
+    archivedCountQuery,
+    supabase
+      .from("contact_form_responses")
+      .select("contact_id"),
   ]);
 
   const prospects = (contactsResult.data ?? []) as ContactWithStage[];
   const total = contactsResult.count ?? 0;
   const totalPages = Math.ceil(total / perPage);
+
+  const tabCounts = {
+    active: activeCountResult.count ?? 0,
+    archived: archivedCountResult.count ?? 0,
+  };
+
+  // Count booked contacts for the current tab
+  const allBookedIds = bookedResult.data
+    ? [...new Set(bookedResult.data.map((r) => r.contact_id))]
+    : [];
+  let bookedInTab = 0;
+  if (allBookedIds.length > 0) {
+    const bq = supabase
+      .from("contacts")
+      .select("id", { count: "exact", head: true })
+      .eq("type", "prospect")
+      .is("deleted_at", null)
+      .in("id", allBookedIds);
+    if (tab === "archived") {
+      bq.not("archived_at", "is", null);
+    } else {
+      bq.is("archived_at", null);
+    }
+    const { count } = await bq;
+    bookedInTab = count ?? 0;
+  }
+
+  const stats = {
+    total,
+    booked: bookedInTab,
+  };
 
   // Default sort: push future-dated records to the end, keep today/past descending
   if (sort === "created_at" && order === "desc" && !isKanban) {
@@ -195,44 +254,78 @@ export default async function ProspectsPage({
   function viewToggleUrl(targetView: string) {
     const p = new URLSearchParams();
     p.set("view", targetView);
+    if (tab !== "active") p.set("tab", tab);
     if (funnelId) p.set("funnel_id", funnelId);
     return `/prospects?${p.toString()}`;
   }
 
   return (
-    <div className="page-enter space-y-6">
+    <div className="page-enter space-y-4">
+      {/* Row 1: Title + stats | Tabs + View toggle + Add */}
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-4">
           <h1 className="text-xl font-semibold tracking-tight">Prospects</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Manage and track your sales prospects.
-          </p>
+          <div className="hidden items-center gap-3 text-sm text-muted-foreground sm:flex">
+            <span className="tabular-nums font-medium text-foreground">{stats.total}</span>
+            <span>total</span>
+            <span className="text-border">|</span>
+            <span className="tabular-nums font-medium text-foreground">{stats.booked}</span>
+            <span>booked</span>
+          </div>
         </div>
-        <div className="flex items-center rounded-lg border p-0.5">
-          <Link
-            href={viewToggleUrl("list")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              view === "list"
-                ? "bg-background shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <List className="size-4" />
-            List
-          </Link>
-          <Link
-            href={viewToggleUrl("kanban")}
-            className={cn(
-              "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              view === "kanban"
-                ? "bg-background shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Columns3 className="size-4" />
-            Kanban
-          </Link>
+        <div className="flex items-center gap-2">
+          {/* Active / Archived tabs */}
+          <div className="flex items-center rounded-lg border p-0.5">
+            <Link
+              href="/prospects"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === "active"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Active
+            </Link>
+            <Link
+              href="/prospects?tab=archived"
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                tab === "archived"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Archive className="size-3.5" />
+              Archived
+            </Link>
+          </div>
+
+          {/* List / Kanban toggle */}
+          <div className="hidden items-center rounded-lg border p-0.5 sm:flex">
+            <Link
+              href={viewToggleUrl("list")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                view === "list"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <List className="size-4" />
+            </Link>
+            <Link
+              href={viewToggleUrl("kanban")}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium transition-colors",
+                view === "kanban"
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Columns3 className="size-4" />
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -260,6 +353,8 @@ export default async function ProspectsPage({
             }}
             lastActivityMap={lastActivityMap}
             openForm={params.action === "new"}
+            tab={tab}
+            stats={stats}
           />
         )}
       </Suspense>

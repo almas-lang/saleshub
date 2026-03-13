@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -183,6 +184,21 @@ export function CampaignStepAudience({
       {channel === "email" && (
         <ExtraEmailsField filter={filter} onFilterChange={onFilterChange} />
       )}
+
+      {/* Include archived toggle */}
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div>
+          <Label htmlFor="include-archived" className="text-sm font-medium">Include archived contacts</Label>
+          <p className="text-xs text-muted-foreground">Archived contacts are excluded by default</p>
+        </div>
+        <Switch
+          id="include-archived"
+          checked={filter.include_archived ?? false}
+          onCheckedChange={(checked) =>
+            onFilterChange({ ...filter, include_archived: checked || undefined })
+          }
+        />
+      </div>
 
       {/* Live count card */}
       <div className="rounded-lg border bg-muted/30 p-4 text-center">

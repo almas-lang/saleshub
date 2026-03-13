@@ -202,6 +202,7 @@ export const createCampaignSchema = z.object({
     stage_id: z.string().optional(),
     assigned_to: z.string().optional(),
     tags: z.array(z.string()).optional(),
+    include_archived: z.boolean().optional(),
   }).optional(),
   steps: z.array(z.object({
     order: z.number().int().min(1),
@@ -248,6 +249,7 @@ export const createEmailCampaignSchema = z.object({
     assigned_to: z.string().optional(),
     tags: z.array(z.string()).optional(),
     extra_emails: z.array(z.string().email()).optional(),
+    include_archived: z.boolean().optional(),
   }).optional(),
   steps: z.array(z.object({
     order: z.number().int().min(1),
@@ -308,3 +310,35 @@ export const bookingPageSchema = z.object({
 });
 
 export type BookingPageValues = z.infer<typeof bookingPageSchema>;
+
+// ──────────────────────────────────────────
+// Business Profile (Settings)
+// ──────────────────────────────────────────
+
+export const businessProfileSchema = z.object({
+  business_name: z.string().min(1, "Business name is required"),
+  gst_number: z.string().optional().or(z.literal("")),
+  address_line1: z.string().optional().or(z.literal("")),
+  address_line2: z.string().optional().or(z.literal("")),
+  city: z.string().optional().or(z.literal("")),
+  state: z.string().optional().or(z.literal("")),
+  pincode: z.string().optional().or(z.literal("")),
+  support_email: z.string().email("Enter a valid email").optional().or(z.literal("")),
+  default_sender_name: z.string().optional().or(z.literal("")),
+  logo_url: z.string().optional().or(z.literal("")),
+});
+
+export type BusinessProfileValues = z.infer<typeof businessProfileSchema>;
+
+// ──────────────────────────────────────────
+// Team Members (Settings)
+// ──────────────────────────────────────────
+
+export const teamMemberSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  email: z.string().email("Enter a valid email"),
+  phone: z.string().optional().or(z.literal("")),
+  role: z.enum(["admin", "sales", "marketing", "viewer"]),
+});
+
+export type TeamMemberValues = z.infer<typeof teamMemberSchema>;

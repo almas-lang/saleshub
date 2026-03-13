@@ -20,7 +20,10 @@ import {
   X,
   Upload,
   ExternalLink,
-  SlidersHorizontal,
+  Columns3,
+  Archive,
+  ArchiveRestore,
+  CalendarCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch, throwOnError } from "@/lib/fetch";
@@ -64,6 +67,11 @@ interface FilterOptions {
   teamMembers: { id: string; name: string }[];
 }
 
+interface ProspectStats {
+  total: number;
+  booked: number;
+}
+
 interface ProspectListProps {
   prospects: ContactWithStage[];
   total: number;
@@ -73,6 +81,8 @@ interface ProspectListProps {
   filterOptions: FilterOptions;
   lastActivityMap: Record<string, string>;
   openForm?: boolean;
+  tab?: "active" | "archived";
+  stats?: ProspectStats;
 }
 
 const PER_PAGE_OPTIONS = [10, 25, 50, 100];
@@ -139,7 +149,10 @@ export function ProspectList({
   filterOptions,
   lastActivityMap,
   openForm = false,
+  tab = "active",
+  stats,
 }: ProspectListProps) {
+  const isArchived = tab === "archived";
   const router = useRouter();
   const searchParams = useSearchParams();
   const [formOpen, setFormOpen] = useState(openForm);
@@ -220,7 +233,7 @@ export function ProspectList({
   }
 
   function handleClearFilters() {
-    router.push("/prospects");
+    router.push(isArchived ? "/prospects?tab=archived" : "/prospects");
     setSearchValue("");
   }
 
@@ -315,6 +328,31 @@ export function ProspectList({
     );
   }
 
+  function handleArchive(ids?: string[]) {
+    const targetIds = ids ?? Array.from(selectedIds);
+    const count = targetIds.length;
+    const action = isArchived ? "unarchive" : "archive";
+
+    setBulkLoading(true);
+    toast.promise(
+      throwOnError(
+        safeFetch("/api/contacts/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action, contact_ids: targetIds }),
+        })
+      ).then(() => {
+        setSelectedIds(new Set());
+        router.refresh();
+      }).finally(() => setBulkLoading(false)),
+      {
+        loading: `${isArchived ? "Unarchiving" : "Archiving"} ${count} prospect${count !== 1 ? "s" : ""}...`,
+        success: `${count} prospect${count !== 1 ? "s" : ""} ${isArchived ? "unarchived" : "archived"}`,
+        error: (err) => err.message,
+      }
+    );
+  }
+
   async function handleDelete() {
     if (!deleteId) return;
     const id = deleteId;
@@ -356,22 +394,35 @@ export function ProspectList({
 
   return (
     <>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative w-full max-w-sm">
-          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search prospects..."
-            className="pl-9"
-            value={searchValue}
-            onChange={(e) => handleSearch(e.target.value)}
-          />
+      {/* Search + Filters + Actions — single toolbar row */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              className="pl-9 h-9"
+              value={searchValue}
+              onChange={(e) => handleSearch(e.target.value)}
+            />
+          </div>
+          <div className="hidden lg:block">
+            <ProspectFilters
+              sources={filterOptions.sources}
+              funnels={filterOptions.funnels}
+              stages={filterOptions.stages}
+              teamMembers={filterOptions.teamMembers}
+              filters={filters}
+              onFilterChange={handleFilterChange}
+              onClearFilters={handleClearFilters}
+            />
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm">
-                <SlidersHorizontal className="mr-2 size-4" />
-                Columns
+              <Button variant="outline" size="icon" className="size-9 shrink-0">
+                <Columns3 className="size-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -396,29 +447,17 @@ export function ProspectList({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" asChild>
+          <Button variant="outline" size="sm" asChild>
             <Link href="/prospects/import">
-              <Upload className="mr-2 size-4" />
+              <Upload className="mr-1.5 size-3.5" />
               Import
             </Link>
           </Button>
-          <Button onClick={() => setFormOpen(true)}>
-            <Plus className="mr-2 size-4" />
-            Add prospect
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="mr-1.5 size-3.5" />
+            Add
           </Button>
         </div>
-      </div>
-
-      <div className="hidden lg:block">
-        <ProspectFilters
-          sources={filterOptions.sources}
-          funnels={filterOptions.funnels}
-          stages={filterOptions.stages}
-          teamMembers={filterOptions.teamMembers}
-          filters={filters}
-          onFilterChange={handleFilterChange}
-          onClearFilters={handleClearFilters}
-        />
       </div>
       <div className="lg:hidden">
         <MobileFilterSheet
@@ -434,15 +473,19 @@ export function ProspectList({
 
       {prospects.length === 0 ? (
         <EmptyState
-          icon={Users}
-          title="No prospects found"
+          icon={isArchived ? Archive : Users}
+          title={isArchived ? "No archived prospects" : "No prospects found"}
           description={
-            searchParams.toString()
-              ? "Try adjusting your search or filters."
-              : "Add your first prospect to get started."
+            isArchived
+              ? searchParams.has("search")
+                ? "Try adjusting your search."
+                : "Prospects you archive will appear here."
+              : searchParams.toString()
+                ? "Try adjusting your search or filters."
+                : "Add your first prospect to get started."
           }
           action={
-            !searchParams.toString()
+            !isArchived && !searchParams.toString()
               ? { label: "Add prospect", onClick: () => setFormOpen(true) }
               : undefined
           }
@@ -649,6 +692,18 @@ export function ProspectList({
                             Edit
                           </DropdownMenuItem>
                           <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchive([prospect.id]);
+                            }}
+                          >
+                            {isArchived ? (
+                              <><ArchiveRestore className="mr-2 size-4" /> Unarchive</>
+                            ) : (
+                              <><Archive className="mr-2 size-4" /> Archive</>
+                            )}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
                             className="text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -764,6 +819,18 @@ export function ProspectList({
                           >
                             <Pencil className="mr-2 size-4" />
                             Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleArchive([prospect.id]);
+                            }}
+                          >
+                            {isArchived ? (
+                              <><ArchiveRestore className="mr-2 size-4" /> Unarchive</>
+                            ) : (
+                              <><Archive className="mr-2 size-4" /> Archive</>
+                            )}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
@@ -961,6 +1028,20 @@ export function ProspectList({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={bulkLoading}
+                onClick={() => handleArchive()}
+              >
+                {isArchived ? (
+                  <><ArchiveRestore className="mr-1.5 size-3.5" /> Unarchive</>
+                ) : (
+                  <><Archive className="mr-1.5 size-3.5" /> Archive</>
+                )}
+              </Button>
 
               <Button
                 variant="outline"

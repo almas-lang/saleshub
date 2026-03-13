@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const bulkSchema = z.object({
-  action: z.enum(["assign", "move_stage", "add_tag", "delete", "restore"]),
+  action: z.enum(["assign", "move_stage", "add_tag", "delete", "restore", "archive", "unarchive"]),
   contact_ids: z.array(z.string().uuid()).min(1).max(100),
   assigned_to: z.string().uuid().optional(),
   stage_id: z.string().uuid().optional(),
@@ -140,6 +140,30 @@ export async function POST(request: Request) {
       const { error } = await supabase
         .from("contacts")
         .update({ deleted_at: null })
+        .in("id", contact_ids);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      break;
+    }
+
+    case "archive": {
+      const { error } = await supabase
+        .from("contacts")
+        .update({ archived_at: new Date().toISOString() })
+        .in("id", contact_ids);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      break;
+    }
+
+    case "unarchive": {
+      const { error } = await supabase
+        .from("contacts")
+        .update({ archived_at: null })
         .in("id", contact_ids);
 
       if (error) {

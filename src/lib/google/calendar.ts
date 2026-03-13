@@ -2,12 +2,13 @@
  * Google Calendar API wrapper
  * Reference: ARCHITECTURE.md Section 7.4, PHASE2_SETUP.md Step 4
  *
- * Manages calendar events, free/busy lookups, and Google Meet link generation.
- * Requires an authenticated OAuth2 client per team member (see auth.ts).
+ * Uses direct REST API calls with google-auth-library for auth,
+ * instead of the heavyweight googleapis SDK.
  */
 
-import { google, calendar_v3 } from "googleapis";
-import { getAuthenticatedClient } from "./auth";
+import { getAccessToken } from "./auth";
+
+const CALENDAR_BASE = "https://www.googleapis.com/calendar/v3";
 
 // ── Types ──────────────────────────────────────────
 
@@ -48,6 +49,34 @@ export interface BusySlot {
   end: string;
 }
 
+// ── Helpers ─────────────────────────────────────────
+
+async function calendarFetch(
+  token: string,
+  path: string,
+  options?: RequestInit
+) {
+  const res = await fetch(`${CALENDAR_BASE}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...options?.headers,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      body?.error?.message ?? `Google API error (${res.status})`
+    );
+  }
+
+  // DELETE returns 204 with no body
+  if (res.status === 204) return null;
+  return res.json();
+}
+
 // ── Public API ──────────────────────────────────────
 
 /**
@@ -59,27 +88,28 @@ export async function getFreeBusy(
   timeMin: Date,
   timeMax: Date
 ): Promise<CalendarResult<BusySlot[]>> {
-  const auth = await getAuthenticatedClient(teamMemberId);
-  if (!auth) {
+  const token = await getAccessToken(teamMemberId);
+  if (!token) {
     return { success: false, error: "Google Calendar not connected" };
   }
 
   try {
-    const calendar = google.calendar({ version: "v3", auth });
-
-    const res = await calendar.freebusy.query({
-      requestBody: {
+    const data = await calendarFetch(token, "/freeBusy", {
+      method: "POST",
+      body: JSON.stringify({
         timeMin: timeMin.toISOString(),
         timeMax: timeMax.toISOString(),
         items: [{ id: "primary" }],
-      },
+      }),
     });
 
-    const busy =
-      res.data.calendars?.primary?.busy?.map((slot) => ({
-        start: slot.start ?? "",
-        end: slot.end ?? "",
-      })) ?? [];
+    const busy: BusySlot[] =
+      data?.calendars?.primary?.busy?.map(
+        (slot: { start?: string; end?: string }) => ({
+          start: slot.start ?? "",
+          end: slot.end ?? "",
+        })
+      ) ?? [];
 
     return { success: true, data: busy };
   } catch (err) {
@@ -96,17 +126,15 @@ export async function createEvent(
   teamMemberId: string,
   options: CreateEventOptions
 ): Promise<CreateEventResult> {
-  const auth = await getAuthenticatedClient(teamMemberId);
-  if (!auth) {
+  const token = await getAccessToken(teamMemberId);
+  if (!token) {
     return { success: false, error: "Google Calendar not connected" };
   }
 
   const timeZone = options.timeZone ?? "Asia/Kolkata";
 
   try {
-    const calendar = google.calendar({ version: "v3", auth });
-
-    const eventBody: calendar_v3.Schema$Event = {
+    const eventBody: Record<string, unknown> = {
       summary: options.summary,
       description: options.description,
       start: {
@@ -129,17 +157,19 @@ export async function createEvent(
       eventBody.attendees = [{ email: options.attendeeEmail }];
     }
 
-    const res = await calendar.events.insert({
-      calendarId: "primary",
-      requestBody: eventBody,
-      conferenceDataVersion: 1,
-      sendUpdates: "all",
-    });
+    const data = await calendarFetch(
+      token,
+      "/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
+      {
+        method: "POST",
+        body: JSON.stringify(eventBody),
+      }
+    );
 
     return {
       success: true,
-      eventId: res.data.id ?? undefined,
-      meetLink: res.data.hangoutLink ?? undefined,
+      eventId: data?.id ?? undefined,
+      meetLink: data?.hangoutLink ?? undefined,
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -155,19 +185,17 @@ export async function deleteEvent(
   teamMemberId: string,
   eventId: string
 ): Promise<CalendarResult<void>> {
-  const auth = await getAuthenticatedClient(teamMemberId);
-  if (!auth) {
+  const token = await getAccessToken(teamMemberId);
+  if (!token) {
     return { success: false, error: "Google Calendar not connected" };
   }
 
   try {
-    const calendar = google.calendar({ version: "v3", auth });
-
-    await calendar.events.delete({
-      calendarId: "primary",
-      eventId,
-      sendUpdates: "all",
-    });
+    await calendarFetch(
+      token,
+      `/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+      { method: "DELETE" }
+    );
 
     return { success: true };
   } catch (err) {
@@ -185,33 +213,47 @@ export async function listEvents(
   timeMin: Date,
   timeMax: Date
 ): Promise<CalendarResult<CalendarEvent[]>> {
-  const auth = await getAuthenticatedClient(teamMemberId);
-  if (!auth) {
+  const token = await getAccessToken(teamMemberId);
+  if (!token) {
     return { success: false, error: "Google Calendar not connected" };
   }
 
   try {
-    const calendar = google.calendar({ version: "v3", auth });
-
-    const res = await calendar.events.list({
-      calendarId: "primary",
+    const params = new URLSearchParams({
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
-      singleEvents: true,
+      singleEvents: "true",
       orderBy: "startTime",
-      maxResults: 100,
+      maxResults: "100",
     });
 
+    const data = await calendarFetch(
+      token,
+      `/calendars/primary/events?${params}`
+    );
+
     const events: CalendarEvent[] =
-      res.data.items?.map((item) => ({
-        id: item.id ?? "",
-        summary: item.summary ?? "",
-        description: item.description ?? undefined,
-        start: item.start?.dateTime ?? item.start?.date ?? "",
-        end: item.end?.dateTime ?? item.end?.date ?? "",
-        meetLink: item.hangoutLink ?? undefined,
-        attendees: item.attendees?.map((a) => a.email ?? "").filter(Boolean),
-      })) ?? [];
+      data?.items?.map(
+        (item: {
+          id?: string;
+          summary?: string;
+          description?: string;
+          start?: { dateTime?: string; date?: string };
+          end?: { dateTime?: string; date?: string };
+          hangoutLink?: string;
+          attendees?: { email?: string }[];
+        }) => ({
+          id: item.id ?? "",
+          summary: item.summary ?? "",
+          description: item.description ?? undefined,
+          start: item.start?.dateTime ?? item.start?.date ?? "",
+          end: item.end?.dateTime ?? item.end?.date ?? "",
+          meetLink: item.hangoutLink ?? undefined,
+          attendees: item.attendees
+            ?.map((a: { email?: string }) => a.email ?? "")
+            .filter(Boolean),
+        })
+      ) ?? [];
 
     return { success: true, data: events };
   } catch (err) {

@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const tags = params.get("tags") ?? "";
   const sort = params.get("sort") ?? "created_at";
   const order = params.get("order") ?? "desc";
+  const archived = params.get("archived") ?? "";
 
   const from = (page - 1) * perPage;
   const to = from + perPage - 1;
@@ -28,6 +29,12 @@ export async function GET(request: NextRequest) {
     )
     .eq("type", "prospect")
     .is("deleted_at", null);
+
+  if (archived === "true") {
+    query = query.not("archived_at", "is", null);
+  } else if (archived === "false") {
+    query = query.is("archived_at", null);
+  }
 
   if (search) {
     query = query.or(

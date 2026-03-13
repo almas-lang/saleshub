@@ -2,16 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Loader2 } from "lucide-react";
+import { Calendar, Loader2, MessageCircle, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
+interface IntegrationsSettingsProps {
+  initialConnected: boolean;
+  whatsappDisplay?: string;
+  emailDomain?: string;
+}
+
 export function IntegrationsSettings({
   initialConnected,
-}: {
-  initialConnected: boolean;
-}) {
+  whatsappDisplay,
+  emailDomain,
+}: IntegrationsSettingsProps) {
   const searchParams = useSearchParams();
   const [connected, setConnected] = useState(initialConnected);
   const [loading, setLoading] = useState(false);
@@ -75,45 +81,92 @@ export function IntegrationsSettings({
   }
 
   return (
-    <div className="rounded-xl border bg-card p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
-            <Calendar className="size-5 text-muted-foreground" />
+    <div className="space-y-4">
+      {/* Google Calendar */}
+      <div className="rounded-xl border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+              <Calendar className="size-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Google Calendar</h3>
+              <p className="text-sm text-muted-foreground">
+                Sync availability and create events with Meet links
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-semibold">Google Calendar</h3>
-            <p className="text-sm text-muted-foreground">
-              Sync availability and create events with Meet links
-            </p>
+
+          <div className="flex items-center gap-3">
+            {connected && (
+              <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
+                Connected
+              </Badge>
+            )}
+
+            {connected ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={loading}
+              >
+                {loading && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                Disconnect
+              </Button>
+            ) : (
+              <Button size="sm" onClick={handleConnect} disabled={loading}>
+                {loading && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                Connect Google Calendar
+              </Button>
+            )}
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-3">
-          {connected && (
+      {/* WhatsApp */}
+      {whatsappDisplay && (
+        <div className="rounded-xl border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+                <MessageCircle className="size-5 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">WhatsApp Business</h3>
+                <p className="text-sm text-muted-foreground">
+                  Connected as {whatsappDisplay}
+                </p>
+              </div>
+            </div>
             <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
               Connected
             </Badge>
-          )}
-
-          {connected ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDisconnect}
-              disabled={loading}
-            >
-              {loading && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-              Disconnect
-            </Button>
-          ) : (
-            <Button size="sm" onClick={handleConnect} disabled={loading}>
-              {loading && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
-              Connect Google Calendar
-            </Button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Email (Resend) */}
+      {emailDomain && (
+        <div className="rounded-xl border bg-card p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+                <Mail className="size-5 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold">Email (Resend)</h3>
+                <p className="text-sm text-muted-foreground">
+                  Sending from {emailDomain}
+                </p>
+              </div>
+            </div>
+            <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-600">
+              Connected
+            </Badge>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
