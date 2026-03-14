@@ -342,3 +342,51 @@ export const teamMemberSchema = z.object({
 });
 
 export type TeamMemberValues = z.infer<typeof teamMemberSchema>;
+
+// ──────────────────────────────────────────
+// Invoices
+// ──────────────────────────────────────────
+
+export const invoiceLineItemSchema = z.object({
+  description: z.string().min(1, "Description is required"),
+  sac_code: z.string().default("999293"),
+  qty: z.number().min(1, "Quantity must be at least 1"),
+  rate: z.number().min(0, "Rate must be positive"),
+  amount: z.number(),
+});
+
+export const invoiceSchema = z.object({
+  contact_id: z.string().uuid("Client is required"),
+  items: z.array(invoiceLineItemSchema).min(1, "At least one item is required"),
+  subtotal: z.number(),
+  total: z.number(),
+  gst_rate: z.number().default(18),
+  gst_amount: z.number().default(0),
+  gst_number: z.string().optional().or(z.literal("")),
+  customer_state: z.string().optional().or(z.literal("")),
+  due_date: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+  type: z.enum(["invoice", "estimate"]).default("invoice"),
+  is_recurring: z.boolean().optional(),
+  recurrence_day: z.number().int().min(1).max(28).optional().nullable(),
+  status: z.enum(["draft", "sent", "paid", "overdue", "cancelled"]).optional(),
+});
+
+export type InvoiceValues = z.infer<typeof invoiceSchema>;
+
+// ──────────────────────────────────────────
+// Convert to Customer
+// ──────────────────────────────────────────
+
+export const convertToCustomerSchema = z.object({
+  contact_id: z.string().uuid("Contact is required"),
+  program_name: z.string().min(1, "Program name is required"),
+  amount: z.number().nullable().optional(),
+  start_date: z.string().optional().or(z.literal("")),
+  sessions_total: z.number().int().min(1).nullable().optional(),
+  mentor_id: z.string().uuid().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+  create_invoice: z.boolean().default(false),
+});
+
+export type ConvertToCustomerValues = z.infer<typeof convertToCustomerSchema>;

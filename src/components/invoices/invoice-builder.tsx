@@ -1,0 +1,485 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { Plus, Save, Send, Check, ChevronsUpDown, UserPlus } from "lucide-react";
+import { toast } from "sonner";
+import { safeFetch } from "@/lib/fetch";
+import { calculateGST, DEFAULT_SAC_CODE } from "@/lib/invoices/gst";
+import type { InvoiceLineItem } from "@/types/invoices";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { INDIAN_STATES } from "@/lib/invoices/gst";
+import { LineItemRow } from "./line-item-row";
+import { InvoicePreview } from "./invoice-preview";
+
+interface Contact {
+  id: string;
+  first_name: string;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
+  company_name: string | null;
+}
+
+interface EditInvoiceData {
+  id: string;
+  contact_id: string;
+  items: InvoiceLineItem[];
+  gst_number: string;
+  customer_state: string;
+  due_date: string;
+  notes: string;
+  gst_rate: number;
+}
+
+interface InvoiceBuilderProps {
+  contacts: Contact[];
+  editInvoice?: EditInvoiceData;
+}
+
+function emptyItem(): InvoiceLineItem {
+  return { description: "", sac_code: DEFAULT_SAC_CODE, qty: 1, rate: 0, amount: 0 };
+}
+
+export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
+  const router = useRouter();
+  const isEdit = !!editInvoice;
+
+  const [saving, setSaving] = useState(false);
+  const [contactId, setContactId] = useState(editInvoice?.contact_id ?? "");
+  const [clientOpen, setClientOpen] = useState(false);
+  const [useCustomClient, setUseCustomClient] = useState(false);
+  const [customFirstName, setCustomFirstName] = useState("");
+  const [customLastName, setCustomLastName] = useState("");
+  const [customEmail, setCustomEmail] = useState("");
+  const [customPhone, setCustomPhone] = useState("");
+  const [customCompany, setCustomCompany] = useState("");
+  const [clientGst, setClientGst] = useState(editInvoice?.gst_number ?? "");
+  const [clientState, setClientState] = useState(editInvoice?.customer_state ?? "");
+  const [dueDate, setDueDate] = useState(editInvoice?.due_date ?? "");
+  const [notes, setNotes] = useState(editInvoice?.notes ?? "");
+  const [gstRate, setGstRate] = useState(editInvoice?.gst_rate ?? 18);
+  const [includePaymentLink, setIncludePaymentLink] = useState(true);
+  const [items, setItems] = useState<InvoiceLineItem[]>(
+    editInvoice?.items.length ? editInvoice.items : [emptyItem()]
+  );
+
+  const selectedContact = contacts.find((c) => c.id === contactId);
+
+  const gst = useMemo(() => calculateGST(items, clientState, gstRate), [items, clientState, gstRate]);
+
+  function handleItemChange(index: number, field: keyof InvoiceLineItem, value: string | number) {
+    setItems((prev) => {
+      const updated = [...prev];
+      const item = { ...updated[index], [field]: value };
+      if (field === "qty" || field === "rate") {
+        item.amount = (item.qty || 0) * (item.rate || 0);
+      }
+      updated[index] = item;
+      return updated;
+    });
+  }
+
+  function addItem() {
+    setItems((prev) => [...prev, emptyItem()]);
+  }
+
+  function removeItem(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleSave(andSend = false) {
+    if (!useCustomClient && !contactId) {
+      toast.error("Please select a client");
+      return;
+    }
+    if (useCustomClient && !customFirstName.trim()) {
+      toast.error("Please enter a client name");
+      return;
+    }
+    if (items.some((item) => !item.description.trim())) {
+      toast.error("All items must have a description");
+      return;
+    }
+
+    setSaving(true);
+
+    let resolvedContactId = contactId;
+
+    // If using custom client, create a new contact first
+    if (useCustomClient) {
+      const contactResult = await safeFetch<{ id: string }>("/api/contacts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          first_name: customFirstName.trim(),
+          last_name: customLastName.trim() || undefined,
+          email: customEmail.trim() || undefined,
+          phone: customPhone.trim() || undefined,
+          company_name: customCompany.trim() || undefined,
+        }),
+      });
+
+      if (!contactResult.ok) {
+        setSaving(false);
+        toast.error(contactResult.error);
+        return;
+      }
+      resolvedContactId = contactResult.data.id;
+    }
+
+    const payload = {
+      contact_id: resolvedContactId,
+      items,
+      subtotal: gst.subtotal,
+      total: gst.total,
+      gst_rate: gstRate,
+      gst_amount: gst.isIntraState ? gst.cgst + gst.sgst : gst.igst,
+      gst_number: clientGst,
+      customer_state: clientState,
+      due_date: dueDate,
+      notes,
+      status: andSend ? "sent" : "draft",
+      include_payment_link: andSend ? includePaymentLink : undefined,
+    };
+
+    const url = isEdit ? `/api/invoices/${editInvoice.id}` : "/api/invoices";
+    const method = isEdit ? "PATCH" : "POST";
+
+    const result = await safeFetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    setSaving(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    if (isEdit) {
+      toast.success("Invoice updated");
+      router.push(`/invoices/${editInvoice.id}`);
+    } else {
+      toast.success(andSend ? "Invoice created and sent" : "Invoice saved as draft");
+      router.push("/invoices");
+    }
+    router.refresh();
+  }
+
+  const clientName = useCustomClient
+    ? `${customFirstName} ${customLastName}`.trim()
+    : selectedContact
+      ? `${selectedContact.first_name} ${selectedContact.last_name ?? ""}`.trim()
+      : "";
+
+  const clientEmailDisplay = useCustomClient
+    ? customEmail || undefined
+    : selectedContact?.email ?? undefined;
+
+  const clientPhoneDisplay = useCustomClient
+    ? customPhone || undefined
+    : selectedContact?.phone ?? undefined;
+
+  const clientCompanyDisplay = useCustomClient
+    ? customCompany || undefined
+    : selectedContact?.company_name ?? undefined;
+
+  function contactLabel(c: Contact) {
+    const name = `${c.first_name} ${c.last_name ?? ""}`.trim();
+    return c.company_name ? `${name} (${c.company_name})` : name;
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {/* Left Panel: Form */}
+      <div className="space-y-6">
+        {/* Client Selection */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <Label>Client</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-auto py-0.5 px-2 text-xs text-muted-foreground"
+              onClick={() => {
+                setUseCustomClient(!useCustomClient);
+                if (!useCustomClient) {
+                  setContactId("");
+                } else {
+                  setCustomFirstName("");
+                  setCustomLastName("");
+                  setCustomEmail("");
+                  setCustomPhone("");
+                  setCustomCompany("");
+                }
+              }}
+            >
+              {useCustomClient ? (
+                "Select existing client"
+              ) : (
+                <>
+                  <UserPlus className="mr-1 size-3" />
+                  New client
+                </>
+              )}
+            </Button>
+          </div>
+
+          {useCustomClient ? (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="First name *"
+                  value={customFirstName}
+                  onChange={(e) => setCustomFirstName(e.target.value)}
+                />
+                <Input
+                  placeholder="Last name"
+                  value={customLastName}
+                  onChange={(e) => setCustomLastName(e.target.value)}
+                />
+              </div>
+              <Input
+                placeholder="Email"
+                type="email"
+                value={customEmail}
+                onChange={(e) => setCustomEmail(e.target.value)}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Input
+                  placeholder="Phone"
+                  value={customPhone}
+                  onChange={(e) => setCustomPhone(e.target.value)}
+                />
+                <Input
+                  placeholder="Company"
+                  value={customCompany}
+                  onChange={(e) => setCustomCompany(e.target.value)}
+                />
+              </div>
+            </div>
+          ) : (
+            <Popover open={clientOpen} onOpenChange={setClientOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={clientOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {selectedContact ? contactLabel(selectedContact) : "Search clients..."}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Type a name..." />
+                  <CommandList>
+                    <CommandEmpty>No client found.</CommandEmpty>
+                    <CommandGroup>
+                      {contacts.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={contactLabel(c)}
+                          onSelect={() => {
+                            setContactId(c.id);
+                            setClientOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 size-4",
+                              contactId === c.id ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          <div>
+                            <p className="text-sm">{c.first_name} {c.last_name ?? ""}</p>
+                            {c.company_name && (
+                              <p className="text-xs text-muted-foreground">{c.company_name}</p>
+                            )}
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+
+        {/* GST & State */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Client GST Number</Label>
+            <Input
+              placeholder="e.g. 29XXXXX"
+              value={clientGst}
+              onChange={(e) => setClientGst(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Client State</Label>
+            <Select value={clientState} onValueChange={setClientState}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select state..." />
+              </SelectTrigger>
+              <SelectContent>
+                {INDIAN_STATES.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Dates */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Due Date</Label>
+            <Input
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">GST Rate (%)</Label>
+            <Select value={String(gstRate)} onValueChange={(v) => setGstRate(Number(v))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">0% (No GST)</SelectItem>
+                <SelectItem value="5">5%</SelectItem>
+                <SelectItem value="12">12%</SelectItem>
+                <SelectItem value="18">18%</SelectItem>
+                <SelectItem value="28">28%</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Line Items */}
+        <div className="space-y-3">
+          <Label>Line Items</Label>
+          <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
+            <div className="col-span-6">Description</div>
+            <div className="col-span-1 text-right">Qty</div>
+            <div className="col-span-3 text-right">Rate (₹)</div>
+            <div className="col-span-1 text-right">Amt</div>
+            <div className="col-span-1" />
+          </div>
+          {items.map((item, i) => (
+            <LineItemRow
+              key={i}
+              item={item}
+              index={i}
+              onChange={handleItemChange}
+              onRemove={removeItem}
+              canRemove={items.length > 1}
+            />
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addItem}
+            className="mt-1"
+          >
+            <Plus className="mr-1.5 size-3.5" />
+            Add Item
+          </Button>
+        </div>
+
+        {/* Notes */}
+        <div className="space-y-1.5">
+          <Label className="text-xs">Notes</Label>
+          <Textarea
+            placeholder="Payment terms, thank you message, etc."
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
+        {/* Payment Link Option */}
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="include-payment-link"
+            checked={includePaymentLink}
+            onCheckedChange={(checked) => setIncludePaymentLink(checked === true)}
+          />
+          <Label htmlFor="include-payment-link" className="text-sm font-normal cursor-pointer">
+            Include payment link when sending
+          </Label>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 pt-2">
+          <Button
+            onClick={() => handleSave(false)}
+            disabled={saving}
+            variant="outline"
+          >
+            <Save className="mr-1.5 size-4" />
+            {isEdit ? "Update" : "Save Draft"}
+          </Button>
+          <Button onClick={() => handleSave(true)} disabled={saving}>
+            <Send className="mr-1.5 size-4" />
+            {isEdit ? "Update & Send" : "Save & Send"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Right Panel: Live Preview */}
+      <div className="hidden lg:block sticky top-20">
+        <p className="text-xs font-medium text-muted-foreground mb-3">LIVE PREVIEW</p>
+        <InvoicePreview
+          invoiceNumber=""
+          clientName={clientName}
+          clientEmail={clientEmailDisplay}
+          clientPhone={clientPhoneDisplay}
+          clientCompany={clientCompanyDisplay}
+          clientGst={clientGst}
+          clientState={clientState}
+          items={items}
+          gst={gst}
+          dueDate={dueDate}
+          notes={notes}
+        />
+      </div>
+    </div>
+  );
+}

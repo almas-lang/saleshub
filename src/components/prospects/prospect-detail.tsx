@@ -32,12 +32,14 @@ import {
   MoreHorizontal,
   Archive,
   ArchiveRestore,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
 import { cn, formatDate, timeAgo, formatPhone } from "@/lib/utils";
 import type { ContactWithStage, Activity, ActivityWithUser, Task, ContactFormResponse } from "@/types/contacts";
 import type { WASendWithDetails, EmailSendWithDetails } from "@/types/campaigns";
+import type { InvoiceWithContact } from "@/types/invoices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -65,6 +67,8 @@ import { ActivitySummaryCard } from "./activity-summary-card";
 import { TagsCard } from "./tags-card";
 import { MobileFab } from "./mobile-fab";
 import { SendWhatsAppDialog } from "./send-whatsapp-dialog";
+import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
+import { ConvertToCustomerModal } from "@/components/customers/convert-to-customer-modal";
 
 interface FunnelOption {
   id: string;
@@ -99,6 +103,7 @@ interface ProspectDetailProps {
   activitySummary: ActivitySummaryData;
   waSends: WASendWithDetails[];
   emailSendRecords: EmailSendWithDetails[];
+  invoices: InvoiceWithContact[];
 }
 
 const ACTIVITY_ICON_CONFIG: Record<
@@ -134,6 +139,7 @@ export function ProspectDetail({
   activitySummary,
   waSends,
   emailSendRecords,
+  invoices,
 }: ProspectDetailProps) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
@@ -141,6 +147,7 @@ export function ProspectDetail({
   const [addNoteOpen, setAddNoteOpen] = useState(false);
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [sendWaOpen, setSendWaOpen] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [submittingNote, setSubmittingNote] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -522,6 +529,12 @@ export function ProspectDetail({
                   <><Archive className="mr-2 size-4" /> Archive</>
                 )}
               </DropdownMenuItem>
+              {prospect.type === "prospect" && (
+                <DropdownMenuItem onClick={() => setConvertOpen(true)}>
+                  <UserCheck className="mr-2 size-4" />
+                  Convert to Customer
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 className="text-destructive"
                 onClick={() => setDeleteOpen(true)}
@@ -790,14 +803,46 @@ export function ProspectDetail({
 
         {/* Invoices Tab */}
         <TabsContent value="invoices" className="mt-6">
-          <div className="py-12 text-center">
-            <FileText className="mx-auto mb-3 size-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Coming in Phase 2
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Invoices and payment history will appear here.
-            </p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">Invoices</h3>
+              <a href="/invoices/new">
+                <Button size="sm" variant="outline">
+                  <FileText className="mr-1.5 size-3.5" />
+                  New Invoice
+                </Button>
+              </a>
+            </div>
+            {invoices.length === 0 ? (
+              <div className="py-8 text-center">
+                <FileText className="mx-auto mb-3 size-10 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">No invoices yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {invoices.map((inv) => (
+                  <a
+                    key={inv.id}
+                    href={`/invoices/${inv.id}`}
+                    className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="size-4 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm font-medium">{inv.invoice_number}</p>
+                        <p className="text-xs text-muted-foreground">{formatDate(inv.created_at)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <InvoiceStatusBadge status={inv.status} />
+                      <span className="text-sm font-medium tabular-nums">
+                        {new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(inv.total)}
+                      </span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -975,6 +1020,14 @@ export function ProspectDetail({
         description="This note will be permanently removed."
         onConfirm={() => deletingNoteId && handleDeleteNote(deletingNoteId)}
         destructive
+      />
+
+      <ConvertToCustomerModal
+        open={convertOpen}
+        onOpenChange={setConvertOpen}
+        contactId={prospect.id}
+        contactName={`${prospect.first_name} ${prospect.last_name ?? ""}`.trim()}
+        teamMembers={teamMembers}
       />
     </>
   );

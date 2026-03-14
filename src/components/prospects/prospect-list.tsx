@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -209,16 +209,23 @@ export function ProspectList({
     [router, searchParams]
   );
 
+  const searchTimeout = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSearch = useCallback(
     (value: string) => {
       setSearchValue(value);
-      const timeout = setTimeout(() => {
+      if (searchTimeout.current) clearTimeout(searchTimeout.current);
+      searchTimeout.current = setTimeout(() => {
         updateParams({ search: value });
       }, 300);
-      return () => clearTimeout(timeout);
     },
     [updateParams]
   );
+
+  const handleSearchSubmit = useCallback(() => {
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    updateParams({ search: searchValue });
+  }, [updateParams, searchValue]);
 
   function handleSort(column: string) {
     if (currentSort === column) {
@@ -404,6 +411,9 @@ export function ProspectList({
               className="pl-9 h-9"
               value={searchValue}
               onChange={(e) => handleSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSearchSubmit();
+              }}
             />
           </div>
           <div className="hidden lg:block">
