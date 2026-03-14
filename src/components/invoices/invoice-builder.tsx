@@ -171,26 +171,44 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
     const url = isEdit ? `/api/invoices/${editInvoice.id}` : "/api/invoices";
     const method = isEdit ? "PATCH" : "POST";
 
-    const result = await safeFetch(url, {
+    const result = await safeFetch<{ id: string }>(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
-    setSaving(false);
-
     if (!result.ok) {
+      setSaving(false);
       toast.error(result.error);
       return;
     }
 
-    if (isEdit) {
-      toast.success("Invoice updated");
-      router.push(`/invoices/${editInvoice.id}`);
+    const invoiceId = isEdit ? editInvoice.id : result.data.id;
+
+    // Actually send the email if requested
+    if (andSend) {
+      const sendResult = await safeFetch(`/api/invoices/${invoiceId}/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ include_payment_link: includePaymentLink }),
+      });
+
+      setSaving(false);
+
+      if (!sendResult.ok) {
+        toast.error(sendResult.error);
+        router.push(`/invoices/${invoiceId}`);
+        router.refresh();
+        return;
+      }
+
+      toast.success(isEdit ? "Invoice updated and sent" : "Invoice created and sent");
     } else {
-      toast.success(andSend ? "Invoice created and sent" : "Invoice saved as draft");
-      router.push("/invoices");
+      setSaving(false);
+      toast.success(isEdit ? "Invoice updated" : "Invoice saved as draft");
     }
+
+    router.push(isEdit ? `/invoices/${invoiceId}` : "/invoices");
     router.refresh();
   }
 
