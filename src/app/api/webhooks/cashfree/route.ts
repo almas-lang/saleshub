@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true });
     }
 
-    return handlePaid(linkId, payload.data?.cf_link_id ?? linkId, "link_id");
+    return handlePaid(linkId, payload.data?.cf_link_id ?? linkId);
   }
 
   // Handle "success payment" global webhook event
@@ -44,40 +44,48 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true });
     }
 
-    // Our link_id format is `inv_{8chars}_{timestamp}`, which becomes the order_id
-    return handlePaid(orderId, String(paymentId ?? orderId), "order_id");
+    return handlePaid(orderId, String(paymentId ?? orderId));
   }
 
   return NextResponse.json({ received: true });
 }
 
-async function handlePaid(lookupId: string, paymentId: string, matchBy: string) {
-  // Try to find invoice by payment_link containing the ID, or by link stored separately
+/**
+ * Extract invoice UUID from our link_id format: "inv-{uuid}"
+ */
+function extractInvoiceId(linkId: string): string | null {
+  if (linkId.startsWith("inv-")) {
+    return linkId.slice(4); // remove "inv-" prefix → full UUID
+  }
+  return null;
+}
+
+async function handlePaid(lookupId: string, paymentId: string) {
   let invoice;
 
-  const { data } = await supabaseAdmin
-    .from("invoices")
-    .select("id, contact_id, status, invoice_number, total")
-    .like("payment_link", `%${lookupId}%`)
-    .single();
+  // Try direct UUID lookup (new format: inv-{uuid})
+  const invoiceId = extractInvoiceId(lookupId);
+  if (invoiceId) {
+    const { data } = await supabaseAdmin
+      .from("invoices")
+      .select("id, contact_id, status, invoice_number, total")
+      .eq("id", invoiceId)
+      .single();
+    invoice = data;
+  }
 
-  invoice = data;
-
-  // If no match by payment_link, try matching the order_id pattern (inv_{uuid_prefix}_{ts})
-  if (!invoice && lookupId.startsWith("inv_")) {
-    const uuidPrefix = lookupId.split("_")[1]; // first 8 chars of invoice UUID
-    if (uuidPrefix) {
-      const { data: fallback } = await supabaseAdmin
-        .from("invoices")
-        .select("id, contact_id, status, invoice_number, total")
-        .like("id", `${uuidPrefix}%`)
-        .single();
-      invoice = fallback;
-    }
+  // Fallback: search by payment_link URL containing the lookup ID
+  if (!invoice) {
+    const { data } = await supabaseAdmin
+      .from("invoices")
+      .select("id, contact_id, status, invoice_number, total")
+      .like("payment_link", `%${lookupId}%`)
+      .single();
+    invoice = data;
   }
 
   if (!invoice) {
-    console.error(`[Cashfree Webhook] No invoice found for ${matchBy}:`, lookupId);
+    console.error(`[Cashfree Webhook] No invoice found for:`, lookupId);
     return NextResponse.json({ received: true });
   }
 

@@ -32,7 +32,7 @@ export async function createCashfreePaymentLink(
   customerName: string
 ): Promise<CashfreePaymentLinkResult> {
   try {
-    const linkId = `inv_${invoiceId.slice(0, 8)}_${Date.now()}`;
+    const linkId = `inv-${invoiceId}`;
 
     const response = await fetch(BASE_URL, {
       method: "POST",
