@@ -34,6 +34,16 @@ const NOTIFICATION_TYPES = [
     label: "Daily digest email",
     description: "Receive a daily email summary of your activity.",
   },
+  {
+    key: "weekly_analytics_email",
+    label: "Weekly analytics email",
+    description: "Receive a weekly analytics summary every Monday at 8 AM IST.",
+  },
+  {
+    key: "payment_received",
+    label: "Payment received",
+    description: "Get notified when a payment is received on an invoice.",
+  },
 ] as const;
 
 export function NotificationPreferences({

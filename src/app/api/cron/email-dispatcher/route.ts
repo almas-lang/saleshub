@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendEmail, renderVariables } from "@/lib/email/client";
+import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -107,8 +108,13 @@ export async function GET(request: NextRequest) {
       company_name: contact.company_name ?? "",
     };
 
-    const subject = renderVariables(step.subject, vars);
-    const html = renderVariables(step.body_html, vars);
+    const rawSubject = renderVariables(step.subject, vars);
+    const rawHtml = renderVariables(step.body_html, vars);
+
+    const { subject, html } = await renderDripEmail({
+      subject: rawSubject,
+      bodyHtml: rawHtml,
+    });
 
     const result = await sendEmail({
       to: contact.email,

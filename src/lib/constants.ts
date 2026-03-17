@@ -44,7 +44,7 @@ export const NAV_ITEMS = [
 ] as const;
 
 // Current build phase — increment this as you complete phases
-export const CURRENT_PHASE = 3;
+export const CURRENT_PHASE = 4;
 
 // Default funnel stages for VSL flow
 export const DEFAULT_VSL_STAGES = [

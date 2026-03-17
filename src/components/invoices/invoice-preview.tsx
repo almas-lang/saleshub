@@ -40,7 +40,7 @@ export function InvoicePreview({
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4 text-white">
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-sm font-bold tracking-wide">EXPWAVE OPC PVT. LTD.</h3>
+            <h3 className="text-sm font-bold tracking-wide">EXPWAVE PVT. LTD.</h3>
             <p className="text-slate-400 text-[10px] mt-0.5">
               328, 6th Main, AECS B Block, Singasandra, Bangalore 560068
             </p>

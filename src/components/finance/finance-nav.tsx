@@ -7,7 +7,6 @@ import {
   Receipt,
   Megaphone,
   FileBarChart,
-  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,7 +15,6 @@ const FINANCE_TABS = [
   { label: "Expenses", href: "/finance/expenses", icon: Receipt },
   { label: "Ad Spend", href: "/finance/ad-spend", icon: Megaphone },
   { label: "Reports", href: "/finance/reports", icon: FileBarChart },
-  { label: "Import", href: "/finance/import", icon: Upload },
 ] as const;
 
 export function FinanceNav() {

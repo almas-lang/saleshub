@@ -9,68 +9,65 @@ const CASHFREE_APP_ID = process.env.CASHFREE_APP_ID!;
 const CASHFREE_SECRET_KEY = process.env.CASHFREE_SECRET_KEY!;
 const CASHFREE_ENV = process.env.CASHFREE_ENV ?? "sandbox";
 
-const BASE_URL =
+const ORDERS_URL =
   CASHFREE_ENV === "production"
-    ? "https://api.cashfree.com/pg/links"
-    : "https://sandbox.cashfree.com/pg/links";
+    ? "https://api.cashfree.com/pg/orders"
+    : "https://sandbox.cashfree.com/pg/orders";
 
-export interface CashfreePaymentLinkResult {
+export interface CashfreeOrderResult {
   success: boolean;
-  paymentLink?: string;
-  linkId?: string;
+  orderId?: string;
+  paymentSessionId?: string;
   error?: string;
 }
 
 /**
- * Create a Cashfree payment link for an invoice.
+ * Create a Cashfree PG order for an invoice.
+ * Returns a payment_session_id used by the Cashfree JS SDK checkout.
  */
-export async function createCashfreePaymentLink(
+export async function createCashfreeOrder(
   invoiceId: string,
   amount: number,
   customerEmail: string,
   customerPhone: string,
   customerName: string
-): Promise<CashfreePaymentLinkResult> {
+): Promise<CashfreeOrderResult> {
   try {
-    // Sanitize phone — Cashfree requires a valid 10-digit Indian number
     const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
     const phone = cleanPhone.length === 10 ? cleanPhone : "9999999999";
 
-    // Use a short suffix to avoid link_id collisions across environments
     const suffix = Date.now().toString(36);
-    const linkId = `inv-${invoiceId.slice(0, 30)}-${suffix}`;
+    const orderId = `inv-${invoiceId}-${suffix}`.slice(0, 45);
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
     const payload = {
-      link_id: linkId,
-      link_amount: amount,
-      link_currency: "INR",
-      link_purpose: `Invoice Payment - ${invoiceId.slice(0, 8)}`,
+      order_id: orderId,
+      order_amount: amount,
+      order_currency: "INR",
       customer_details: {
+        customer_id: invoiceId.slice(0, 50),
         customer_name: customerName,
         customer_email: customerEmail,
         customer_phone: phone,
       },
-      link_notify: {
-        send_sms: false,
-        send_email: false, // We handle notifications ourselves
+      order_meta: {
+        return_url: `${appUrl}/invoice/${invoiceId}?payment=success`,
+        notify_url: `${appUrl}/api/webhooks/cashfree`,
       },
-      link_meta: {
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/invoice/${invoiceId}?payment=success`,
-        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/cashfree`,
-      },
-      link_expiry_time: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      order_expiry_time: new Date(
+        Date.now() + 30 * 24 * 60 * 60 * 1000
+      ).toISOString(),
     };
 
-    console.log("[Cashfree] Creating payment link:", {
-      linkId,
+    console.log("[Cashfree] Creating PG order:", {
+      orderId,
       amount,
       email: customerEmail,
-      phone,
       env: CASHFREE_ENV,
-      baseUrl: BASE_URL,
     });
 
-    const response = await fetch(BASE_URL, {
+    const response = await fetch(ORDERS_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -84,18 +81,58 @@ export async function createCashfreePaymentLink(
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("[Cashfree] Error response:", JSON.stringify(data));
-      return { success: false, error: data.message ?? JSON.stringify(data) };
+      console.error("[Cashfree] Order error:", JSON.stringify(data));
+      return {
+        success: false,
+        error: data.message ?? JSON.stringify(data),
+      };
     }
 
-    console.log("[Cashfree] Payment link created:", data.link_url);
+    console.log("[Cashfree] Order created:", orderId);
     return {
       success: true,
-      paymentLink: data.link_url,
-      linkId: data.link_id,
+      orderId: data.order_id,
+      paymentSessionId: data.payment_session_id,
     };
   } catch (error) {
     console.error("[Cashfree] Exception:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+/**
+ * Get an existing Cashfree order to retrieve its payment_session_id.
+ */
+export async function getCashfreeOrder(
+  orderId: string
+): Promise<CashfreeOrderResult> {
+  try {
+    const response = await fetch(`${ORDERS_URL}/${orderId}`, {
+      headers: {
+        "x-client-id": CASHFREE_APP_ID,
+        "x-client-secret": CASHFREE_SECRET_KEY,
+        "x-api-version": "2023-08-01",
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data.message ?? JSON.stringify(data),
+      };
+    }
+
+    return {
+      success: true,
+      orderId: data.order_id,
+      paymentSessionId: data.payment_session_id,
+    };
+  } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

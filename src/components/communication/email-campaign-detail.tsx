@@ -12,6 +12,9 @@ import {
   FileText,
   Users,
   Send,
+  Pencil,
+  X,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -41,6 +44,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { EmailBlockEditor } from "./email-block-editor";
 
 const STATUS_STYLES: Record<CampaignStatus, { className: string }> = {
   draft: { className: "bg-muted text-muted-foreground" },
@@ -123,6 +129,57 @@ export function EmailCampaignDetail({
   const router = useRouter();
   const [showDelete, setShowDelete] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editDelayHours, setEditDelayHours] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  const canEdit = campaign.status === "draft" || campaign.status === "paused";
+
+  function startEditing(step: EmailStep) {
+    setEditingStepId(step.id);
+    setEditSubject(step.subject);
+    setEditBody(step.body_html);
+    setEditDelayHours(step.delay_hours);
+  }
+
+  function cancelEditing() {
+    setEditingStepId(null);
+    setEditSubject("");
+    setEditBody("");
+    setEditDelayHours(0);
+  }
+
+  async function saveStep() {
+    if (!editingStepId) return;
+    setSaving(true);
+    const result = await safeFetch(
+      `/api/campaigns/email?id=${campaign.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          steps: [
+            {
+              id: editingStepId,
+              subject: editSubject,
+              body_html: editBody,
+              delay_hours: editDelayHours,
+            },
+          ],
+        }),
+      }
+    );
+    setSaving(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Step updated");
+    setEditingStepId(null);
+    router.refresh();
+  }
 
   async function handleTogglePause() {
     const newStatus = campaign.status === "active" ? "paused" : "active";
@@ -297,30 +354,103 @@ export function EmailCampaignDetail({
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {steps.map((step) => (
-                <div
-                  key={step.id}
-                  className="flex items-start gap-4 rounded-xl border p-4"
-                >
-                  <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                    {step.order}
-                  </div>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <p className="font-medium">{step.subject}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">
-                      {step.body_html.replace(/<[^>]*>/g, "").slice(0, 150)}
-                    </p>
-                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Clock className="size-3.5" />
-                        {step.delay_hours === 0
-                          ? "Send immediately"
-                          : `${step.delay_hours}h delay`}
-                      </span>
+              {steps.map((step) =>
+                editingStepId === step.id ? (
+                  <div
+                    key={step.id}
+                    className="flex flex-col gap-4 rounded-xl border border-primary/30 p-4"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+                          {step.order}
+                        </div>
+                        <span className="text-sm font-medium">Editing step</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={cancelEditing}
+                          disabled={saving}
+                        >
+                          <X className="mr-1 size-4" />
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={saveStep}
+                          disabled={saving}
+                        >
+                          <Check className="mr-1 size-4" />
+                          {saving ? "Saving..." : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="edit-subject">Subject</Label>
+                      <Input
+                        id="edit-subject"
+                        value={editSubject}
+                        onChange={(e) => setEditSubject(e.target.value)}
+                        placeholder="Email subject"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="edit-delay">Delay (hours)</Label>
+                      <Input
+                        id="edit-delay"
+                        type="number"
+                        min={0}
+                        value={editDelayHours}
+                        onChange={(e) =>
+                          setEditDelayHours(parseInt(e.target.value) || 0)
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label>Body</Label>
+                      <EmailBlockEditor
+                        content={editBody}
+                        onChange={setEditBody}
+                      />
                     </div>
                   </div>
-                </div>
-              ))}
+                ) : (
+                  <div
+                    key={step.id}
+                    className="flex items-start gap-4 rounded-xl border p-4"
+                  >
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
+                      {step.order}
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <p className="font-medium">{step.subject}</p>
+                      <p className="text-xs text-muted-foreground line-clamp-2">
+                        {step.body_html.replace(/<[^>]*>/g, "").slice(0, 150)}
+                      </p>
+                      <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Clock className="size-3.5" />
+                          {step.delay_hours === 0
+                            ? "Send immediately"
+                            : `${step.delay_hours}h delay`}
+                        </span>
+                      </div>
+                    </div>
+                    {canEdit && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 shrink-0"
+                        onClick={() => startEditing(step)}
+                      >
+                        <Pencil className="size-4" />
+                      </Button>
+                    )}
+                  </div>
+                )
+              )}
             </div>
           )}
         </TabsContent>

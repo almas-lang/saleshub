@@ -6,16 +6,18 @@ import { BaseLayout } from "./base-layout";
 // ── Props ───────────────────────────────────────────
 interface DripWrapperProps {
   bodyHtml: string;
+  preview?: string;
   unsubscribeUrl?: string;
 }
 
 // ── Component ───────────────────────────────────────
 export function DripWrapperEmail({
   bodyHtml = "<p>Email content goes here.</p>",
+  preview,
   unsubscribeUrl,
 }: DripWrapperProps) {
   return (
-    <BaseLayout unsubscribeUrl={unsubscribeUrl}>
+    <BaseLayout preview={preview} unsubscribeUrl={unsubscribeUrl}>
       <Section dangerouslySetInnerHTML={{ __html: bodyHtml }} />
     </BaseLayout>
   );
@@ -28,6 +30,7 @@ export async function renderDripEmail(
   const html = await render(
     <DripWrapperEmail
       bodyHtml={props.bodyHtml}
+      preview={props.subject}
       unsubscribeUrl={props.unsubscribeUrl}
     />
   );

@@ -12,31 +12,6 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       activities: {
@@ -95,6 +70,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ad_spend: {
+        Row: {
+          amount: number
+          campaign_id: string | null
+          campaign_name: string
+          clicks: number
+          created_at: string
+          date: string
+          id: string
+          impressions: number
+          leads: number
+          metadata: Json | null
+          platform: string
+          spend_currency: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          campaign_id?: string | null
+          campaign_name: string
+          clicks?: number
+          created_at?: string
+          date: string
+          id?: string
+          impressions?: number
+          leads?: number
+          metadata?: Json | null
+          platform: string
+          spend_currency?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          campaign_id?: string | null
+          campaign_name?: string
+          clicks?: number
+          created_at?: string
+          date?: string
+          id?: string
+          impressions?: number
+          leads?: number
+          metadata?: Json | null
+          platform?: string
+          spend_currency?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       booking_pages: {
         Row: {
@@ -781,6 +804,33 @@ export type Database = {
           name?: string
           subject?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      expense_categories: {
+        Row: {
+          color: string
+          created_at: string
+          icon: string
+          id: string
+          is_system: boolean
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          is_system?: boolean
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          icon?: string
+          id?: string
+          is_system?: boolean
+          name?: string
         }
         Relationships: []
       }
@@ -1595,9 +1645,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       account_type: ["individual", "business"],

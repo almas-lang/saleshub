@@ -5,7 +5,6 @@ import { sendEmail } from "@/lib/email/client";
 import { formatCurrency } from "@/lib/utils";
 import { calculateGST } from "@/lib/invoices/gst";
 import { parseInvoiceItems } from "@/types/invoices";
-import { createCashfreePaymentLink } from "@/lib/payments/cashfree";
 
 function fmtDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -56,27 +55,12 @@ export async function POST(
   // Generate payment link if requested and not already set
   let paymentLink = invoice.payment_link;
   let paymentLinkError: string | undefined;
-  if (includePaymentLink && !paymentLink && process.env.CASHFREE_APP_ID) {
-    const linkResult = await createCashfreePaymentLink(
-      id,
-      invoice.total,
-      contact.email,
-      contact.phone ?? "",
-      clientName
-    );
-    if (linkResult.success && linkResult.paymentLink) {
-      paymentLink = linkResult.paymentLink;
-      await supabaseAdmin
-        .from("invoices")
-        .update({ payment_link: paymentLink })
-        .eq("id", id);
-    } else {
-      console.error("[Invoice Send] Cashfree payment link failed:", linkResult.error);
-      paymentLinkError = linkResult.error;
-    }
-  } else if (includePaymentLink && !paymentLink && !process.env.CASHFREE_APP_ID) {
-    console.warn("[Invoice Send] CASHFREE_APP_ID not set — skipping payment link");
-    paymentLinkError = "CASHFREE_APP_ID not configured";
+  if (includePaymentLink && !paymentLink) {
+    paymentLink = `${appUrl}/pay/${id}`;
+    await supabaseAdmin
+      .from("invoices")
+      .update({ payment_link: paymentLink, payment_gateway: "cashfree" })
+      .eq("id", id);
   }
 
   // If user chose not to include payment link, don't show it in email
@@ -118,7 +102,7 @@ export async function POST(
       <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px">
         <tr>
           <td>
-            <h2 style="margin:0;font-size:18px;color:#111">EXPWAVE OPC PVT. LTD.</h2>
+            <h2 style="margin:0;font-size:18px;color:#111">EXPWAVE PVT. LTD.</h2>
             <p style="margin:2px 0 0;font-size:11px;color:#888">328, 6th main AECS B Block Singasandra Bangalore 560068</p>
             <p style="margin:2px 0 0;font-size:11px;color:#888">GSTIN: 29AAHCE9805F1ZE | PAN: AAHCE9805F</p>
           </td>
@@ -202,7 +186,7 @@ export async function POST(
       </div>
 
       <hr style="margin:20px 0;border:none;border-top:1px solid #eee" />
-      <p style="color:#999;font-size:11px;text-align:center">Expwave OPC Pvt. Ltd. | GSTIN: 29AAHCE9805F1ZE</p>
+      <p style="color:#999;font-size:11px;text-align:center">Expwave Pvt. Ltd. | GSTIN: 29AAHCE9805F1ZE</p>
     </div>
   `;
 

@@ -83,7 +83,7 @@ export async function GET(request: Request) {
             ${invoice.payment_link ? `<p><a href="${invoice.payment_link}" style="background:#0066ff;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">Pay Now</a></p>` : ""}
             <p style="color:#666">If you have already made the payment, please ignore this reminder.</p>
             <hr style="margin:30px 0;border:none;border-top:1px solid #eee" />
-            <p style="color:#999;font-size:12px">Expwave OPC Pvt. Ltd.</p>
+            <p style="color:#999;font-size:12px">Expwave Pvt. Ltd.</p>
           </div>
         `,
         tags: [{ name: "type", value: "invoice_reminder" }],

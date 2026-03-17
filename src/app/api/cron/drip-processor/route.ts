@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendTemplate } from "@/lib/whatsapp/client";
 import { sendEmail, renderVariables } from "@/lib/email/client";
+import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -161,8 +162,13 @@ export async function GET(request: Request) {
             last_name: contact.last_name || "",
             company_name: contact.company_name || "your company",
           };
-          const resolvedSubject = renderVariables(currentStep.subject, variables);
-          const resolvedBody = renderVariables(currentStep.body_html, variables);
+          const rawSubject = renderVariables(currentStep.subject, variables);
+          const rawBody = renderVariables(currentStep.body_html, variables);
+
+          const { subject: resolvedSubject, html: resolvedBody } = await renderDripEmail({
+            subject: rawSubject,
+            bodyHtml: rawBody,
+          });
 
           // Send email
           const result = await sendEmail({

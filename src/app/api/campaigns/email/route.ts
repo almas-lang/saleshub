@@ -256,7 +256,15 @@ export async function PATCH(request: NextRequest) {
     update.audience_filter = body.audience_filter;
   }
 
-  if (Object.keys(update).length === 0) {
+  // Extract steps array for separate handling
+  const stepsToUpdate = Array.isArray(body.steps) ? body.steps as {
+    id: string;
+    subject?: string;
+    body_html?: string;
+    delay_hours?: number;
+  }[] : null;
+
+  if (Object.keys(update).length === 0 && !stepsToUpdate) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
@@ -266,15 +274,59 @@ export async function PATCH(request: NextRequest) {
     .eq("id", id)
     .single();
 
-  const { data, error } = await supabase
-    .from("email_campaigns")
-    .update(update)
-    .eq("id", id)
-    .select()
-    .single();
+  let data: Record<string, unknown> | null = null;
+  let error: { message: string } | null = null;
+
+  if (Object.keys(update).length > 0) {
+    const result = await supabase
+      .from("email_campaigns")
+      .update(update)
+      .eq("id", id)
+      .select()
+      .single();
+    data = result.data;
+    error = result.error;
+  } else {
+    // No campaign-level updates, just fetch current data
+    const result = await supabase
+      .from("email_campaigns")
+      .select("*")
+      .eq("id", id)
+      .single();
+    data = result.data;
+    error = result.error;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Update steps if provided (only allowed for draft/paused campaigns)
+  if (stepsToUpdate && stepsToUpdate.length > 0) {
+    const editableStatuses = ["draft", "paused"];
+    const currentStatus = (update.status as string) ?? existing?.status;
+    if (!editableStatuses.includes(currentStatus ?? "")) {
+      return NextResponse.json(
+        { error: "Steps can only be edited for draft or paused campaigns" },
+        { status: 400 }
+      );
+    }
+
+    for (const step of stepsToUpdate) {
+      if (!step.id) continue;
+      const stepUpdate: Record<string, unknown> = {};
+      if (typeof step.subject === "string") stepUpdate.subject = step.subject;
+      if (typeof step.body_html === "string") stepUpdate.body_html = step.body_html;
+      if (typeof step.delay_hours === "number") stepUpdate.delay_hours = step.delay_hours;
+
+      if (Object.keys(stepUpdate).length > 0) {
+        await supabase
+          .from("email_steps")
+          .update(stepUpdate)
+          .eq("id", step.id)
+          .eq("campaign_id", id);
+      }
+    }
   }
 
   // Auto-enroll/queue when a campaign is activated

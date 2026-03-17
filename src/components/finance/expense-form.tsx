@@ -1,0 +1,216 @@
+"use client";
+
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { expenseSchema, type ExpenseValues } from "@/lib/validations";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { ExpenseCategory } from "@/types/finance";
+
+const DEFAULT_CATEGORIES: ExpenseCategory[] = [
+  { id: "1", name: "Advertising", icon: "Megaphone", color: "#EF4444", is_system: true, created_at: "" },
+  { id: "2", name: "Software & Tools", icon: "Monitor", color: "#3B82F6", is_system: true, created_at: "" },
+  { id: "3", name: "Freelancers & Contractors", icon: "UserCheck", color: "#8B5CF6", is_system: true, created_at: "" },
+  { id: "4", name: "Content Production", icon: "Film", color: "#F59E0B", is_system: true, created_at: "" },
+  { id: "5", name: "Office & Supplies", icon: "Building2", color: "#6B7280", is_system: true, created_at: "" },
+  { id: "6", name: "Travel & Events", icon: "Plane", color: "#14B8A6", is_system: true, created_at: "" },
+  { id: "7", name: "Communication (Phone/Internet)", icon: "Wifi", color: "#06B6D4", is_system: true, created_at: "" },
+  { id: "8", name: "Training & Education", icon: "GraduationCap", color: "#EC4899", is_system: true, created_at: "" },
+  { id: "9", name: "Taxes & Compliance", icon: "FileText", color: "#84CC16", is_system: true, created_at: "" },
+  { id: "10", name: "Miscellaneous", icon: "MoreHorizontal", color: "#9CA3AF", is_system: true, created_at: "" },
+];
+
+interface ExpenseFormProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  categories?: ExpenseCategory[];
+  editData?: {
+    id: string;
+    amount: number;
+    category: string;
+    date: string;
+    description: string | null;
+    gst_applicable: boolean | null;
+    receipt_url: string | null;
+    contact_id: string | null;
+  };
+}
+
+export function ExpenseForm({
+  open,
+  onOpenChange,
+  categories = DEFAULT_CATEGORIES,
+  editData,
+}: ExpenseFormProps) {
+  const router = useRouter();
+  const isEdit = !!editData;
+
+  const form = useForm<ExpenseValues>({
+    resolver: zodResolver(expenseSchema),
+    defaultValues: editData
+      ? {
+          amount: editData.amount,
+          category: editData.category,
+          date: editData.date,
+          description: editData.description ?? "",
+          gst_applicable: editData.gst_applicable ?? false,
+          receipt_url: editData.receipt_url ?? "",
+          contact_id: editData.contact_id ?? "",
+        }
+      : {
+          amount: 0,
+          category: "",
+          date: new Date().toISOString().split("T")[0],
+          description: "",
+          gst_applicable: false,
+          receipt_url: "",
+          contact_id: "",
+        },
+  });
+
+  const onSubmit = async (values: ExpenseValues) => {
+    try {
+      const url = isEdit
+        ? `/api/transactions/${editData.id}`
+        : "/api/transactions";
+      const method = isEdit ? "PATCH" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Failed to save expense");
+      }
+
+      toast.success(isEdit ? "Expense updated" : "Expense added");
+      onOpenChange(false);
+      form.reset();
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? "Edit Expense" : "Add Expense"}</DialogTitle>
+        </DialogHeader>
+
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount (INR)</Label>
+              <Input
+                id="amount"
+                type="number"
+                step="0.01"
+                {...form.register("amount", { valueAsNumber: true })}
+              />
+              {form.formState.errors.amount && (
+                <p className="text-xs text-destructive">
+                  {form.formState.errors.amount.message}
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="date">Date</Label>
+              <Input id="date" type="date" {...form.register("date")} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Category</Label>
+            <Select
+              value={form.watch("category")}
+              onValueChange={(v) => form.setValue("category", v)}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.name}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {form.formState.errors.category && (
+              <p className="text-xs text-destructive">
+                {form.formState.errors.category.message}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Textarea
+              id="description"
+              rows={2}
+              {...form.register("description")}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={form.watch("gst_applicable")}
+              onCheckedChange={(v) => form.setValue("gst_applicable", v)}
+            />
+            <Label>GST applicable (18%)</Label>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt_url">Receipt URL (optional)</Label>
+            <Input
+              id="receipt_url"
+              type="url"
+              placeholder="https://..."
+              {...form.register("receipt_url")}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              {form.formState.isSubmitting
+                ? "Saving..."
+                : isEdit
+                  ? "Update"
+                  : "Add Expense"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

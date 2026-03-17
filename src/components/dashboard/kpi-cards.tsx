@@ -3,8 +3,9 @@
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
 import { useCountUp } from "@/hooks/use-count-up";
-import type { KpiData } from "@/types/dashboard";
+import type { KpiData, SparklinePoint } from "@/types/dashboard";
 
 function trendPercent(current: number, previous: number) {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -20,6 +21,8 @@ interface KpiCardProps {
   trendLabel: string;
   danger?: boolean;
   index: number;
+  sparkline?: SparklinePoint[];
+  sparkColor?: string;
 }
 
 function KpiCard({
@@ -31,6 +34,8 @@ function KpiCard({
   trendLabel,
   danger,
   index,
+  sparkline,
+  sparkColor = "#3B82F6",
 }: KpiCardProps) {
   const animated = useCountUp(value);
   const isPositive = trend > 0;
@@ -67,6 +72,21 @@ function KpiCard({
         {displayValue}
       </p>
       <p className="mt-0.5 text-xs text-muted-foreground">{subtext}</p>
+      {sparkline && sparkline.length > 1 && (
+        <div className="mt-2">
+          <ResponsiveContainer width="100%" height={30}>
+            <LineChart data={sparkline}>
+              <Line
+                type="monotone"
+                dataKey="value"
+                stroke={sparkColor}
+                strokeWidth={1.5}
+                dot={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       {trendLabel && (
         <p
           className={cn(
@@ -125,6 +145,8 @@ export function KpiCards({ data }: { data: KpiData }) {
         trend={revenueTrend}
         trendLabel="vs last month"
         index={2}
+        sparkline={data.revenueSparkline}
+        sparkColor="#22c55e"
       />
       <KpiCard
         label="Overdue"

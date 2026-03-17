@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Calendar, Loader2, MessageCircle, Mail } from "lucide-react";
+import { Calendar, Loader2, MessageCircle, Mail, CreditCard, IndianRupee, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -11,12 +11,18 @@ interface IntegrationsSettingsProps {
   initialConnected: boolean;
   whatsappDisplay?: string;
   emailDomain?: string;
+  cashfreeConfigured?: boolean;
+  stripeConfigured?: boolean;
+  metaAdsConfigured?: boolean;
 }
 
 export function IntegrationsSettings({
   initialConnected,
   whatsappDisplay,
   emailDomain,
+  cashfreeConfigured,
+  stripeConfigured,
+  metaAdsConfigured,
 }: IntegrationsSettingsProps) {
   const searchParams = useSearchParams();
   const [connected, setConnected] = useState(initialConnected);
@@ -167,6 +173,65 @@ export function IntegrationsSettings({
           </div>
         </div>
       )}
+      {/* Cashfree */}
+      <div className="rounded-xl border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+              <IndianRupee className="size-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Cashfree</h3>
+              <p className="text-sm text-muted-foreground">
+                Payment links for Indian payments (UPI, Cards)
+              </p>
+            </div>
+          </div>
+          <Badge variant="secondary" className={cashfreeConfigured ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}>
+            {cashfreeConfigured ? "Configured" : "Not configured"}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Stripe */}
+      <div className="rounded-xl border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+              <CreditCard className="size-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Stripe</h3>
+              <p className="text-sm text-muted-foreground">
+                International payment processing
+              </p>
+            </div>
+          </div>
+          <Badge variant="secondary" className={stripeConfigured ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}>
+            {stripeConfigured ? "Configured" : "Not configured"}
+          </Badge>
+        </div>
+      </div>
+
+      {/* Meta Ads */}
+      <div className="rounded-xl border bg-card p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg border bg-background">
+              <Megaphone className="size-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold">Meta Ads</h3>
+              <p className="text-sm text-muted-foreground">
+                Import ad spend data from Facebook/Instagram
+              </p>
+            </div>
+          </div>
+          <Badge variant="secondary" className={metaAdsConfigured ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}>
+            {metaAdsConfigured ? "Configured" : "Not configured"}
+          </Badge>
+        </div>
+      </div>
     </div>
   );
 }

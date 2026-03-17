@@ -140,7 +140,7 @@ export function InvoicePDF({
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.companyName}>EXPWAVE OPC PVT. LTD.</Text>
+            <Text style={styles.companyName}>EXPWAVE PVT. LTD.</Text>
             <Text style={styles.companyDetails}>
               328, 6th main AECS B Block Singasandra Bangalore 560068
             </Text>

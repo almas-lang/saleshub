@@ -101,7 +101,7 @@ export default async function PublicInvoicePage({
         />
 
         <p className="text-center text-xs text-slate-400 mt-8">
-          Expwave OPC Pvt. Ltd. &middot; GSTIN: 29AAHCE9805F1ZE
+          Expwave Pvt. Ltd. &middot; GSTIN: 29AAHCE9805F1ZE
         </p>
       </div>
     </div>

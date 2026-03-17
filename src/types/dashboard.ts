@@ -1,3 +1,8 @@
+export interface SparklinePoint {
+  date: string;
+  value: number;
+}
+
 export interface KpiData {
   newLeads: number;
   newLeadsLastWeek: number;
@@ -7,6 +12,21 @@ export interface KpiData {
   revenueLastMonth: number;
   overdueTasks: number;
   overdueTasksLastWeek: number;
+  revenueSparkline?: SparklinePoint[];
+}
+
+export interface TeamSummaryItem {
+  id: string;
+  name: string;
+  tasksCompleted: number;
+  leadsAssigned: number;
+  revenue: number;
+}
+
+export interface CommunicationPulse {
+  date: string;
+  wa: number;
+  email: number;
 }
 
 export interface TodaysFocusItem {

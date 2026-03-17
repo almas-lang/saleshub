@@ -38,7 +38,7 @@ export function PublicInvoiceView({
       <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-8 py-6 text-white">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-bold tracking-wide">EXPWAVE OPC PVT. LTD.</h2>
+            <h2 className="text-lg font-bold tracking-wide">EXPWAVE PVT. LTD.</h2>
             <p className="text-slate-400 text-xs mt-1">
               328, 6th Main, AECS B Block, Singasandra, Bangalore 560068
             </p>

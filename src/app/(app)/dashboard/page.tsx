@@ -15,6 +15,9 @@ import type {
   PipelineStageData,
   PipelineFunnel,
   DashboardActivity,
+  TeamSummaryItem,
+  CommunicationPulse,
+  SparklinePoint,
 } from "@/types/dashboard";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
@@ -22,6 +25,8 @@ import { TodaysFocus } from "@/components/dashboard/todays-focus";
 import { PipelineOverview } from "@/components/dashboard/pipeline-overview";
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { TeamSummary } from "@/components/dashboard/team-summary";
+import { CommunicationPulseCard } from "@/components/dashboard/communication-pulse";
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -78,6 +83,12 @@ export default async function DashboardPage() {
     funnelsQuery,
     activitiesQuery,
     teamMembersQuery,
+    // Phase 4 additions
+    revenueSparklineQuery,
+    teamTasksQuery,
+    teamLeadsQuery,
+    waPulseQuery,
+    emailPulseQuery,
   ] = await Promise.all([
     // New leads this week
     supabase
@@ -236,6 +247,39 @@ export default async function DashboardPage() {
       .select("id, name")
       .eq("is_active", true)
       .order("name"),
+
+    // Revenue sparkline: daily paid invoices for last 7 days
+    supabase
+      .from("invoices")
+      .select("total, paid_at")
+      .eq("status", "paid")
+      .gte("paid_at", subWeeks(now, 1).toISOString())
+      .order("paid_at", { ascending: true }),
+
+    // Team summary: tasks + contacts per member this week
+    supabase
+      .from("tasks")
+      .select("assigned_to, status")
+      .eq("status", "completed")
+      .gte("updated_at", thisWeekStart),
+
+    supabase
+      .from("contacts")
+      .select("assigned_to")
+      .eq("type", "prospect")
+      .gte("created_at", thisWeekStart)
+      .is("deleted_at", null),
+
+    // Communication pulse: last 7 days wa_sends + email_sends
+    supabase
+      .from("wa_sends")
+      .select("created_at")
+      .gte("created_at", subWeeks(now, 1).toISOString()),
+
+    supabase
+      .from("email_sends")
+      .select("created_at")
+      .gte("created_at", subWeeks(now, 1).toISOString()),
   ]);
 
   // Build KPI data
@@ -248,6 +292,23 @@ export default async function DashboardPage() {
     0
   );
 
+  // Build revenue sparkline from last 7 days
+  const revenueSparkline: SparklinePoint[] = [];
+  const sparkDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (6 - i));
+    return format(d, "yyyy-MM-dd");
+  });
+  const sparkMap = new Map<string, number>();
+  for (const inv of revenueSparklineQuery.data ?? []) {
+    if (!inv.paid_at) continue;
+    const d = format(new Date(inv.paid_at), "yyyy-MM-dd");
+    sparkMap.set(d, (sparkMap.get(d) ?? 0) + (inv.total ?? 0));
+  }
+  for (const day of sparkDays) {
+    revenueSparkline.push({ date: day, value: sparkMap.get(day) ?? 0 });
+  }
+
   const kpiData: KpiData = {
     newLeads: newLeadsThisWeek.count ?? 0,
     newLeadsLastWeek: newLeadsLastWeek.count ?? 0,
@@ -257,7 +318,31 @@ export default async function DashboardPage() {
     revenueLastMonth: revenueLastMonthTotal,
     overdueTasks: overdueTasksNow.count ?? 0,
     overdueTasksLastWeek: overdueTasksLastWeek.count ?? 0,
+    revenueSparkline,
   };
+
+  // Build team summary
+  const teamMembers = teamMembersQuery.data ?? [];
+  const teamTasks = teamTasksQuery.data ?? [];
+  const teamLeads = teamLeadsQuery.data ?? [];
+  const teamSummary: TeamSummaryItem[] = teamMembers.slice(0, 5).map((m) => ({
+    id: m.id,
+    name: m.name,
+    tasksCompleted: teamTasks.filter((t) => t.assigned_to === m.id).length,
+    leadsAssigned: teamLeads.filter((l) => l.assigned_to === m.id).length,
+    revenue: 0, // would need invoice join — keep simple for dashboard
+  }));
+
+  // Build communication pulse (7 days)
+  const commPulse: CommunicationPulse[] = sparkDays.map((day) => {
+    const waCount = (waPulseQuery.data ?? []).filter(
+      (w) => format(new Date(w.created_at), "yyyy-MM-dd") === day
+    ).length;
+    const emailCount = (emailPulseQuery.data ?? []).filter(
+      (e) => format(new Date(e.created_at), "yyyy-MM-dd") === day
+    ).length;
+    return { date: day, wa: waCount, email: emailCount };
+  });
 
   // Build Today's Focus items
   const focusItems: TodaysFocusItem[] = [];
@@ -518,6 +603,12 @@ export default async function DashboardPage() {
 
       {/* Today's Focus */}
       <TodaysFocus items={todaysFocus} />
+
+      {/* Team Summary + Communication Pulse */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TeamSummary members={teamSummary} />
+        <CommunicationPulseCard data={commPulse} />
+      </div>
 
       {/* Bottom Grid — Pipeline + Activity Feed */}
       <div className="grid gap-6 lg:grid-cols-[55fr_45fr]">

@@ -57,6 +57,9 @@ export default async function IntegrationsPage() {
         initialConnected={connected}
         whatsappDisplay={process.env.WHATSAPP_PHONE_DISPLAY || ""}
         emailDomain={process.env.RESEND_DOMAIN || ""}
+        cashfreeConfigured={!!process.env.CASHFREE_APP_ID}
+        stripeConfigured={!!process.env.STRIPE_SECRET_KEY}
+        metaAdsConfigured={!!process.env.META_ADS_ACCESS_TOKEN}
       />
     </div>
   );

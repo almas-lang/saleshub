@@ -63,5 +63,16 @@ export async function POST(request: Request) {
     body: `₹${invoice.total.toLocaleString("en-IN")} paid via Stripe`,
   });
 
+  // Create income transaction
+  await supabaseAdmin.from("transactions").insert({
+    type: "income",
+    amount: invoice.total,
+    category: "Invoice Payment",
+    date: new Date().toISOString().split("T")[0],
+    description: `Payment for ${invoice.invoice_number} via Stripe`,
+    invoice_id: invoice.id,
+    contact_id: invoice.contact_id,
+  });
+
   return NextResponse.json({ received: true, invoice_id: invoice.id });
 }

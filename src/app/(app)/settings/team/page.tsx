@@ -31,13 +31,21 @@ export default async function TeamManagementPage() {
         </Link>
       </div>
 
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">
-          Team Management
-        </h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Add, edit, and manage team members and their roles.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">
+            Team Management
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Add, edit, and manage team members and their roles.
+          </p>
+        </div>
+        <Link
+          href="/analytics?tab=team"
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          View Team Analytics &rarr;
+        </Link>
       </div>
 
       <TeamList members={members ?? []} />
