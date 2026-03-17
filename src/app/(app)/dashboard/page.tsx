@@ -16,7 +16,7 @@ import type {
   PipelineFunnel,
   DashboardActivity,
 } from "@/types/dashboard";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatCurrency } from "@/lib/utils";
 import { KpiCards } from "@/components/dashboard/kpi-cards";
 import { TodaysFocus } from "@/components/dashboard/todays-focus";
 import { PipelineOverview } from "@/components/dashboard/pipeline-overview";
@@ -69,6 +69,10 @@ export default async function DashboardPage() {
     todaysBookings,
     recentlyConverted,
     todaysNewLeads,
+    // Overdue invoices
+    overdueInvoicesQuery,
+    // Draft invoices older than 1 day
+    draftInvoicesQuery,
     // Pipeline & Activity
     pipelineStagesQuery,
     funnelsQuery,
@@ -180,6 +184,28 @@ export default async function DashboardPage() {
       .gte("created_at", todayStart)
       .is("deleted_at", null)
       .order("created_at", { ascending: false })
+      .limit(3),
+
+    // Overdue invoices: sent/overdue with past due date
+    supabase
+      .from("invoices")
+      .select(
+        "id, invoice_number, total, due_date, status, contact_id, contacts(id, first_name, last_name, phone)"
+      )
+      .in("status", ["sent", "overdue"])
+      .lt("due_date", todayStart)
+      .order("due_date", { ascending: true })
+      .limit(5),
+
+    // Draft invoices older than 1 day
+    supabase
+      .from("invoices")
+      .select(
+        "id, invoice_number, total, created_at, contact_id, contacts(id, first_name, last_name, phone)"
+      )
+      .eq("status", "draft")
+      .lt("created_at", todayStart)
+      .order("created_at", { ascending: true })
       .limit(3),
 
     // Pipeline stages with counts
@@ -357,6 +383,62 @@ export default async function DashboardPage() {
       stageColor: null,
       contextDetail: lead.source ? `via ${lead.source}` : null,
       linkTo: `/prospects/${lead.id}`,
+      taskId: null,
+      taskPriority: null,
+    });
+  }
+
+  // 5. Overdue invoices
+  for (const inv of overdueInvoicesQuery.data ?? []) {
+    const contact = inv.contacts as unknown as {
+      id: string;
+      first_name: string;
+      last_name: string | null;
+      phone: string | null;
+    } | null;
+
+    focusItems.push({
+      id: `inv-overdue-${inv.id}`,
+      priority: "overdue",
+      actionText: `Invoice ${inv.invoice_number} overdue — ${formatCurrency(inv.total ?? 0)}`,
+      contactId: contact?.id ?? null,
+      contactName: contact
+        ? `${contact.first_name}${contact.last_name ? ` ${contact.last_name}` : ""}`
+        : null,
+      contactPhone: contact?.phone ?? null,
+      funnelName: null,
+      stageName: null,
+      stageColor: null,
+      contextDetail: inv.due_date ? `Due ${formatDate(inv.due_date)}` : null,
+      linkTo: `/invoices/${inv.id}`,
+      taskId: null,
+      taskPriority: null,
+    });
+  }
+
+  // 6. Unsent draft invoices
+  for (const inv of draftInvoicesQuery.data ?? []) {
+    const contact = inv.contacts as unknown as {
+      id: string;
+      first_name: string;
+      last_name: string | null;
+      phone: string | null;
+    } | null;
+
+    focusItems.push({
+      id: `inv-draft-${inv.id}`,
+      priority: "pending",
+      actionText: `Send draft invoice ${inv.invoice_number} — ${formatCurrency(inv.total ?? 0)}`,
+      contactId: contact?.id ?? null,
+      contactName: contact
+        ? `${contact.first_name}${contact.last_name ? ` ${contact.last_name}` : ""}`
+        : null,
+      contactPhone: contact?.phone ?? null,
+      funnelName: null,
+      stageName: null,
+      stageColor: null,
+      contextDetail: null,
+      linkTo: `/invoices/${inv.id}`,
       taskId: null,
       taskPriority: null,
     });
