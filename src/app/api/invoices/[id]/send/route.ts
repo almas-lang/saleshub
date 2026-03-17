@@ -55,6 +55,7 @@ export async function POST(
 
   // Generate payment link if requested and not already set
   let paymentLink = invoice.payment_link;
+  let paymentLinkError: string | undefined;
   if (includePaymentLink && !paymentLink && process.env.CASHFREE_APP_ID) {
     const linkResult = await createCashfreePaymentLink(
       id,
@@ -69,7 +70,13 @@ export async function POST(
         .from("invoices")
         .update({ payment_link: paymentLink })
         .eq("id", id);
+    } else {
+      console.error("[Invoice Send] Cashfree payment link failed:", linkResult.error);
+      paymentLinkError = linkResult.error;
     }
+  } else if (includePaymentLink && !paymentLink && !process.env.CASHFREE_APP_ID) {
+    console.warn("[Invoice Send] CASHFREE_APP_ID not set — skipping payment link");
+    paymentLinkError = "CASHFREE_APP_ID not configured";
   }
 
   // If user chose not to include payment link, don't show it in email
@@ -224,5 +231,10 @@ export async function POST(
     body: `${formatCurrency(invoice.total)} invoice sent to ${contact.email}`,
   });
 
-  return NextResponse.json({ success: true, email_sent: true });
+  return NextResponse.json({
+    success: true,
+    email_sent: true,
+    payment_link_included: !!paymentLink,
+    payment_link_error: paymentLinkError,
+  });
 }

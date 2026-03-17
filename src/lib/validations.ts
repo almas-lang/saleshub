@@ -390,3 +390,61 @@ export const convertToCustomerSchema = z.object({
 });
 
 export type ConvertToCustomerValues = z.infer<typeof convertToCustomerSchema>;
+
+// ──────────────────────────────────────────
+// Finance — Expenses
+// ──────────────────────────────────────────
+
+export const expenseSchema = z.object({
+  amount: z.number().min(0.01, "Amount must be positive"),
+  category: z.string().min(1, "Category is required"),
+  date: z.string().min(1, "Date is required"),
+  description: z.string().optional().or(z.literal("")),
+  gst_applicable: z.boolean(),
+  receipt_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+  contact_id: z.string().uuid().optional().or(z.literal("")),
+});
+
+export type ExpenseValues = z.infer<typeof expenseSchema>;
+
+// ──────────────────────────────────────────
+// Finance — Ad Spend
+// ──────────────────────────────────────────
+
+export const adSpendSchema = z.object({
+  platform: z.enum(["meta", "google", "linkedin", "manual"]),
+  campaign_name: z.string().min(1, "Campaign name is required"),
+  campaign_id: z.string().optional().or(z.literal("")),
+  date: z.string().min(1, "Date is required"),
+  amount: z.number().min(0, "Amount must be non-negative"),
+  impressions: z.number().int().min(0),
+  clicks: z.number().int().min(0),
+  leads: z.number().int().min(0),
+});
+
+export type AdSpendValues = z.infer<typeof adSpendSchema>;
+
+// ──────────────────────────────────────────
+// Finance — Bank Statement Import
+// ──────────────────────────────────────────
+
+export const bankImportRowSchema = z.object({
+  date: z.string().min(1, "Date is required"),
+  description: z.string().min(1, "Description is required"),
+  type: z.enum(["income", "expense"]),
+  amount: z.number().min(0.01, "Amount must be positive"),
+  category: z.string().min(1, "Category is required"),
+  gst_applicable: z.boolean(),
+  reference: z.string().optional(),
+});
+
+export type BankImportRowValues = z.infer<typeof bankImportRowSchema>;
+
+export const bankImportBatchSchema = z.object({
+  rows: z.array(bankImportRowSchema).min(1).max(50),
+  config: z.object({
+    skip_zero_amounts: z.boolean(),
+  }),
+});
+
+export type BankImportBatchValues = z.infer<typeof bankImportBatchSchema>;

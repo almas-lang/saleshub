@@ -51,12 +51,21 @@ export async function POST(request: Request) {
 }
 
 /**
- * Extract invoice UUID from our link_id format: "inv-{uuid}"
+ * Extract invoice UUID from our link_id format.
+ * Supports both old format "inv-{uuid}" and new format "inv-{uuid-prefix}-{suffix}".
+ * UUIDs are 36 chars (with hyphens): xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
  */
 function extractInvoiceId(linkId: string): string | null {
-  if (linkId.startsWith("inv-")) {
-    return linkId.slice(4); // remove "inv-" prefix → full UUID
-  }
+  if (!linkId.startsWith("inv-")) return null;
+  const rest = linkId.slice(4);
+
+  // Try full UUID (36 chars with hyphens)
+  const uuidMatch = rest.match(/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (uuidMatch) return uuidMatch[1];
+
+  // Old format: the rest IS the full UUID
+  if (/^[0-9a-f-]{36}$/i.test(rest)) return rest;
+
   return null;
 }
 
@@ -111,6 +120,17 @@ async function handlePaid(lookupId: string, paymentId: string) {
     type: "payment_received",
     title: `Payment received for ${invoice.invoice_number}`,
     body: `₹${invoice.total.toLocaleString("en-IN")} paid via Cashfree`,
+  });
+
+  // Create income transaction
+  await supabaseAdmin.from("transactions").insert({
+    type: "income",
+    amount: invoice.total,
+    category: "Invoice Payment",
+    date: new Date().toISOString().split("T")[0],
+    description: `Payment for ${invoice.invoice_number} via Cashfree`,
+    invoice_id: invoice.id,
+    contact_id: invoice.contact_id,
   });
 
   console.log(`[Cashfree Webhook] Invoice ${invoice.invoice_number} marked as paid`);

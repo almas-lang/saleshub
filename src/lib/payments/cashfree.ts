@@ -32,7 +32,43 @@ export async function createCashfreePaymentLink(
   customerName: string
 ): Promise<CashfreePaymentLinkResult> {
   try {
-    const linkId = `inv-${invoiceId}`;
+    // Sanitize phone — Cashfree requires a valid 10-digit Indian number
+    const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
+    const phone = cleanPhone.length === 10 ? cleanPhone : "9999999999";
+
+    // Use a short suffix to avoid link_id collisions across environments
+    const suffix = Date.now().toString(36);
+    const linkId = `inv-${invoiceId.slice(0, 30)}-${suffix}`;
+
+    const payload = {
+      link_id: linkId,
+      link_amount: amount,
+      link_currency: "INR",
+      link_purpose: `Invoice Payment - ${invoiceId.slice(0, 8)}`,
+      customer_details: {
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: phone,
+      },
+      link_notify: {
+        send_sms: false,
+        send_email: false, // We handle notifications ourselves
+      },
+      link_meta: {
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/invoice/${invoiceId}?payment=success`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/cashfree`,
+      },
+      link_expiry_time: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    };
+
+    console.log("[Cashfree] Creating payment link:", {
+      linkId,
+      amount,
+      email: customerEmail,
+      phone,
+      env: CASHFREE_ENV,
+      baseUrl: BASE_URL,
+    });
 
     const response = await fetch(BASE_URL, {
       method: "POST",
@@ -42,42 +78,24 @@ export async function createCashfreePaymentLink(
         "x-client-secret": CASHFREE_SECRET_KEY,
         "x-api-version": "2023-08-01",
       },
-      body: JSON.stringify({
-        link_id: linkId,
-        link_amount: amount,
-        link_currency: "INR",
-        link_purpose: `Invoice Payment - ${invoiceId.slice(0, 8)}`,
-        customer_details: {
-          customer_name: customerName,
-          customer_email: customerEmail,
-          customer_phone: customerPhone.replace(/\D/g, "").slice(-10),
-        },
-        link_notify: {
-          send_sms: false,
-          send_email: false, // We handle notifications ourselves
-        },
-        link_meta: {
-          return_url: `${process.env.NEXT_PUBLIC_APP_URL}/invoice/${invoiceId}?payment=success`,
-          notify_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/cashfree`,
-        },
-        link_expiry_time: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-      }),
+      body: JSON.stringify(payload),
     });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error("[Cashfree] Error:", data);
-      return { success: false, error: data.message ?? "Failed to create payment link" };
+      console.error("[Cashfree] Error response:", JSON.stringify(data));
+      return { success: false, error: data.message ?? JSON.stringify(data) };
     }
 
+    console.log("[Cashfree] Payment link created:", data.link_url);
     return {
       success: true,
       paymentLink: data.link_url,
       linkId: data.link_id,
     };
   } catch (error) {
-    console.error("[Cashfree] Error:", error);
+    console.error("[Cashfree] Exception:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",

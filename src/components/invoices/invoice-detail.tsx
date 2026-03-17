@@ -58,7 +58,10 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
   async function handleSend() {
     setSending(true);
     setSendDialogOpen(false);
-    const result = await safeFetch(`/api/invoices/${invoice.id}/send`, {
+    const result = await safeFetch<{
+      payment_link_included?: boolean;
+      payment_link_error?: string;
+    }>(`/api/invoices/${invoice.id}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ include_payment_link: includePaymentLink }),
@@ -68,7 +71,14 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
       toast.error(result.error);
       return;
     }
-    toast.success("Invoice sent successfully");
+    if (includePaymentLink && !result.data.payment_link_included) {
+      toast.warning(
+        `Invoice sent, but payment link failed: ${result.data.payment_link_error ?? "unknown error"}`,
+        { duration: 8000 }
+      );
+    } else {
+      toast.success("Invoice sent successfully");
+    }
     router.refresh();
   }
 
