@@ -8,8 +8,9 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-cashfree-signature") ?? "";
 
-  // Verify signature (skip in sandbox if secret not set)
-  if (process.env.CASHFREE_SECRET_KEY && signature) {
+  // Verify signature in production only — sandbox uses different signing
+  const isSandbox = process.env.CASHFREE_ENV !== "production";
+  if (!isSandbox && process.env.CASHFREE_SECRET_KEY && signature) {
     if (!verifyCashfreeSignature(rawBody, signature)) {
       console.error("[Cashfree Webhook] Invalid signature");
       return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
