@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Receipt,
   FileText,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -111,6 +112,18 @@ export function InvoiceList({
       return;
     }
     toast.success("Invoice sent");
+    router.refresh();
+  }
+
+  async function handleDelete(id: string) {
+    const result = await safeFetch(`/api/invoices/${id}`, {
+      method: "DELETE",
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Invoice deleted");
     router.refresh();
   }
 
@@ -257,6 +270,15 @@ export function InvoiceList({
                           <DropdownMenuItem onClick={() => handleMarkPaid(inv.id)}>
                             <CheckCircle2 className="mr-2 size-3.5" />
                             Mark Paid
+                          </DropdownMenuItem>
+                        )}
+                        {inv.status !== "paid" && (
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => handleDelete(inv.id)}
+                          >
+                            <Trash2 className="mr-2 size-3.5" />
+                            Delete
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>
