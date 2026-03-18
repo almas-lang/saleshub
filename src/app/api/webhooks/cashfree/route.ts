@@ -103,16 +103,24 @@ async function handlePaid(lookupId: string, paymentId: string) {
     return NextResponse.json({ received: true, already_paid: true });
   }
 
-  // Mark invoice as paid
-  await supabaseAdmin
+  // Atomic update — only succeeds if status is NOT already "paid"
+  // This prevents duplicate processing when webhooks fire twice
+  const { count } = await supabaseAdmin
     .from("invoices")
     .update({
       status: "paid",
       paid_at: new Date().toISOString(),
       payment_gateway: "cashfree",
       payment_id: paymentId,
-    })
-    .eq("id", invoice.id);
+    }, { count: "exact" })
+    .eq("id", invoice.id)
+    .neq("status", "paid");
+
+  // If no rows updated, another webhook already processed this
+  if (!count) {
+    console.log(`[Cashfree Webhook] Invoice ${invoice.invoice_number} already processed (race)`);
+    return NextResponse.json({ received: true, already_paid: true });
+  }
 
   // Log activity on contact
   await supabaseAdmin.from("activities").insert({
