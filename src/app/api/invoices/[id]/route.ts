@@ -83,3 +83,37 @@ export async function PATCH(
 
   return NextResponse.json(data);
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+  const supabase = await createClient();
+
+  // Only allow deleting draft or cancelled invoices
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("status")
+    .eq("id", id)
+    .single();
+
+  if (!invoice) {
+    return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+  }
+
+  if (invoice.status === "paid") {
+    return NextResponse.json(
+      { error: "Cannot delete a paid invoice" },
+      { status: 400 }
+    );
+  }
+
+  const { error } = await supabase.from("invoices").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}

@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Link as LinkIcon,
   Copy,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -46,6 +47,7 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
   const [includePaymentLink, setIncludePaymentLink] = useState(true);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [generatingLink, setGeneratingLink] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const items = parseInvoiceItems(invoice.items);
 
@@ -95,6 +97,18 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
     toast.success("Invoice marked as paid");
     setMarkPaidOpen(false);
     router.refresh();
+  }
+
+  async function handleDelete() {
+    const result = await safeFetch(`/api/invoices/${invoice.id}`, {
+      method: "DELETE",
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Invoice deleted");
+    router.push("/invoices");
   }
 
   async function handleGeneratePaymentLink(gateway: "cashfree" | "stripe") {
@@ -186,6 +200,17 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
             >
               <Copy className="mr-1.5 size-3.5" />
               Copy Link
+            </Button>
+          )}
+          {invoice.status !== "paid" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-destructive hover:text-destructive"
+              onClick={() => setDeleteOpen(true)}
+            >
+              <Trash2 className="mr-1.5 size-3.5" />
+              Delete
             </Button>
           )}
         </div>
@@ -311,6 +336,15 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
         title="Mark as Paid"
         description={`Mark invoice ${invoice.invoice_number} (${formatCurrency(invoice.total)}) as paid? This will update the invoice status.`}
         onConfirm={handleMarkPaid}
+      />
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Invoice"
+        description={`Permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`}
+        onConfirm={handleDelete}
       />
     </div>
   );
