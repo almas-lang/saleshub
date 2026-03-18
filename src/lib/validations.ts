@@ -384,8 +384,8 @@ export const convertToCustomerSchema = z.object({
   amount: z.number().nullable().optional(),
   start_date: z.string().optional().or(z.literal("")),
   sessions_total: z.number().int().min(1).nullable().optional(),
-  mentor_id: z.string().uuid().optional().or(z.literal("")),
-  notes: z.string().optional().or(z.literal("")),
+  mentor_id: z.string().uuid().optional().nullable().or(z.literal("")),
+  notes: z.string().optional().nullable().or(z.literal("")),
   create_invoice: z.boolean().default(false),
 });
 
