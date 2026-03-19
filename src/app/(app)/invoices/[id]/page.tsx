@@ -11,15 +11,27 @@ export default async function InvoiceDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: invoice, error } = await supabase
-    .from("invoices")
-    .select("*, contacts(id, first_name, last_name, email, phone, company_name)")
-    .eq("id", id)
-    .single();
+  const [invoiceResult, installmentsResult] = await Promise.all([
+    supabase
+      .from("invoices")
+      .select("*, contacts(id, first_name, last_name, email, phone, company_name)")
+      .eq("id", id)
+      .single(),
+    supabase
+      .from("installments")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("installment_number", { ascending: true }),
+  ]);
 
-  if (error || !invoice) {
+  if (invoiceResult.error || !invoiceResult.data) {
     notFound();
   }
 
-  return <InvoiceDetail invoice={invoice as InvoiceWithContact} />;
+  const invoice = {
+    ...invoiceResult.data,
+    installments: installmentsResult.data ?? [],
+  } as InvoiceWithContact;
+
+  return <InvoiceDetail invoice={invoice} />;
 }

@@ -956,6 +956,57 @@ export type Database = {
         }
         Relationships: []
       }
+      installments: {
+        Row: {
+          amount: number
+          created_at: string | null
+          due_date: string
+          id: string
+          installment_number: number
+          invoice_id: string
+          paid_at: string | null
+          payment_gateway: Database["public"]["Enums"]["payment_gateway"] | null
+          payment_id: string | null
+          status: Database["public"]["Enums"]["installment_status"]
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          due_date: string
+          id?: string
+          installment_number: number
+          invoice_id: string
+          paid_at?: string | null
+          payment_gateway?:
+            | Database["public"]["Enums"]["payment_gateway"]
+            | null
+          payment_id?: string | null
+          status?: Database["public"]["Enums"]["installment_status"]
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          due_date?: string
+          id?: string
+          installment_number?: number
+          invoice_id?: string
+          paid_at?: string | null
+          payment_gateway?:
+            | Database["public"]["Enums"]["payment_gateway"]
+            | null
+          payment_id?: string | null
+          status?: Database["public"]["Enums"]["installment_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           contact_id: string
@@ -964,6 +1015,7 @@ export type Database = {
           gst_amount: number | null
           gst_number: string | null
           gst_rate: number | null
+          has_installments: boolean | null
           id: string
           invoice_number: string
           is_recurring: boolean | null
@@ -988,6 +1040,7 @@ export type Database = {
           gst_amount?: number | null
           gst_number?: string | null
           gst_rate?: number | null
+          has_installments?: boolean | null
           id?: string
           invoice_number: string
           is_recurring?: boolean | null
@@ -1014,6 +1067,7 @@ export type Database = {
           gst_amount?: number | null
           gst_number?: string | null
           gst_rate?: number | null
+          has_installments?: boolean | null
           id?: string
           invoice_number?: string
           is_recurring?: boolean | null
@@ -1479,6 +1533,7 @@ export type Database = {
         | "payment_received"
         | "invoice_sent"
         | "form_submitted"
+        | "installment_reminder"
       booking_outcome:
         | "qualified"
         | "not_qualified"
@@ -1497,6 +1552,7 @@ export type Database = {
         | "bounced"
         | "failed"
       financial_readiness: "ready" | "careful_but_open" | "not_ready"
+      installment_status: "pending" | "paid" | "overdue" | "cancelled"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       invoice_type: "estimate" | "invoice"
       payment_gateway: "cashfree" | "stripe" | "manual"
@@ -1661,6 +1717,7 @@ export const Constants = {
         "payment_received",
         "invoice_sent",
         "form_submitted",
+        "installment_reminder",
       ],
       booking_outcome: [
         "qualified",
@@ -1682,6 +1739,7 @@ export const Constants = {
         "failed",
       ],
       financial_readiness: ["ready", "careful_but_open", "not_ready"],
+      installment_status: ["pending", "paid", "overdue", "cancelled"],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       invoice_type: ["estimate", "invoice"],
       payment_gateway: ["cashfree", "stripe", "manual"],

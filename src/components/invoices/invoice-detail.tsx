@@ -11,12 +11,15 @@ import {
   Link as LinkIcon,
   Copy,
   Trash2,
+  Clock,
+  CircleCheck,
+  CircleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { calculateGST } from "@/lib/invoices/gst";
-import type { InvoiceWithContact } from "@/types/invoices";
+import type { InvoiceWithContact, Installment } from "@/types/invoices";
 import { parseInvoiceItems } from "@/types/invoices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -274,6 +277,57 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
               )}
             </CardContent>
           </Card>
+
+          {invoice.has_installments && invoice.installments && invoice.installments.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Payment Schedule</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {invoice.installments.map((inst: Installment) => {
+                  const isPaid = inst.status === "paid";
+                  const isOverdue = inst.status === "overdue" || (!isPaid && inst.status === "pending" && new Date(inst.due_date) < new Date());
+                  return (
+                    <div key={inst.id} className="flex items-start gap-2 text-sm">
+                      {isPaid ? (
+                        <CircleCheck className="mt-0.5 size-4 text-emerald-500 shrink-0" />
+                      ) : isOverdue ? (
+                        <CircleAlert className="mt-0.5 size-4 text-red-500 shrink-0" />
+                      ) : (
+                        <Clock className="mt-0.5 size-4 text-muted-foreground shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between">
+                          <span className="font-medium">#{inst.installment_number}</span>
+                          <span className="font-medium">{formatCurrency(inst.amount)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Due {formatDate(inst.due_date)}</span>
+                          <span className={isPaid ? "text-emerald-600" : isOverdue ? "text-red-600" : ""}>
+                            {isPaid ? "Paid" : isOverdue ? "Overdue" : "Pending"}
+                          </span>
+                        </div>
+                      </div>
+                      {!isPaid && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-1.5 text-xs shrink-0"
+                          onClick={() => {
+                            const link = `${window.location.origin}/pay/${invoice.id}?inst=${inst.id}`;
+                            navigator.clipboard.writeText(link);
+                            toast.success("Pay link copied");
+                          }}
+                        >
+                          <Copy className="size-3" />
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
 
           {contact && (
             <Card>

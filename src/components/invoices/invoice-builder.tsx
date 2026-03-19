@@ -2,11 +2,11 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Save, Send, Check, ChevronsUpDown, UserPlus } from "lucide-react";
+import { Plus, Save, Send, Check, ChevronsUpDown, UserPlus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
 import { calculateGST, DEFAULT_SAC_CODE } from "@/lib/invoices/gst";
-import type { InvoiceLineItem } from "@/types/invoices";
+import type { InvoiceLineItem, InstallmentInput } from "@/types/invoices";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -32,7 +32,7 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { INDIAN_STATES } from "@/lib/invoices/gst";
 import { LineItemRow } from "./line-item-row";
 import { InvoicePreview } from "./invoice-preview";
@@ -88,10 +88,34 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
   const [items, setItems] = useState<InvoiceLineItem[]>(
     editInvoice?.items.length ? editInvoice.items : [emptyItem()]
   );
+  const [hasInstallments, setHasInstallments] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState(2);
+  const [installments, setInstallments] = useState<InstallmentInput[]>([]);
 
   const selectedContact = contacts.find((c) => c.id === contactId);
 
   const gst = useMemo(() => calculateGST(items, clientState, gstRate), [items, clientState, gstRate]);
+
+  const installmentSum = installments.reduce((s, i) => s + (i.amount || 0), 0);
+  const installmentMismatch = hasInstallments && installments.length > 0 && Math.abs(installmentSum - gst.total) > 0.01;
+
+  function autoFillInstallments(count: number, total: number, baseDate: string) {
+    const perInstallment = Math.floor((total / count) * 100) / 100;
+    const remainder = Math.round((total - perInstallment * count) * 100) / 100;
+    const base = baseDate ? new Date(baseDate) : new Date();
+
+    const newInstallments: InstallmentInput[] = [];
+    for (let i = 0; i < count; i++) {
+      const due = new Date(base);
+      due.setDate(due.getDate() + 30 * i);
+      newInstallments.push({
+        installment_number: i + 1,
+        amount: i === count - 1 ? perInstallment + remainder : perInstallment,
+        due_date: due.toISOString().split("T")[0],
+      });
+    }
+    setInstallments(newInstallments);
+  }
 
   function handleItemChange(index: number, field: keyof InvoiceLineItem, value: string | number) {
     setItems((prev) => {
@@ -166,6 +190,7 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
       notes,
       status: andSend ? "sent" : "draft",
       include_payment_link: andSend ? includePaymentLink : undefined,
+      installments: hasInstallments && installments.length >= 2 ? installments : undefined,
     };
 
     const url = isEdit ? `/api/invoices/${editInvoice.id}` : "/api/invoices";
@@ -450,6 +475,102 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
+        </div>
+
+        {/* Payment Schedule (Installments) */}
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="split-installments"
+              checked={hasInstallments}
+              onCheckedChange={(checked) => {
+                const on = checked === true;
+                setHasInstallments(on);
+                if (on && installments.length === 0) {
+                  autoFillInstallments(installmentCount, gst.total, dueDate);
+                }
+              }}
+            />
+            <Label htmlFor="split-installments" className="text-sm font-normal cursor-pointer">
+              Split into installments
+            </Label>
+          </div>
+
+          {hasInstallments && (
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <Label className="text-xs whitespace-nowrap">Number of installments</Label>
+                <Select
+                  value={String(installmentCount)}
+                  onValueChange={(v) => {
+                    const count = Number(v);
+                    setInstallmentCount(count);
+                    autoFillInstallments(count, gst.total, dueDate);
+                  }}
+                >
+                  <SelectTrigger className="w-20">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="4">4</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto text-xs"
+                  onClick={() => autoFillInstallments(installmentCount, gst.total, dueDate)}
+                >
+                  Auto-fill
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
+                <div className="col-span-2">#</div>
+                <div className="col-span-5">Amount (₹)</div>
+                <div className="col-span-5">Due Date</div>
+              </div>
+              {installments.map((inst, i) => (
+                <div key={i} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-2 text-sm text-muted-foreground">{inst.installment_number}</div>
+                  <div className="col-span-5">
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={inst.amount || ""}
+                      onChange={(e) => {
+                        const updated = [...installments];
+                        updated[i] = { ...updated[i], amount: parseFloat(e.target.value) || 0 };
+                        setInstallments(updated);
+                      }}
+                    />
+                  </div>
+                  <div className="col-span-5">
+                    <Input
+                      type="date"
+                      value={inst.due_date}
+                      onChange={(e) => {
+                        const updated = [...installments];
+                        updated[i] = { ...updated[i], due_date: e.target.value };
+                        setInstallments(updated);
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {installmentMismatch && (
+                <div className="flex items-center gap-1.5 text-xs text-amber-600">
+                  <AlertTriangle className="size-3.5" />
+                  Installment total ({formatCurrency(installmentSum)}) does not match invoice total ({formatCurrency(gst.total)})
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Payment Link Option */}

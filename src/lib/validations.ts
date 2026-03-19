@@ -355,6 +355,12 @@ export const invoiceLineItemSchema = z.object({
   amount: z.number(),
 });
 
+export const installmentInputSchema = z.object({
+  installment_number: z.number().int().min(1).max(4),
+  amount: z.number().min(0),
+  due_date: z.string().min(1),
+});
+
 export const invoiceSchema = z.object({
   contact_id: z.string().uuid("Client is required"),
   items: z.array(invoiceLineItemSchema).min(1, "At least one item is required"),
@@ -370,6 +376,7 @@ export const invoiceSchema = z.object({
   is_recurring: z.boolean().optional(),
   recurrence_day: z.number().int().min(1).max(28).optional().nullable(),
   status: z.enum(["draft", "sent", "paid", "overdue", "cancelled"]).optional(),
+  installments: z.array(installmentInputSchema).min(2).max(4).optional(),
 });
 
 export type InvoiceValues = z.infer<typeof invoiceSchema>;

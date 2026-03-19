@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/email/client";
 import { formatCurrency } from "@/lib/utils";
 import { calculateGST } from "@/lib/invoices/gst";
 import { parseInvoiceItems } from "@/types/invoices";
+import type { Installment } from "@/types/invoices";
 
 function fmtDate(dateStr: string) {
   const d = new Date(dateStr);
@@ -92,9 +93,65 @@ export async function POST(
     `;
   }
 
-  const paymentButton = paymentLink
-    ? `<div style="text-align:center;margin:24px 0"><a href="${paymentLink}" style="display:inline-block;background:#0066ff;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">Pay Now — ${formatCurrency(invoice.total)}</a></div>`
+  // Fetch installments early so we can use them for both the button and schedule
+  let installmentRows: Installment[] = [];
+  if (invoice.has_installments) {
+    const { data } = await supabaseAdmin
+      .from("installments")
+      .select("*")
+      .eq("invoice_id", id)
+      .order("installment_number", { ascending: true });
+    installmentRows = (data ?? []) as Installment[];
+  }
+
+  // For installment invoices, show first pending installment amount + link
+  let payButtonAmount = invoice.total;
+  let payButtonLink = paymentLink;
+  let payButtonLabel = `Pay Now — ${formatCurrency(invoice.total)}`;
+  if (invoice.has_installments && installmentRows.length > 0 && paymentLink) {
+    const firstPending = installmentRows.find((i) => i.status === "pending" || i.status === "overdue");
+    if (firstPending) {
+      payButtonAmount = firstPending.amount;
+      payButtonLink = `${paymentLink}?inst=${firstPending.id}`;
+      payButtonLabel = `Pay Installment ${firstPending.installment_number} — ${formatCurrency(firstPending.amount)}`;
+    }
+  }
+
+  const paymentButton = payButtonLink
+    ? `<div style="text-align:center;margin:24px 0"><a href="${payButtonLink}" style="display:inline-block;background:#0066ff;color:#fff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px">${payButtonLabel}</a></div>`
     : "";
+
+  // Build installment schedule section if applicable
+  let installmentScheduleHtml = "";
+  if (invoice.has_installments) {
+    const installments = installmentRows;
+
+    if (installments?.length) {
+      const scheduleRows = installments.map((inst: Installment) =>
+        `<tr>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;font-size:13px">Installment ${inst.installment_number}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-weight:600;font-size:13px">${formatCurrency(inst.amount)}</td>
+          <td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;font-size:13px">${fmtDate(inst.due_date)}</td>
+        </tr>`
+      ).join("");
+
+      installmentScheduleHtml = `
+        <div style="margin:20px 0">
+          <p style="margin:0 0 8px;font-size:10px;font-weight:bold;color:#999;text-transform:uppercase;letter-spacing:0.5px">Payment Schedule</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+            <thead>
+              <tr style="border-bottom:2px solid #e0e0e0">
+                <th style="padding:6px 10px;text-align:left;font-size:11px;color:#888;font-weight:600">Installment</th>
+                <th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Amount</th>
+                <th style="padding:6px 10px;text-align:right;font-size:11px;color:#888;font-weight:600">Due Date</th>
+              </tr>
+            </thead>
+            <tbody>${scheduleRows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+  }
 
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;max-width:600px;margin:0 auto;color:#333">
@@ -152,6 +209,8 @@ export async function POST(
       </table>
 
       ${paymentButton}
+
+      ${installmentScheduleHtml}
 
       <!-- Notes -->
       ${invoice.notes ? `

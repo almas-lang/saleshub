@@ -6,10 +6,13 @@ import { CashfreeCheckout } from "@/components/invoices/cashfree-checkout";
 
 export default async function PayPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ inst?: string }>;
 }) {
   const { id } = await params;
+  const { inst: instParam } = await searchParams;
 
   const { data: invoice } = await supabaseAdmin
     .from("invoices")
@@ -19,7 +22,52 @@ export default async function PayPage({
 
   if (!invoice) notFound();
 
-  if (invoice.status === "paid") {
+  // For installment invoices, determine the target installment
+  let targetInstallment: { id: string; installment_number: number; amount: number; status: string } | null = null;
+  let totalInstallments = 0;
+
+  if (invoice.has_installments) {
+    const { data: installments } = await supabaseAdmin
+      .from("installments")
+      .select("id, installment_number, amount, status")
+      .eq("invoice_id", id)
+      .order("installment_number", { ascending: true });
+
+    totalInstallments = installments?.length ?? 0;
+
+    if (installments?.length) {
+      // Check if all installments are paid
+      const allPaid = installments.every((i) => i.status === "paid");
+      if (allPaid) {
+        return (
+          <div className="flex min-h-screen items-center justify-center bg-slate-50">
+            <div className="mx-auto max-w-sm text-center">
+              <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-emerald-100">
+                <svg className="size-8 text-emerald-600" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              </div>
+              <h1 className="text-xl font-semibold">All Payments Received</h1>
+              <p className="mt-2 text-sm text-slate-500">
+                All installments for invoice {invoice.invoice_number} ({formatCurrency(invoice.total)}) have been paid. Thank you!
+              </p>
+            </div>
+          </div>
+        );
+      }
+
+      if (instParam) {
+        // Specific installment requested
+        targetInstallment = installments.find((i) => i.id === instParam) ?? null;
+      }
+      if (!targetInstallment) {
+        // Default: next pending installment (earliest due)
+        targetInstallment = installments.find((i) => i.status === "pending" || i.status === "overdue") ?? null;
+      }
+    }
+  }
+
+  if (invoice.status === "paid" && !targetInstallment) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="mx-auto max-w-sm text-center">
@@ -42,13 +90,18 @@ export default async function PayPage({
     ? `${contact.first_name} ${contact.last_name ?? ""}`.trim()
     : "Customer";
 
+  // Determine amount based on installment vs full payment
+  const isInstallmentPayment = !!targetInstallment;
+  const paymentAmount = isInstallmentPayment ? targetInstallment!.amount : invoice.total;
+
   // Create a Cashfree PG order
   const result = await createCashfreeOrder(
-    id,
-    invoice.total,
+    isInstallmentPayment ? `inst-${targetInstallment!.id}` : id,
+    paymentAmount,
     contact?.email ?? "",
     contact?.phone ?? "",
-    clientName
+    clientName,
+    isInstallmentPayment ? id : undefined
   );
 
   if (!result.success || !result.paymentSessionId) {
@@ -82,8 +135,13 @@ export default async function PayPage({
         </div>
         <h1 className="text-xl font-semibold">Pay Invoice</h1>
         <p className="mt-2 text-sm text-slate-500">
-          {invoice.invoice_number} &middot; {formatCurrency(invoice.total)}
+          {invoice.invoice_number} &middot; {formatCurrency(paymentAmount)}
         </p>
+        {isInstallmentPayment && (
+          <p className="text-sm text-slate-500">
+            Installment {targetInstallment!.installment_number} of {totalInstallments}
+          </p>
+        )}
         <p className="text-sm text-slate-400">{clientName}</p>
 
         <CashfreeCheckout

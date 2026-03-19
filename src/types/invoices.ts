@@ -11,6 +11,16 @@ export type InvoiceUpdate = TablesUpdate<"invoices">;
 export type InvoiceStatus = Enums<"invoice_status">;
 export type InvoiceType = Enums<"invoice_type">;
 export type PaymentGateway = Enums<"payment_gateway">;
+export type InstallmentStatus = Enums<"installment_status">;
+
+// Installments
+export type Installment = Tables<"installments">;
+
+export interface InstallmentInput {
+  installment_number: number;
+  amount: number;
+  due_date: string; // YYYY-MM-DD
+}
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -57,4 +67,5 @@ export type InvoiceWithContact = Invoice & {
     phone: string | null;
     company_name: string | null;
   } | null;
+  installments?: Installment[];
 };

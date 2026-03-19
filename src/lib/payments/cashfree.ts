@@ -26,18 +26,24 @@ export interface CashfreeOrderResult {
  * Returns a payment_session_id used by the Cashfree JS SDK checkout.
  */
 export async function createCashfreeOrder(
-  invoiceId: string,
+  lookupId: string,
   amount: number,
   customerEmail: string,
   customerPhone: string,
-  customerName: string
+  customerName: string,
+  returnInvoiceId?: string
 ): Promise<CashfreeOrderResult> {
   try {
     const cleanPhone = customerPhone.replace(/\D/g, "").slice(-10);
     const phone = cleanPhone.length === 10 ? cleanPhone : "9999999999";
 
     const suffix = Date.now().toString(36);
-    const orderId = `inv-${invoiceId}-${suffix}`.slice(0, 45);
+    // If lookupId already has a prefix (e.g. "inst-{uuid}"), use it directly
+    const prefix = lookupId.startsWith("inst-") ? "" : "inv-";
+    const orderId = `${prefix}${lookupId}-${suffix}`.slice(0, 45);
+
+    // Use explicit returnInvoiceId if provided, else derive from lookupId
+    const invoiceIdForReturn = returnInvoiceId ?? (lookupId.startsWith("inst-") ? "" : lookupId);
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -46,13 +52,13 @@ export async function createCashfreeOrder(
       order_amount: amount,
       order_currency: "INR",
       customer_details: {
-        customer_id: invoiceId.slice(0, 50),
+        customer_id: lookupId.slice(0, 50),
         customer_name: customerName,
         customer_email: customerEmail,
         customer_phone: phone,
       },
       order_meta: {
-        return_url: `${appUrl}/invoice/${invoiceId}?payment=success`,
+        return_url: invoiceIdForReturn ? `${appUrl}/invoice/${invoiceIdForReturn}?payment=success` : `${appUrl}?payment=success`,
         notify_url: `${appUrl}/api/webhooks/cashfree`,
       },
       order_expiry_time: new Date(

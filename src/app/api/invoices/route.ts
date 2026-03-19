@@ -79,6 +79,8 @@ export async function POST(request: Request) {
   // Generate invoice number
   const invoiceNumber = await getNextInvoiceNumber("invoice");
 
+  const hasInstallments = Array.isArray(values.installments) && values.installments.length >= 2;
+
   const cleaned: Record<string, unknown> = {
     contact_id: values.contact_id,
     invoice_number: invoiceNumber,
@@ -94,6 +96,7 @@ export async function POST(request: Request) {
     status: values.status ?? "draft",
     is_recurring: values.is_recurring ?? false,
     recurrence_day: values.recurrence_day ?? null,
+    has_installments: hasInstallments,
   };
 
   const { data, error } = await supabase
@@ -104,6 +107,24 @@ export async function POST(request: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Insert installments if provided
+  if (hasInstallments && data) {
+    const installmentRows = values.installments!.map((inst) => ({
+      invoice_id: data.id,
+      installment_number: inst.installment_number,
+      amount: inst.amount,
+      due_date: inst.due_date,
+    }));
+
+    const { error: instError } = await supabase
+      .from("installments")
+      .insert(installmentRows);
+
+    if (instError) {
+      console.error("[Invoice API] Failed to insert installments:", instError.message);
+    }
   }
 
   return NextResponse.json(data, { status: 201 });

@@ -57,6 +57,8 @@ export default async function DashboardPage() {
   const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString();
 
   // Run all queries in parallel
+  const sevenDaysOut = addDays(startOfDay(now), 7).toISOString();
+
   const [
     newLeadsThisWeek,
     newLeadsLastWeek,
@@ -89,6 +91,8 @@ export default async function DashboardPage() {
     teamLeadsQuery,
     waPulseQuery,
     emailPulseQuery,
+    // Upcoming installments
+    upcomingInstallmentsQuery,
   ] = await Promise.all([
     // New leads this week
     supabase
@@ -280,6 +284,15 @@ export default async function DashboardPage() {
       .from("email_sends")
       .select("created_at")
       .gte("created_at", subWeeks(now, 1).toISOString()),
+
+    // Upcoming installments (pending, due within 7 days)
+    supabase
+      .from("installments")
+      .select("id, invoice_id, installment_number, amount, due_date, status")
+      .eq("status", "pending")
+      .lte("due_date", sevenDaysOut)
+      .order("due_date", { ascending: true })
+      .limit(5),
   ]);
 
   // Build KPI data
@@ -527,6 +540,61 @@ export default async function DashboardPage() {
       taskId: null,
       taskPriority: null,
     });
+  }
+
+  // 7. Upcoming installments
+  if (upcomingInstallmentsQuery.data?.length) {
+    // Fetch invoice details for these installments
+    const instInvoiceIds = [...new Set(upcomingInstallmentsQuery.data.map((i) => i.invoice_id))];
+    const { data: instInvoices } = await supabase
+      .from("invoices")
+      .select("id, invoice_number, contact_id, contacts(id, first_name, last_name, phone)")
+      .in("id", instInvoiceIds);
+
+    const instInvoiceMap = new Map((instInvoices ?? []).map((inv) => [inv.id, inv]));
+
+    // Count total installments per invoice
+    const { data: instCounts } = await supabase
+      .from("installments")
+      .select("invoice_id")
+      .in("invoice_id", instInvoiceIds);
+
+    const instCountMap = new Map<string, number>();
+    for (const ic of instCounts ?? []) {
+      instCountMap.set(ic.invoice_id, (instCountMap.get(ic.invoice_id) ?? 0) + 1);
+    }
+
+    for (const inst of upcomingInstallmentsQuery.data) {
+      const inv = instInvoiceMap.get(inst.invoice_id);
+      if (!inv) continue;
+
+      const contact = inv.contacts as unknown as {
+        id: string;
+        first_name: string;
+        last_name: string | null;
+        phone: string | null;
+      } | null;
+
+      const totalCount = instCountMap.get(inst.invoice_id) ?? 0;
+
+      focusItems.push({
+        id: `inst-${inst.id}`,
+        priority: "pending",
+        actionText: `Installment ${inst.installment_number}/${totalCount} — ${formatCurrency(inst.amount)}`,
+        contactId: contact?.id ?? null,
+        contactName: contact
+          ? `${contact.first_name}${contact.last_name ? ` ${contact.last_name}` : ""}`
+          : null,
+        contactPhone: contact?.phone ?? null,
+        funnelName: null,
+        stageName: null,
+        stageColor: null,
+        contextDetail: inst.due_date ? `Due ${formatDate(inst.due_date)}` : null,
+        linkTo: `/invoices/${inst.invoice_id}`,
+        taskId: null,
+        taskPriority: null,
+      });
+    }
   }
 
   // Slice to max 12 items
