@@ -55,6 +55,15 @@ export function calculateGST(
 }
 
 /**
+ * Reverse-calculate the base rate from a GST-inclusive amount.
+ * e.g. inclusive=36002, gstRate=18 → base = 36002 / 1.18 ≈ 30510
+ */
+export function reverseGST(inclusiveAmount: number, gstRate: number): number {
+  if (gstRate <= 0) return inclusiveAmount;
+  return Math.round((inclusiveAmount / (1 + gstRate / 100)) * 100) / 100;
+}
+
+/**
  * List of Indian states for dropdowns.
  */
 export const INDIAN_STATES = [

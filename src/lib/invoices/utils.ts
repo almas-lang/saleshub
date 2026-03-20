@@ -20,7 +20,8 @@ export function getFinancialYear(date: Date = new Date()): string {
 /**
  * Generates the next invoice number atomically.
  *
- * Pattern: XW-2026-001 (invoices), XW-EST-2026-001 (estimates)
+ * Pattern: XW-2026-0203 (invoices), XW-EST-2026-0001 (estimates)
+ * Uses the FY end year (e.g. FY 2025-26 → 2026). Resets every fiscal year (April).
  *
  * Uses a simple max-query approach on the invoices table.
  */
@@ -28,8 +29,10 @@ export async function getNextInvoiceNumber(
   type: "invoice" | "estimate" = "invoice"
 ): Promise<string> {
   const fy = getFinancialYear();
-  const fyYear = fy.split("-")[0]; // e.g. "2025"
-  const prefix = type === "estimate" ? `XW-EST-${fyYear}` : `XW-${fyYear}`;
+  // Use the FY end year: "2025-26" → 2026
+  const fyStartYear = parseInt(fy.split("-")[0], 10);
+  const fyEndYear = fyStartYear + 1;
+  const prefix = type === "estimate" ? `XW-EST-${fyEndYear}` : `XW-${fyEndYear}`;
 
   // Find the highest existing number with this prefix
   const { data } = await supabaseAdmin
@@ -49,7 +52,11 @@ export async function getNextInvoiceNumber(
     }
   }
 
-  return `${prefix}-${String(nextSeq).padStart(3, "0")}`;
+  // Minimum starting sequence for migration from old numbering
+  const MIN_SEQ = 203;
+  if (nextSeq < MIN_SEQ) nextSeq = MIN_SEQ;
+
+  return `${prefix}-${String(nextSeq).padStart(4, "0")}`;
 }
 
 // ── Number to words (built-in, no dependency) ──────────────

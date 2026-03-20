@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Save, Send, Check, ChevronsUpDown, UserPlus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
-import { calculateGST, DEFAULT_SAC_CODE } from "@/lib/invoices/gst";
+import { calculateGST, reverseGST, DEFAULT_SAC_CODE } from "@/lib/invoices/gst";
 import type { InvoiceLineItem, InstallmentInput } from "@/types/invoices";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -91,10 +91,23 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
   const [hasInstallments, setHasInstallments] = useState(false);
   const [installmentCount, setInstallmentCount] = useState(2);
   const [installments, setInstallments] = useState<InstallmentInput[]>([]);
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
+  const [alreadyPaid, setAlreadyPaid] = useState(false);
+  const [gstInclusive, setGstInclusive] = useState(false);
 
   const selectedContact = contacts.find((c) => c.id === contactId);
 
-  const gst = useMemo(() => calculateGST(items, clientState, gstRate), [items, clientState, gstRate]);
+  // When GST-inclusive, reverse-calculate base amounts from entered rates
+  const effectiveItems = useMemo(() => {
+    if (!gstInclusive || gstRate <= 0) return items;
+    return items.map((item) => {
+      const baseRate = reverseGST(item.rate, gstRate);
+      const baseAmount = (item.qty || 0) * baseRate;
+      return { ...item, rate: baseRate, amount: baseAmount };
+    });
+  }, [items, gstInclusive, gstRate]);
+
+  const gst = useMemo(() => calculateGST(effectiveItems, clientState, gstRate), [effectiveItems, clientState, gstRate]);
 
   const installmentSum = installments.reduce((s, i) => s + (i.amount || 0), 0);
   const installmentMismatch = hasInstallments && installments.length > 0 && Math.abs(installmentSum - gst.total) > 0.01;
@@ -179,7 +192,7 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
 
     const payload = {
       contact_id: resolvedContactId,
-      items,
+      items: effectiveItems,
       subtotal: gst.subtotal,
       total: gst.total,
       gst_rate: gstRate,
@@ -188,9 +201,11 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
       customer_state: clientState,
       due_date: dueDate,
       notes,
-      status: andSend ? "sent" : "draft",
-      include_payment_link: andSend ? includePaymentLink : undefined,
+      status: alreadyPaid ? "paid" : andSend ? "sent" : "draft",
+      include_payment_link: andSend && !alreadyPaid ? includePaymentLink : undefined,
       installments: hasInstallments && installments.length >= 2 ? installments : undefined,
+      invoice_date: invoiceDate,
+      paid_at: alreadyPaid ? new Date(invoiceDate).toISOString() : undefined,
     };
 
     const url = isEdit ? `/api/invoices/${editInvoice.id}` : "/api/invoices";
@@ -408,7 +423,15 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
         </div>
 
         {/* Dates */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Invoice Date</Label>
+            <Input
+              type="date"
+              value={invoiceDate}
+              onChange={(e) => setInvoiceDate(e.target.value)}
+            />
+          </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Due Date</Label>
             <Input
@@ -434,13 +457,37 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
           </div>
         </div>
 
+        {/* GST Inclusive + Already Paid */}
+        <div className="flex items-center gap-6">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="gst-inclusive"
+              checked={gstInclusive}
+              onCheckedChange={(checked) => setGstInclusive(checked === true)}
+            />
+            <Label htmlFor="gst-inclusive" className="text-sm font-normal cursor-pointer">
+              Price includes GST
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="already-paid"
+              checked={alreadyPaid}
+              onCheckedChange={(checked) => setAlreadyPaid(checked === true)}
+            />
+            <Label htmlFor="already-paid" className="text-sm font-normal cursor-pointer">
+              Already paid
+            </Label>
+          </div>
+        </div>
+
         {/* Line Items */}
         <div className="space-y-3">
           <Label>Line Items</Label>
           <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
             <div className="col-span-6">Description</div>
             <div className="col-span-1 text-right">Qty</div>
-            <div className="col-span-3 text-right">Rate (₹)</div>
+            <div className="col-span-3 text-right">Rate (₹){gstInclusive ? " incl. GST" : ""}</div>
             <div className="col-span-1 text-right">Amt</div>
             <div className="col-span-1" />
           </div>
@@ -593,11 +640,11 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
             variant="outline"
           >
             <Save className="mr-1.5 size-4" />
-            {isEdit ? "Update" : "Save Draft"}
+            {alreadyPaid ? "Save as Paid" : isEdit ? "Update" : "Save Draft"}
           </Button>
           <Button onClick={() => handleSave(true)} disabled={saving}>
             <Send className="mr-1.5 size-4" />
-            {isEdit ? "Update & Send" : "Save & Send"}
+            {alreadyPaid ? "Save & Send Receipt" : isEdit ? "Update & Send" : "Save & Send"}
           </Button>
         </div>
       </div>
@@ -613,10 +660,11 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
           clientCompany={clientCompanyDisplay}
           clientGst={clientGst}
           clientState={clientState}
-          items={items}
+          items={effectiveItems}
           gst={gst}
           dueDate={dueDate}
           notes={notes}
+          createdAt={invoiceDate}
         />
       </div>
     </div>

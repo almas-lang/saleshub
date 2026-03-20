@@ -61,6 +61,13 @@ export async function POST(request: Request) {
   const supabase = await createClient();
 
   const body = await request.json();
+
+  // Extract fields not in invoiceSchema
+  const invoiceDate = body.invoice_date;
+  const paidAt = body.paid_at;
+  delete body.invoice_date;
+  delete body.paid_at;
+
   const parsed = invoiceSchema.safeParse(body);
 
   if (!parsed.success) {
@@ -98,6 +105,17 @@ export async function POST(request: Request) {
     recurrence_day: values.recurrence_day ?? null,
     has_installments: hasInstallments,
   };
+
+  // Support backdated invoices
+  if (invoiceDate) {
+    cleaned.created_at = new Date(invoiceDate).toISOString();
+  }
+
+  // Support "already paid" invoices
+  if (values.status === "paid" && paidAt) {
+    cleaned.paid_at = new Date(paidAt).toISOString();
+    cleaned.payment_gateway = "manual";
+  }
 
   const { data, error } = await supabase
     .from("invoices")

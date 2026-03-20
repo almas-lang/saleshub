@@ -14,6 +14,7 @@ import {
   Receipt,
   FileText,
   Trash2,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -39,16 +40,26 @@ import {
 import { EmptyState } from "@/components/shared/empty-state";
 import { InvoiceStatusBadge } from "./invoice-status-badge";
 
+type InvoiceWithPending = InvoiceWithContact & {
+  _nextInstallment?: {
+    amount: number;
+    due_date: string;
+    installment_number: number;
+  } | null;
+};
+
 interface InvoiceListProps {
-  invoices: InvoiceWithContact[];
+  invoices: InvoiceWithPending[];
   total: number;
   page: number;
   perPage: number;
   totalPages: number;
+  currentMonth: string;
   summaryStats: {
     outstanding: number;
     overdue: number;
     paidThisMonth: number;
+    paidLabel: string;
   };
 }
 
@@ -65,6 +76,7 @@ export function InvoiceList({
   total,
   page,
   totalPages,
+  currentMonth,
   summaryStats,
 }: InvoiceListProps) {
   const router = useRouter();
@@ -154,7 +166,7 @@ export function InvoiceList({
           <p className="text-lg font-semibold text-red-600">{formatCurrency(summaryStats.overdue)}</p>
         </div>
         <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground">Paid This Month</p>
+          <p className="text-xs text-muted-foreground">{summaryStats.paidLabel}</p>
           <p className="text-lg font-semibold text-emerald-600">{formatCurrency(summaryStats.paidThisMonth)}</p>
         </div>
       </div>
@@ -171,6 +183,22 @@ export function InvoiceList({
             className="pl-8"
           />
         </div>
+        <Input
+          type="month"
+          value={currentMonth}
+          onChange={(e) => navigateWithParams({ month: e.target.value, page: "1" })}
+          className="w-40 text-xs"
+        />
+        {currentMonth !== new Date().toISOString().slice(0, 7) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs"
+            onClick={() => navigateWithParams({ month: "", page: "1" })}
+          >
+            Reset
+          </Button>
+        )}
         <div className="flex gap-1">
           {STATUS_FILTERS.map((f) => (
             <Button
@@ -228,7 +256,15 @@ export function InvoiceList({
                     {formatCurrency(inv.total)}
                   </TableCell>
                   <TableCell>
-                    <InvoiceStatusBadge status={inv.status} />
+                    <div className="flex flex-col gap-1">
+                      <InvoiceStatusBadge status={inv.status} />
+                      {inv._nextInstallment && (
+                        <span className="flex items-center gap-1 text-[11px] text-amber-600">
+                          <Clock className="size-3" />
+                          #{inv._nextInstallment.installment_number} {formatCurrency(inv._nextInstallment.amount)} due {formatDate(inv._nextInstallment.due_date)}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {formatDate(inv.created_at)}

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { verifyCashfreeSignature } from "@/lib/payments/cashfree";
 
@@ -159,6 +160,13 @@ async function handlePaid(lookupId: string, paymentId: string) {
     contact_id: invoice.contact_id,
   });
 
+  // Revalidate cached pages
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoice.id}`);
+  revalidatePath("/customers");
+  if (invoice.contact_id) revalidatePath(`/customers/${invoice.contact_id}`);
+  revalidatePath("/analytics");
+
   console.log(`[Cashfree Webhook] Invoice ${invoice.invoice_number} marked as paid`);
   return NextResponse.json({ received: true, invoice_id: invoice.id });
 }
@@ -248,6 +256,13 @@ async function handleInstallmentPaid(installmentId: string, paymentId: string) {
     invoice_id: invoice.id,
     contact_id: invoice.contact_id,
   });
+
+  // Revalidate cached pages
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${invoice.id}`);
+  revalidatePath("/customers");
+  if (invoice.contact_id) revalidatePath(`/customers/${invoice.contact_id}`);
+  revalidatePath("/analytics");
 
   console.log(`[Cashfree Webhook] Installment ${installment.installment_number}/${totalInstallments} for ${invoice.invoice_number} marked as paid${allPaid ? " (all paid)" : ""}`);
   return NextResponse.json({ received: true, installment_id: installment.id, all_paid: allPaid });

@@ -14,7 +14,10 @@ import {
   Clock,
   CircleCheck,
   CircleAlert,
+  CalendarIcon,
+  SplitSquareHorizontal,
 } from "lucide-react";
+import { format } from "date-fns";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
 import { formatDate, formatCurrency } from "@/lib/utils";
@@ -24,7 +27,10 @@ import { parseInvoiceItems } from "@/types/invoices";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,6 +44,7 @@ import {
 import { InvoiceStatusBadge } from "./invoice-status-badge";
 import { InvoicePreview } from "./invoice-preview";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { cn } from "@/lib/utils";
 
 interface InvoiceDetailProps {
   invoice: InvoiceWithContact;
@@ -49,8 +56,14 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
   const [includePaymentLink, setIncludePaymentLink] = useState(true);
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
+  const [paidDate, setPaidDate] = useState<Date>(new Date());
   const [generatingLink, setGeneratingLink] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [installmentOpen, setInstallmentOpen] = useState(false);
+  const [installmentCount, setInstallmentCount] = useState(2);
+  const [installmentRows, setInstallmentRows] = useState<
+    { amount: number; due_date: string; status: "pending" | "paid" }[]
+  >([]);
 
   const items = parseInvoiceItems(invoice.items);
 
@@ -91,7 +104,7 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
     const result = await safeFetch(`/api/invoices/${invoice.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "paid" }),
+      body: JSON.stringify({ status: "paid", paid_at: paidDate.toISOString() }),
     });
     if (!result.ok) {
       toast.error(result.error);
@@ -133,6 +146,59 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
       await navigator.clipboard.writeText(result.data.payment_link);
       toast.success("Payment link copied to clipboard");
     }
+    router.refresh();
+  }
+
+  function initInstallments(count: number) {
+    const perInst = Math.floor(invoice.total / count);
+    const remainder = Math.round((invoice.total - perInst * count) * 100) / 100;
+    const today = new Date();
+    const rows = Array.from({ length: count }, (_, i) => {
+      const dueDate = new Date(today);
+      dueDate.setDate(dueDate.getDate() + 30 * (i + 1));
+      return {
+        amount: i === count - 1 ? perInst + remainder : perInst,
+        due_date: dueDate.toISOString().split("T")[0],
+        status: "pending" as const,
+      };
+    });
+    setInstallmentRows(rows);
+  }
+
+  function openInstallmentDialog() {
+    setInstallmentCount(2);
+    initInstallments(2);
+    setInstallmentOpen(true);
+  }
+
+  async function handleAddInstallments() {
+    const total = installmentRows.reduce((s, r) => s + r.amount, 0);
+    if (total <= 0) {
+      toast.error("Installment amounts must be greater than zero");
+      return;
+    }
+
+    const payload = {
+      installments: installmentRows.map((r, i) => ({
+        installment_number: i + 1,
+        ...r,
+        paid_at: r.status === "paid" ? new Date().toISOString() : undefined,
+      })),
+    };
+
+    const result = await safeFetch(`/api/invoices/${invoice.id}/installments`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!result.ok) {
+      toast.error(typeof result.error === "string" ? result.error : "Failed to add installments");
+      return;
+    }
+
+    toast.success("Installments added");
+    setInstallmentOpen(false);
     router.refresh();
   }
 
@@ -185,6 +251,16 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
                 Mark Paid
               </Button>
             </>
+          )}
+          {!invoice.has_installments && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openInstallmentDialog}
+            >
+              <SplitSquareHorizontal className="mr-1.5 size-3.5" />
+              Add Installments
+            </Button>
           )}
           <Button variant="outline" size="sm" asChild>
             <a href={`/api/invoices/${invoice.id}/pdf`} target="_blank" rel="noopener">
@@ -384,13 +460,49 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
       </AlertDialog>
 
       {/* Mark Paid Confirmation */}
-      <ConfirmDialog
-        open={markPaidOpen}
-        onOpenChange={setMarkPaidOpen}
-        title="Mark as Paid"
-        description={`Mark invoice ${invoice.invoice_number} (${formatCurrency(invoice.total)}) as paid? This will update the invoice status.`}
-        onConfirm={handleMarkPaid}
-      />
+      <AlertDialog open={markPaidOpen} onOpenChange={setMarkPaidOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark as Paid</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mark invoice {invoice.invoice_number} ({formatCurrency(invoice.total)}) as paid?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2 space-y-2">
+            <Label className="text-sm">Payment Date</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !paidDate && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 size-4" />
+                  {paidDate ? format(paidDate, "dd MMM yyyy") : "Select date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={paidDate}
+                  onSelect={(date) => date && setPaidDate(date)}
+                  disabled={(date) => date > new Date()}
+                  defaultMonth={paidDate}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkPaid}>
+              <CheckCircle2 className="mr-1.5 size-3.5" />
+              Mark Paid
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete Confirmation */}
       <ConfirmDialog
@@ -400,6 +512,134 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
         description={`Permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`}
         onConfirm={handleDelete}
       />
+
+      {/* Add Installments Dialog */}
+      <AlertDialog open={installmentOpen} onOpenChange={setInstallmentOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Add Installments</AlertDialogTitle>
+            <AlertDialogDescription>
+              Split {invoice.invoice_number} into installments. Enter the full program amount
+              across all installments. Mark past payments as &quot;Paid&quot;.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Count selector */}
+            <div className="flex items-center gap-3">
+              <Label className="text-sm whitespace-nowrap">Number of installments</Label>
+              <div className="flex gap-1">
+                {[2, 3, 4].map((n) => (
+                  <Button
+                    key={n}
+                    size="sm"
+                    variant={installmentCount === n ? "default" : "outline"}
+                    className="h-8 w-8 p-0"
+                    onClick={() => {
+                      setInstallmentCount(n);
+                      initInstallments(n);
+                    }}
+                  >
+                    {n}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Installment rows */}
+            <div className="space-y-3">
+              {installmentRows.map((row, i) => (
+                <div key={i} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Installment #{i + 1}</span>
+                    <Button
+                      size="sm"
+                      variant={row.status === "paid" ? "default" : "outline"}
+                      className={cn(
+                        "h-6 text-xs",
+                        row.status === "paid" && "bg-emerald-600 hover:bg-emerald-700"
+                      )}
+                      onClick={() => {
+                        const updated = [...installmentRows];
+                        updated[i] = {
+                          ...updated[i],
+                          status: updated[i].status === "paid" ? "pending" : "paid",
+                        };
+                        setInstallmentRows(updated);
+                      }}
+                    >
+                      {row.status === "paid" ? "Paid" : "Pending"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Amount</Label>
+                      <Input
+                        type="number"
+                        value={row.amount}
+                        onChange={(e) => {
+                          const updated = [...installmentRows];
+                          updated[i] = { ...updated[i], amount: parseFloat(e.target.value) || 0 };
+                          setInstallmentRows(updated);
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs text-muted-foreground">Due Date</Label>
+                      <Input
+                        type="date"
+                        value={row.due_date}
+                        onChange={(e) => {
+                          const updated = [...installmentRows];
+                          updated[i] = { ...updated[i], due_date: e.target.value };
+                          setInstallmentRows(updated);
+                        }}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Total summary */}
+            {(() => {
+              const total = installmentRows.reduce((s, r) => s + r.amount, 0);
+              const paidTotal = installmentRows
+                .filter((r) => r.status === "paid")
+                .reduce((s, r) => s + r.amount, 0);
+              const pendingTotal = total - paidTotal;
+              return (
+                <div className="rounded-lg bg-muted/50 p-3 space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total</span>
+                    <span className="font-medium">{formatCurrency(total)}</span>
+                  </div>
+                  {paidTotal > 0 && (
+                    <div className="flex justify-between text-emerald-600">
+                      <span>Already paid</span>
+                      <span>{formatCurrency(paidTotal)}</span>
+                    </div>
+                  )}
+                  {pendingTotal > 0 && (
+                    <div className="flex justify-between text-amber-600">
+                      <span>Remaining</span>
+                      <span>{formatCurrency(pendingTotal)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleAddInstallments}>
+              <SplitSquareHorizontal className="mr-1.5 size-3.5" />
+              Save Installments
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

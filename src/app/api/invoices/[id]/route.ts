@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { invoiceSchema } from "@/lib/validations";
 import { calculateGST } from "@/lib/invoices/gst";
@@ -33,6 +34,11 @@ export async function PATCH(
   const supabase = await createClient();
 
   const body = await request.json();
+
+  // Extract paid_at before schema validation (it's not part of invoiceSchema)
+  const manualPaidAt = body.paid_at;
+  delete body.paid_at;
+
   const parsed = invoiceSchema.partial().safeParse(body);
 
   if (!parsed.success) {
@@ -61,7 +67,13 @@ export async function PATCH(
   if (values.gst_number !== undefined) cleaned.gst_number = values.gst_number || null;
   if (values.due_date !== undefined) cleaned.due_date = values.due_date || null;
   if (values.notes !== undefined) cleaned.notes = values.notes || null;
-  if (values.status) cleaned.status = values.status;
+  if (values.status) {
+    cleaned.status = values.status;
+    if (values.status === "paid") {
+      cleaned.paid_at = manualPaidAt ? new Date(manualPaidAt).toISOString() : new Date().toISOString();
+      cleaned.payment_gateway = "manual";
+    }
+  }
   if (values.type) cleaned.type = values.type;
   if (values.is_recurring !== undefined) cleaned.is_recurring = values.is_recurring;
   if (values.recurrence_day !== undefined) cleaned.recurrence_day = values.recurrence_day;
@@ -75,11 +87,21 @@ export async function PATCH(
     return NextResponse.json({ error: updateError.message }, { status: 500 });
   }
 
+  // Fetch the updated invoice with contact info
   const { data } = await supabase
     .from("invoices")
     .select("*, contacts(id, first_name, last_name, email, phone, company_name)")
     .eq("id", id)
     .single();
+
+  // Revalidate pages that display invoice/payment data
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${id}`);
+  if (data?.contact_id) {
+    revalidatePath(`/customers/${data.contact_id}`);
+  }
+  revalidatePath("/customers");
+  revalidatePath("/analytics");
 
   return NextResponse.json(data);
 }
