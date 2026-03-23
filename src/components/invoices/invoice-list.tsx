@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -58,6 +59,7 @@ type InvoiceWithPending = InvoiceWithContact & {
     amount: number;
     due_date: string;
     installment_number: number;
+    reminder_date: string;
   } | null;
 };
 
@@ -382,6 +384,7 @@ export function InvoiceList({
                 <TableHead className="text-right">Balance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Next Due</TableHead>
+                <TableHead>Reminder</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -428,10 +431,17 @@ export function InvoiceList({
                     )}
                   </TableCell>
                   <TableCell className="py-3">
-                    <InvoiceStatusBadge status={inv.status} />
+                    {inv._nextInstallment ? (
+                      // Has pending installments — show "Partial" regardless of invoice status
+                      <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400">
+                        Partial
+                      </span>
+                    ) : (
+                      <InvoiceStatusBadge status={inv.status} />
+                    )}
                   </TableCell>
                   <TableCell className="py-3">
-                    {inv._nextInstallment && inv.status !== "paid" ? (
+                    {inv._nextInstallment ? (
                       <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded px-1.5 py-0.5 w-fit">
                         <Clock className="size-3" />
                         {formatCurrency(inv._nextInstallment.amount)} · {formatDate(inv._nextInstallment.due_date)}
@@ -439,6 +449,29 @@ export function InvoiceList({
                     ) : inv.due_date && inv.status !== "paid" ? (
                       <span className="text-xs text-muted-foreground">{formatDate(inv.due_date)}</span>
                     ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    {inv._nextInstallment ? (() => {
+                      const reminderDate = new Date(inv._nextInstallment.reminder_date + "T00:00:00");
+                      const today = new Date();
+                      today.setHours(0, 0, 0, 0);
+                      const isPast = reminderDate < today;
+                      const isToday = reminderDate.getTime() === today.getTime();
+                      return (
+                        <span className={`inline-flex items-center gap-1 text-[11px] rounded px-1.5 py-0.5 w-fit ${
+                          isToday
+                            ? "bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+                            : isPast
+                            ? "text-muted-foreground"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          <Bell className="size-3" />
+                          {isToday ? "Today" : formatDate(inv._nextInstallment.reminder_date)}
+                        </span>
+                      );
+                    })() : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>

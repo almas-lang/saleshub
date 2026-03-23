@@ -66,19 +66,28 @@ export default async function InvoicesPage({
     allInstallmentsData = instData ?? [];
   }
 
-  // Group installments by invoice: compute paid amount + next pending
+  // Group installments by invoice: compute paid amount, pending balance, next pending
   const paidByInvoice: Record<string, number> = {};
-  const nextPendingByInvoice: Record<string, { amount: number; due_date: string; installment_number: number }> = {};
+  const pendingByInvoice: Record<string, number> = {};
+  const nextPendingByInvoice: Record<string, { amount: number; due_date: string; installment_number: number; reminder_date: string }> = {};
   for (const inst of allInstallmentsData) {
     if (inst.status === "paid") {
       paidByInvoice[inst.invoice_id] = (paidByInvoice[inst.invoice_id] ?? 0) + Number(inst.amount);
     }
-    if (inst.status === "pending" && !nextPendingByInvoice[inst.invoice_id]) {
-      nextPendingByInvoice[inst.invoice_id] = {
-        amount: Number(inst.amount),
-        due_date: inst.due_date,
-        installment_number: inst.installment_number,
-      };
+    if (inst.status === "pending") {
+      pendingByInvoice[inst.invoice_id] = (pendingByInvoice[inst.invoice_id] ?? 0) + Number(inst.amount);
+      if (!nextPendingByInvoice[inst.invoice_id]) {
+        // Reminder is sent 2 days before due date
+        const dueDate = new Date(inst.due_date + "T00:00:00");
+        const reminderDate = new Date(dueDate);
+        reminderDate.setDate(reminderDate.getDate() - 2);
+        nextPendingByInvoice[inst.invoice_id] = {
+          amount: Number(inst.amount),
+          due_date: inst.due_date,
+          installment_number: inst.installment_number,
+          reminder_date: reminderDate.toISOString().split("T")[0],
+        };
+      }
     }
   }
 
@@ -87,10 +96,15 @@ export default async function InvoicesPage({
     const paidAmount = isInstallment
       ? (paidByInvoice[inv.id] ?? 0)
       : inv.status === "paid" ? inv.total : 0;
+    // For installment invoices, balance = actual pending installment sum
+    // (more accurate than total - paid, handles mismatches between invoice status and installments)
+    const balance = isInstallment
+      ? (pendingByInvoice[inv.id] ?? 0)
+      : Math.max(inv.total - paidAmount, 0);
     return {
       ...inv,
       _paidAmount: paidAmount,
-      _balance: inv.total - paidAmount,
+      _balance: balance,
       _nextInstallment: nextPendingByInvoice[inv.id] ?? null,
     };
   });
@@ -112,17 +126,22 @@ export default async function InvoicesPage({
     statsMonthLabel = "This Month";
   }
 
-  const [outstandingResult, overdueResult, paidInvoicesData, paidInstallmentsData] = await Promise.all([
+  // For outstanding/overdue: fetch invoices + their pending installment amounts
+  // so partial payments are deducted correctly
+  const [sentInvoicesData, overdueInvoicesData, pendingInstallmentsForStats, paidInvoicesData, paidInstallmentsData] = await Promise.all([
     supabase
       .from("invoices")
-      .select("total")
-      .in("status", ["sent"])
-      .then(({ data: d }) => d?.reduce((sum, i) => sum + i.total, 0) ?? 0),
+      .select("id, total, has_installments")
+      .eq("status", "sent"),
     supabase
       .from("invoices")
-      .select("total")
-      .eq("status", "overdue")
-      .then(({ data: d }) => d?.reduce((sum, i) => sum + i.total, 0) ?? 0),
+      .select("id, total, has_installments")
+      .eq("status", "overdue"),
+    // Pending installments for all sent/overdue invoices (to deduct paid amounts)
+    supabase
+      .from("installments")
+      .select("invoice_id, amount")
+      .eq("status", "pending"),
     // Fully paid invoices this month (non-installment) — fetch subtotal + total
     supabase
       .from("invoices")
@@ -141,6 +160,28 @@ export default async function InvoicesPage({
       .lt("paid_at", statsMonthEnd)
       .then(({ data: d }) => d ?? []),
   ]);
+
+  // Build pending installments map: invoice_id -> sum of pending amounts
+  const pendingAmountByInvoice: Record<string, number> = {};
+  for (const inst of pendingInstallmentsForStats.data ?? []) {
+    pendingAmountByInvoice[inst.invoice_id] = (pendingAmountByInvoice[inst.invoice_id] ?? 0) + Number(inst.amount);
+  }
+
+  // Outstanding = pending installment sum for installment invoices, full total for regular ones
+  const outstandingResult = (sentInvoicesData.data ?? []).reduce((sum, inv) => {
+    const amount = inv.has_installments
+      ? (pendingAmountByInvoice[inv.id] ?? 0)
+      : inv.total;
+    return sum + amount;
+  }, 0);
+
+  // Overdue = same logic but for overdue invoices
+  const overdueResult = (overdueInvoicesData.data ?? []).reduce((sum, inv) => {
+    const amount = inv.has_installments
+      ? (pendingAmountByInvoice[inv.id] ?? 0)
+      : inv.total;
+    return sum + amount;
+  }, 0);
 
   // Compute revenue / GST / cash collected from fully paid invoices
   let paidRevenue = 0;
