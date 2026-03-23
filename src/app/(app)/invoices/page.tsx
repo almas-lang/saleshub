@@ -50,40 +50,50 @@ export default async function InvoicesPage({
   const total = count ?? 0;
   const totalPages = Math.ceil(total / perPage);
 
-  // Fetch pending installments for invoices that have them
+  // Fetch all installments for invoices that have them
   const invoiceIdsWithInstallments = rawInvoices
     .filter((i) => i.has_installments)
     .map((i) => i.id);
 
-  let installmentsByInvoice: Record<string, typeof installmentsData> = {};
-  let installmentsData: { id: string; invoice_id: string; installment_number: number; amount: number; due_date: string; status: string }[] = [];
+  let allInstallmentsData: { id: string; invoice_id: string; installment_number: number; amount: number; due_date: string; status: string }[] = [];
 
   if (invoiceIdsWithInstallments.length > 0) {
     const { data: instData } = await supabase
       .from("installments")
       .select("id, invoice_id, installment_number, amount, due_date, status")
       .in("invoice_id", invoiceIdsWithInstallments)
-      .eq("status", "pending")
       .order("due_date", { ascending: true });
-    installmentsData = instData ?? [];
+    allInstallmentsData = instData ?? [];
   }
 
-  // Group by invoice_id, keep only the next pending one per invoice
+  // Group installments by invoice: compute paid amount + next pending
+  const paidByInvoice: Record<string, number> = {};
   const nextPendingByInvoice: Record<string, { amount: number; due_date: string; installment_number: number }> = {};
-  for (const inst of installmentsData) {
-    if (!nextPendingByInvoice[inst.invoice_id]) {
+  for (const inst of allInstallmentsData) {
+    if (inst.status === "paid") {
+      paidByInvoice[inst.invoice_id] = (paidByInvoice[inst.invoice_id] ?? 0) + Number(inst.amount);
+    }
+    if (inst.status === "pending" && !nextPendingByInvoice[inst.invoice_id]) {
       nextPendingByInvoice[inst.invoice_id] = {
-        amount: inst.amount,
+        amount: Number(inst.amount),
         due_date: inst.due_date,
         installment_number: inst.installment_number,
       };
     }
   }
 
-  const invoices = rawInvoices.map((inv) => ({
-    ...inv,
-    _nextInstallment: nextPendingByInvoice[inv.id] ?? null,
-  }));
+  const invoices = rawInvoices.map((inv) => {
+    const isInstallment = inv.has_installments;
+    const paidAmount = isInstallment
+      ? (paidByInvoice[inv.id] ?? 0)
+      : inv.status === "paid" ? inv.total : 0;
+    return {
+      ...inv,
+      _paidAmount: paidAmount,
+      _balance: inv.total - paidAmount,
+      _nextInstallment: nextPendingByInvoice[inv.id] ?? null,
+    };
+  });
 
   // Calculate summary stats for the selected month (or current month)
   const now = new Date();
@@ -102,7 +112,7 @@ export default async function InvoicesPage({
     statsMonthLabel = "This Month";
   }
 
-  const [outstandingResult, overdueResult, paidResult] = await Promise.all([
+  const [outstandingResult, overdueResult, paidInvoicesData, paidInstallmentsData] = await Promise.all([
     supabase
       .from("invoices")
       .select("total")
@@ -113,14 +123,61 @@ export default async function InvoicesPage({
       .select("total")
       .eq("status", "overdue")
       .then(({ data: d }) => d?.reduce((sum, i) => sum + i.total, 0) ?? 0),
+    // Fully paid invoices this month (non-installment) — fetch subtotal + total
     supabase
       .from("invoices")
-      .select("total")
+      .select("subtotal, total")
+      .eq("status", "paid")
+      .eq("has_installments", false)
+      .gte("paid_at", statsMonthStart)
+      .lt("paid_at", statsMonthEnd)
+      .then(({ data: d }) => d ?? []),
+    // Paid installments this month — join parent invoice for tax ratio
+    supabase
+      .from("installments")
+      .select("amount, invoice_id")
       .eq("status", "paid")
       .gte("paid_at", statsMonthStart)
       .lt("paid_at", statsMonthEnd)
-      .then(({ data: d }) => d?.reduce((sum, i) => sum + i.total, 0) ?? 0),
+      .then(({ data: d }) => d ?? []),
   ]);
+
+  // Compute revenue / GST / cash collected from fully paid invoices
+  let paidRevenue = 0;
+  let paidGst = 0;
+  let paidCash = 0;
+  for (const inv of paidInvoicesData) {
+    paidCash += inv.total;
+    paidRevenue += inv.subtotal;
+    paidGst += inv.total - inv.subtotal;
+  }
+
+  // For installment payments, fetch parent invoice subtotal/total to derive tax ratio
+  const instInvoiceIds = [...new Set(paidInstallmentsData.map((i) => i.invoice_id))];
+  let invoiceTaxMap: Record<string, { subtotal: number; total: number }> = {};
+  if (instInvoiceIds.length > 0) {
+    const { data: parentInvs } = await supabase
+      .from("invoices")
+      .select("id, subtotal, total")
+      .in("id", instInvoiceIds);
+    for (const p of parentInvs ?? []) {
+      invoiceTaxMap[p.id] = { subtotal: p.subtotal, total: p.total };
+    }
+  }
+
+  for (const inst of paidInstallmentsData) {
+    const amount = Number(inst.amount);
+    const parent = invoiceTaxMap[inst.invoice_id];
+    if (parent && parent.total > 0) {
+      const taxRatio = (parent.total - parent.subtotal) / parent.total;
+      const instGst = amount * taxRatio;
+      paidGst += instGst;
+      paidRevenue += amount - instGst;
+    } else {
+      paidRevenue += amount;
+    }
+    paidCash += amount;
+  }
 
   return (
     <InvoiceList
@@ -129,11 +186,13 @@ export default async function InvoicesPage({
       page={page}
       perPage={perPage}
       totalPages={totalPages}
-      currentMonth={month || new Date().toISOString().slice(0, 7)}
+      currentMonth={month}
       summaryStats={{
         outstanding: outstandingResult,
         overdue: overdueResult,
-        paidThisMonth: paidResult,
+        paidThisMonth: paidCash,
+        paidRevenue,
+        paidGst,
         paidLabel: month ? `Paid in ${statsMonthLabel}` : "Paid This Month",
       }}
     />

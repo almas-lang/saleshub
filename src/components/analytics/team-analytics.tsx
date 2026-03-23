@@ -4,6 +4,14 @@ import { useState, useEffect } from "react";
 import { subDays, format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
+  CheckSquare,
+  Users,
+  Target,
+  IndianRupee,
+  Loader2,
+  Trophy,
+} from "lucide-react";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -11,6 +19,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 
 import { formatCurrency } from "@/lib/utils";
@@ -24,6 +33,40 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { TeamAnalytics } from "@/types/analytics";
+
+const tooltipStyle = {
+  borderRadius: "8px",
+  border: "1px solid hsl(var(--border))",
+  backgroundColor: "hsl(var(--card))",
+  fontSize: "12px",
+};
+
+function StatPill({
+  icon: Icon,
+  value,
+  label,
+  color,
+}: {
+  icon: typeof CheckSquare;
+  value: string;
+  label: string;
+  color: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border bg-card p-3.5">
+      <div
+        className="flex size-9 items-center justify-center rounded-lg"
+        style={{ backgroundColor: color + "18" }}
+      >
+        <Icon className="size-4" style={{ color }} />
+      </div>
+      <div>
+        <p className="font-mono text-lg font-bold leading-tight">{value}</p>
+        <p className="text-[11px] text-muted-foreground">{label}</p>
+      </div>
+    </div>
+  );
+}
 
 export function TeamAnalyticsView() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -45,7 +88,12 @@ export function TeamAnalyticsView() {
   }, [dateRange]);
 
   if (loading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Loading team data...
+      </div>
+    );
   }
   if (!data) return null;
 
@@ -56,35 +104,31 @@ export function TeamAnalyticsView() {
     conversions: m.conversions,
   }));
 
+  const sortedMembers = [...data.members].sort((a, b) => b.revenue - a.revenue);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
-        <div className="ml-auto flex gap-4 text-xs text-muted-foreground">
-          <span>{data.totalTasks} tasks</span>
-          <span>{data.totalLeads} leads</span>
-          <span>{data.totalConversions} conversions</span>
-          <span>{formatCurrency(data.totalRevenue)} revenue</span>
-        </div>
+      <DateRangePicker value={dateRange} onChange={setDateRange} />
+
+      {/* Summary stat pills */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatPill icon={CheckSquare} value={data.totalTasks.toString()} label="Tasks completed" color="#3B82F6" />
+        <StatPill icon={Users} value={data.totalLeads.toString()} label="Leads assigned" color="#22c55e" />
+        <StatPill icon={Target} value={data.totalConversions.toString()} label="Conversions" color="#8B5CF6" />
+        <StatPill icon={IndianRupee} value={formatCurrency(data.totalRevenue)} label="Revenue" color="#F59E0B" />
       </div>
 
       {/* Workload chart */}
       {chartData.length > 0 && (
         <div className="rounded-xl border bg-card p-5">
-          <h3 className="mb-4 text-sm font-medium">Team Workload</h3>
+          <h3 className="mb-4 text-sm font-semibold">Team Workload</h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{
-                  borderRadius: "8px",
-                  border: "1px solid hsl(var(--border))",
-                  backgroundColor: "hsl(var(--card))",
-                  fontSize: "12px",
-                }}
-              />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Legend wrapperStyle={{ fontSize: "12px" }} />
               <Bar dataKey="tasks" name="Tasks" fill="#3B82F6" radius={[4, 4, 0, 0]} />
               <Bar dataKey="leads" name="Leads" fill="#22c55e" radius={[4, 4, 0, 0]} />
               <Bar dataKey="conversions" name="Conversions" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
@@ -95,40 +139,57 @@ export function TeamAnalyticsView() {
 
       {/* Leaderboard table */}
       <div className="rounded-xl border bg-card">
-        <div className="border-b px-5 py-3">
-          <h3 className="text-sm font-medium">Team Leaderboard</h3>
+        <div className="flex items-center gap-2 border-b px-5 py-3.5">
+          <Trophy className="size-4 text-amber-500" />
+          <h3 className="text-sm font-semibold">Team Leaderboard</h3>
         </div>
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-10">#</TableHead>
               <TableHead>Member</TableHead>
-              <TableHead className="text-right">Tasks Done</TableHead>
+              <TableHead className="text-right">Tasks</TableHead>
               <TableHead className="text-right">Leads</TableHead>
               <TableHead className="text-right">Conversions</TableHead>
               <TableHead className="text-right">Revenue</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.members.length === 0 ? (
+            {sortedMembers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
                   No team data
                 </TableCell>
               </TableRow>
             ) : (
-              data.members
-                .sort((a, b) => b.revenue - a.revenue)
-                .map((m) => (
-                  <TableRow key={m.memberId}>
-                    <TableCell className="text-sm font-medium">{m.memberName}</TableCell>
-                    <TableCell className="text-right text-sm">{m.tasksCompleted}</TableCell>
-                    <TableCell className="text-right text-sm">{m.leadsAssigned}</TableCell>
-                    <TableCell className="text-right text-sm">{m.conversions}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {formatCurrency(m.revenue)}
-                    </TableCell>
-                  </TableRow>
-                ))
+              sortedMembers.map((m, i) => (
+                <TableRow key={m.memberId} className="hover:bg-muted/50 transition-colors">
+                  <TableCell className="text-sm">
+                    {i === 0 ? (
+                      <span className="inline-flex size-6 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700 dark:bg-amber-900/50 dark:text-amber-400">
+                        1
+                      </span>
+                    ) : i === 1 ? (
+                      <span className="inline-flex size-6 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                        2
+                      </span>
+                    ) : i === 2 ? (
+                      <span className="inline-flex size-6 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700 dark:bg-orange-900/50 dark:text-orange-400">
+                        3
+                      </span>
+                    ) : (
+                      <span className="pl-2 text-xs text-muted-foreground">{i + 1}</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-sm font-medium">{m.memberName}</TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">{m.tasksCompleted}</TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">{m.leadsAssigned}</TableCell>
+                  <TableCell className="text-right text-sm tabular-nums">{m.conversions}</TableCell>
+                  <TableCell className="text-right font-mono text-sm font-medium tabular-nums">
+                    {formatCurrency(m.revenue)}
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

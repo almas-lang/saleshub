@@ -15,6 +15,12 @@ import {
   FileText,
   Trash2,
   Clock,
+  IndianRupee,
+  AlertTriangle,
+  TrendingUp,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -37,10 +43,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InvoiceStatusBadge } from "./invoice-status-badge";
 
 type InvoiceWithPending = InvoiceWithContact & {
+  _paidAmount: number;
+  _balance: number;
   _nextInstallment?: {
     amount: number;
     due_date: string;
@@ -59,6 +72,8 @@ interface InvoiceListProps {
     outstanding: number;
     overdue: number;
     paidThisMonth: number;
+    paidRevenue: number;
+    paidGst: number;
     paidLabel: string;
   };
 }
@@ -82,6 +97,11 @@ export function InvoiceList({
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [pickerYear, setPickerYear] = useState(() => {
+    if (currentMonth) return parseInt(currentMonth.split("-")[0]);
+    return new Date().getFullYear();
+  });
 
   function navigateWithParams(overrides: Record<string, string>) {
     const params = new URLSearchParams(window.location.search);
@@ -144,8 +164,11 @@ export function InvoiceList({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">Invoices</h1>
-          <p className="text-sm text-muted-foreground">{total} total</p>
+          <h1 className="text-xl font-bold">Invoices</h1>
+          <p className="text-sm text-muted-foreground">
+            {total} total
+            {currentMonth ? ` · ${new Date(currentMonth + "-01").toLocaleDateString("en-IN", { month: "long", year: "numeric" })}` : " · All time"}
+          </p>
         </div>
         <Link href="/invoices/new">
           <Button size="sm">
@@ -156,24 +179,52 @@ export function InvoiceList({
       </div>
 
       {/* Summary Bar */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground">Outstanding</p>
-          <p className="text-lg font-semibold">{formatCurrency(summaryStats.outstanding)}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/50">
+            <IndianRupee className="size-5 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Outstanding</p>
+            <p className="text-lg font-semibold">{formatCurrency(summaryStats.outstanding)}</p>
+          </div>
         </div>
-        <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground">Overdue</p>
-          <p className="text-lg font-semibold text-red-600">{formatCurrency(summaryStats.overdue)}</p>
+        <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/30">
+          <div className="flex size-10 items-center justify-center rounded-lg bg-red-100 dark:bg-red-900/50">
+            <AlertTriangle className="size-5 text-red-600 dark:text-red-400" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-muted-foreground">Overdue</p>
+            <p className="text-lg font-semibold text-red-600 dark:text-red-400">{formatCurrency(summaryStats.overdue)}</p>
+          </div>
         </div>
-        <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground">{summaryStats.paidLabel}</p>
-          <p className="text-lg font-semibold text-emerald-600">{formatCurrency(summaryStats.paidThisMonth)}</p>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/50">
+              <TrendingUp className="size-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">{summaryStats.paidLabel}</p>
+              <p className="text-lg font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(summaryStats.paidThisMonth)}</p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-3 border-t border-emerald-200/60 pt-3 dark:border-emerald-800/40">
+            <div className="flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Revenue</p>
+              <p className="text-sm font-semibold tabular-nums">{formatCurrency(summaryStats.paidRevenue)}</p>
+            </div>
+            <div className="h-6 w-px bg-emerald-200/60 dark:bg-emerald-800/40" />
+            <div className="flex-1">
+              <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">GST</p>
+              <p className="text-sm font-semibold tabular-nums">{formatCurrency(summaryStats.paidGst)}</p>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-xs">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
           <Input
             placeholder="Search invoices..."
@@ -183,30 +234,124 @@ export function InvoiceList({
             className="pl-8"
           />
         </div>
-        <Input
-          type="month"
-          value={currentMonth}
-          onChange={(e) => navigateWithParams({ month: e.target.value, page: "1" })}
-          className="w-40 text-xs"
-        />
-        {currentMonth !== new Date().toISOString().slice(0, 7) && (
+
+        {/* Month Navigator */}
+        <div className="inline-flex items-center gap-1 rounded-lg border bg-muted/50 px-1">
           <Button
             variant="ghost"
-            size="sm"
-            className="text-xs"
-            onClick={() => navigateWithParams({ month: "", page: "1" })}
+            size="icon"
+            className="size-7"
+            onClick={() => {
+              const base = currentMonth
+                ? new Date(currentMonth + "-01")
+                : new Date();
+              base.setMonth(base.getMonth() - 1);
+              navigateWithParams({ month: base.toISOString().slice(0, 7), page: "1" });
+            }}
           >
-            Reset
+            <ChevronLeft className="size-4" />
           </Button>
-        )}
-        <div className="flex gap-1">
+
+          <Popover open={monthPickerOpen} onOpenChange={setMonthPickerOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className="inline-flex items-center gap-1.5 px-2 py-1 text-sm font-medium hover:text-primary transition-colors"
+              >
+                <CalendarDays className="size-3.5 text-muted-foreground" />
+                {currentMonth
+                  ? new Date(currentMonth + "-01").toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+                  : "All"}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-3" align="center">
+              {/* Year nav */}
+              <div className="flex items-center justify-between mb-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setPickerYear((y) => y - 1)}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <span className="text-sm font-semibold">{pickerYear}</span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => setPickerYear((y) => y + 1)}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+
+              {/* Month grid */}
+              <div className="grid grid-cols-3 gap-1.5">
+                {Array.from({ length: 12 }, (_, i) => {
+                  const monthVal = `${pickerYear}-${String(i + 1).padStart(2, "0")}`;
+                  const isActive = currentMonth === monthVal;
+                  const label = new Date(pickerYear, i).toLocaleDateString("en-IN", { month: "short" });
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => {
+                        navigateWithParams({ month: monthVal, page: "1" });
+                        setMonthPickerOpen(false);
+                      }}
+                      className={`rounded-md px-2 py-1.5 text-sm transition-colors ${
+                        isActive
+                          ? "bg-primary text-primary-foreground font-medium"
+                          : "hover:bg-muted"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* All button */}
+              <button
+                onClick={() => {
+                  navigateWithParams({ month: "", page: "1" });
+                  setMonthPickerOpen(false);
+                }}
+                className={`mt-2 w-full rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+                  !currentMonth
+                    ? "bg-primary text-primary-foreground"
+                    : "border hover:bg-muted"
+                }`}
+              >
+                All Time
+              </button>
+            </PopoverContent>
+          </Popover>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => {
+              const base = currentMonth
+                ? new Date(currentMonth + "-01")
+                : new Date();
+              base.setMonth(base.getMonth() + 1);
+              navigateWithParams({ month: base.toISOString().slice(0, 7), page: "1" });
+            }}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+
+        {/* Status Filter Pills */}
+        <div className="flex gap-1.5 ml-auto">
           {STATUS_FILTERS.map((f) => (
             <Button
               key={f.value}
               variant={statusFilter === f.value ? "default" : "outline"}
               size="sm"
               onClick={() => handleStatusFilter(f.value)}
-              className="text-xs"
+              className="rounded-full text-xs px-3 h-7"
             >
               {f.label}
             </Button>
@@ -232,10 +377,11 @@ export function InvoiceList({
               <TableRow>
                 <TableHead>Invoice #</TableHead>
                 <TableHead>Client</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="text-right">Total</TableHead>
+                <TableHead className="text-right">Paid</TableHead>
+                <TableHead className="text-right">Balance</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Due Date</TableHead>
+                <TableHead>Next Due</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -243,34 +389,58 @@ export function InvoiceList({
               {invoices.map((inv) => (
                 <TableRow
                   key={inv.id}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
                   onClick={() => router.push(`/invoices/${inv.id}`)}
                 >
-                  <TableCell className="font-medium">{inv.invoice_number}</TableCell>
-                  <TableCell>
-                    {inv.contacts
-                      ? `${inv.contacts.first_name} ${inv.contacts.last_name ?? ""}`.trim()
-                      : "—"}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">
-                    {formatCurrency(inv.total)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <InvoiceStatusBadge status={inv.status} />
-                      {inv._nextInstallment && (
-                        <span className="flex items-center gap-1 text-[11px] text-amber-600">
-                          <Clock className="size-3" />
-                          #{inv._nextInstallment.installment_number} {formatCurrency(inv._nextInstallment.amount)} due {formatDate(inv._nextInstallment.due_date)}
-                        </span>
+                  <TableCell className="font-medium py-3">{inv.invoice_number}</TableCell>
+                  <TableCell className="py-3">
+                    <div>
+                      <span>
+                        {inv.contacts
+                          ? `${inv.contacts.first_name} ${inv.contacts.last_name ?? ""}`.trim()
+                          : "—"}
+                      </span>
+                      {inv.contacts?.company_name && (
+                        <p className="text-xs text-muted-foreground">{inv.contacts.company_name}</p>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {formatDate(inv.created_at)}
+                  <TableCell className="text-right font-semibold tabular-nums py-3">
+                    {formatCurrency(inv.total)}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {inv.due_date ? formatDate(inv.due_date) : "—"}
+                  <TableCell className="text-right tabular-nums py-3">
+                    {inv._paidAmount > 0 ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                        {formatCurrency(inv._paidAmount)}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums py-3">
+                    {inv._balance > 0 ? (
+                      <span className="font-medium">{formatCurrency(inv._balance)}</span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-3" />
+                        Paid
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <InvoiceStatusBadge status={inv.status} />
+                  </TableCell>
+                  <TableCell className="py-3">
+                    {inv._nextInstallment ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded px-1.5 py-0.5 w-fit">
+                        <Clock className="size-3" />
+                        {formatCurrency(inv._nextInstallment.amount)} · {formatDate(inv._nextInstallment.due_date)}
+                      </span>
+                    ) : inv.due_date && inv.status !== "paid" ? (
+                      <span className="text-xs text-muted-foreground">{formatDate(inv.due_date)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <DropdownMenu>

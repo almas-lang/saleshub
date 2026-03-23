@@ -26,8 +26,8 @@ export default async function AnalyticsPage() {
   return (
     <div className="page-enter space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Analytics</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+        <h1 className="text-2xl font-bold tracking-tight">Analytics</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           Insights across leads, pipeline, communication, and team performance.
         </p>
       </div>
