@@ -431,7 +431,7 @@ export function InvoiceList({
                     <InvoiceStatusBadge status={inv.status} />
                   </TableCell>
                   <TableCell className="py-3">
-                    {inv._nextInstallment ? (
+                    {inv._nextInstallment && inv.status !== "paid" ? (
                       <span className="inline-flex items-center gap-1 text-[11px] text-amber-700 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 rounded px-1.5 py-0.5 w-fit">
                         <Clock className="size-3" />
                         {formatCurrency(inv._nextInstallment.amount)} · {formatDate(inv._nextInstallment.due_date)}
