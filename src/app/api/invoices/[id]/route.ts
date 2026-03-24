@@ -94,6 +94,28 @@ export async function PATCH(
     .eq("id", id)
     .single();
 
+  // If invoice was just marked paid, create an income transaction (if not already present)
+  if (values.status === "paid" && data) {
+    const { data: existing } = await supabase
+      .from("transactions")
+      .select("id")
+      .eq("invoice_id", id)
+      .maybeSingle();
+
+    if (!existing) {
+      const paidDate = (cleaned.paid_at as string | undefined) ?? new Date().toISOString();
+      await supabase.from("transactions").insert({
+        type: "income",
+        amount: data.total,
+        category: "Invoice Payment",
+        date: paidDate.split("T")[0],
+        description: `Payment for ${data.invoice_number} via ${data.payment_gateway ?? "manual"}`,
+        invoice_id: id,
+        contact_id: data.contact_id,
+      });
+    }
+  }
+
   // Revalidate pages that display invoice/payment data
   revalidatePath("/invoices");
   revalidatePath(`/invoices/${id}`);
