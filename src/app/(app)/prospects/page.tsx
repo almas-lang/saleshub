@@ -199,6 +199,7 @@ export default async function ProspectsPage({
   // Build lastActivityMap — most recent activity per contact
   const contactIds = prospects.map((p) => p.id);
   let lastActivityMap: Record<string, string> = {};
+  let calendlyBookedIds: string[] = [];
 
   if (contactIds.length > 0) {
     try {
@@ -219,6 +220,17 @@ export default async function ProspectsPage({
       }
     } catch {
       // Ignore — corrupt timestamps in activities table can cause query failures
+    }
+  }
+
+  // Fetch which of the current page's contacts have Calendly bookings
+  if (contactIds.length > 0) {
+    const { data: bookingRows } = await supabase
+      .from("bookings")
+      .select("contact_id")
+      .in("contact_id", contactIds);
+    if (bookingRows) {
+      calendlyBookedIds = [...new Set(bookingRows.map((b) => b.contact_id))];
     }
   }
 
@@ -352,6 +364,7 @@ export default async function ProspectsPage({
               teamMembers: teamMemberList,
             }}
             lastActivityMap={lastActivityMap}
+            bookedContactIds={calendlyBookedIds}
             openForm={params.action === "new"}
             tab={tab}
             stats={stats}

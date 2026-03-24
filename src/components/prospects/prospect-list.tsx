@@ -80,6 +80,7 @@ interface ProspectListProps {
   totalPages: number;
   filterOptions: FilterOptions;
   lastActivityMap: Record<string, string>;
+  bookedContactIds?: string[];
   openForm?: boolean;
   tab?: "active" | "archived";
   stats?: ProspectStats;
@@ -148,10 +149,12 @@ export function ProspectList({
   totalPages,
   filterOptions,
   lastActivityMap,
+  bookedContactIds = [],
   openForm = false,
   tab = "active",
   stats,
 }: ProspectListProps) {
+  const bookedSet = new Set(bookedContactIds);
   const isArchived = tab === "archived";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -624,13 +627,15 @@ export function ProspectList({
                           const callBooked = cbMeta
                             ? cbMeta["CallBooked"] || cbMeta["Call Booked"] || cbMeta["Call_Booked"] || cbMeta["call_booked"] || cbMeta["call booked"] || cbMeta["callBooked"] || cbMeta["Booked"] || cbMeta["booked"]
                             : undefined;
-                          const isBooked = callBooked && callBooked.toLowerCase() !== "no" && callBooked.toLowerCase() !== "false" && callBooked.trim() !== "";
+                          const isBookedFromMeta = callBooked && callBooked.toLowerCase() !== "no" && callBooked.toLowerCase() !== "false" && callBooked.trim() !== "";
+                          const isBookedFromCalendly = bookedSet.has(prospect.id);
+                          const isBooked = isBookedFromMeta || isBookedFromCalendly;
                           return (
                             <TableCell key={col.key}>
                               {isBooked ? (
                                 <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
                                   <CheckCircle2 className="size-3.5" />
-                                  {callBooked}
+                                  {isBookedFromMeta ? callBooked : "Booked"}
                                 </span>
                               ) : (
                                 <span className="text-muted-foreground">—</span>
@@ -743,7 +748,7 @@ export function ProspectList({
               const mobileCallBooked = cbMobileMeta
                 ? cbMobileMeta["CallBooked"] || cbMobileMeta["Call Booked"] || cbMobileMeta["Call_Booked"] || cbMobileMeta["call_booked"] || cbMobileMeta["call booked"] || cbMobileMeta["callBooked"] || cbMobileMeta["Booked"] || cbMobileMeta["booked"]
                 : undefined;
-              const mobileIsBooked = mobileCallBooked && mobileCallBooked.toLowerCase() !== "no" && mobileCallBooked.toLowerCase() !== "false" && mobileCallBooked.trim() !== "";
+              const mobileIsBooked = bookedSet.has(prospect.id) || (mobileCallBooked && mobileCallBooked.toLowerCase() !== "no" && mobileCallBooked.toLowerCase() !== "false" && mobileCallBooked.trim() !== "");
 
               return (
                 <div
