@@ -33,6 +33,9 @@ import {
   Archive,
   ArchiveRestore,
   UserCheck,
+  Video,
+  Clock,
+  User,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -40,6 +43,7 @@ import { cn, formatDate, timeAgo, formatPhone } from "@/lib/utils";
 import type { ContactWithStage, Activity, ActivityWithUser, Task, ContactFormResponse } from "@/types/contacts";
 import type { WASendWithDetails, EmailSendWithDetails } from "@/types/campaigns";
 import type { InvoiceWithContact } from "@/types/invoices";
+import type { BookingWithRelations } from "@/types/bookings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +108,7 @@ interface ProspectDetailProps {
   waSends: WASendWithDetails[];
   emailSendRecords: EmailSendWithDetails[];
   invoices: InvoiceWithContact[];
+  bookings: BookingWithRelations[];
 }
 
 const ACTIVITY_ICON_CONFIG: Record<
@@ -140,6 +145,7 @@ export function ProspectDetail({
   waSends,
   emailSendRecords,
   invoices,
+  bookings,
 }: ProspectDetailProps) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
@@ -790,15 +796,114 @@ export function ProspectDetail({
 
         {/* Bookings Tab */}
         <TabsContent value="bookings" className="mt-6">
-          <div className="py-12 text-center">
-            <Calendar className="mx-auto mb-3 size-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-muted-foreground">
-              Coming in Phase 2
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Booking history and upcoming appointments will appear here.
-            </p>
-          </div>
+          {bookings.length === 0 ? (
+            <div className="py-12 text-center">
+              <Calendar className="mx-auto mb-3 size-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">No bookings yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Bookings via Calendly or the booking page will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {bookings.map((booking) => {
+                const start = new Date(booking.starts_at);
+                const end = new Date(booking.ends_at);
+                const durationMins = Math.round((end.getTime() - start.getTime()) / 60000);
+                const isPast = end < new Date();
+                const statusConfig: Record<string, { label: string; className: string }> = {
+                  confirmed:    { label: "Confirmed",    className: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400" },
+                  completed:    { label: "Completed",    className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400" },
+                  cancelled:    { label: "Cancelled",    className: "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-400" },
+                  no_show:      { label: "No Show",      className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400" },
+                };
+                const outcomeConfig: Record<string, { label: string; className: string }> = {
+                  qualified:      { label: "Qualified",      className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+                  not_qualified:  { label: "Not Qualified",  className: "bg-red-50 text-red-700 border-red-200" },
+                  needs_follow_up:{ label: "Follow Up",      className: "bg-amber-50 text-amber-700 border-amber-200" },
+                  converted:      { label: "Converted",      className: "bg-blue-50 text-blue-700 border-blue-200" },
+                };
+                const statusCfg = statusConfig[booking.status] ?? statusConfig.confirmed;
+                const outcomeCfg = booking.outcome ? outcomeConfig[booking.outcome] : null;
+
+                return (
+                  <div key={booking.id} className="rounded-xl border bg-card p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      {/* Date/time block */}
+                      <div className="flex items-start gap-3">
+                        <div className="flex size-10 flex-col items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <span className="text-[10px] font-semibold uppercase leading-none">
+                            {start.toLocaleDateString("en-IN", { month: "short" })}
+                          </span>
+                          <span className="text-lg font-bold leading-tight">
+                            {start.getDate()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">
+                            {start.toLocaleDateString("en-IN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+                          </p>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <Clock className="size-3" />
+                              {start.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                              {" – "}
+                              {end.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                              {" "}({durationMins} min)
+                            </span>
+                            {booking.team_members && (
+                              <span className="flex items-center gap-1">
+                                <User className="size-3" />
+                                {(booking.team_members as { name: string }).name}
+                              </span>
+                            )}
+                            {booking.booking_pages && (
+                              <span className="text-muted-foreground/70">
+                                {(booking.booking_pages as { title: string }).title}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Badges */}
+                      <div className="flex flex-shrink-0 items-center gap-2">
+                        {outcomeCfg && (
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${outcomeCfg.className}`}>
+                            {outcomeCfg.label}
+                          </span>
+                        )}
+                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusCfg.className}`}>
+                          {statusCfg.label}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Meet link / notes */}
+                    {(booking.meet_link || booking.notes) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-3 border-t pt-3">
+                        {booking.meet_link && (
+                          <a
+                            href={booking.meet_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 transition-colors dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-400"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Video className="size-3.5" />
+                            Join Meet
+                          </a>
+                        )}
+                        {booking.notes && (
+                          <p className="text-xs text-muted-foreground">{booking.notes}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {/* Invoices Tab */}

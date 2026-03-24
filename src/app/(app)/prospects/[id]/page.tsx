@@ -6,6 +6,7 @@ import { SetBreadcrumb } from "@/components/layout/breadcrumb-context";
 import type { ContactWithStage, ActivityWithUser, Task, ContactFormResponse } from "@/types/contacts";
 import type { WASendWithDetails, EmailSendWithDetails } from "@/types/campaigns";
 import type { InvoiceWithContact } from "@/types/invoices";
+import type { BookingWithRelations } from "@/types/bookings";
 
 export default async function ProspectDetailPage({
   params,
@@ -16,7 +17,7 @@ export default async function ProspectDetailPage({
   const supabase = await createClient();
 
   // Fetch all data in parallel
-  const [contactResult, activitiesResult, tasksResult, funnelsResult, membersResult, formResponsesResult, emailSendsResult, waSendsResult, emailSendRecordsResult, invoicesResult] =
+  const [contactResult, activitiesResult, tasksResult, funnelsResult, membersResult, formResponsesResult, emailSendsResult, waSendsResult, emailSendRecordsResult, invoicesResult, bookingsResult] =
     await Promise.all([
       supabase
         .from("contacts")
@@ -80,6 +81,12 @@ export default async function ProspectDetailPage({
         .eq("contact_id", id)
         .order("created_at", { ascending: false })
         .limit(50),
+      // Bookings for this contact
+      supabase
+        .from("bookings")
+        .select("*, team_members(id, name), booking_pages(id, title, slug)")
+        .eq("contact_id", id)
+        .order("starts_at", { ascending: false }),
     ]);
 
   if (contactResult.error || !contactResult.data) {
@@ -156,6 +163,7 @@ export default async function ProspectDetailPage({
         waSends={(waSendsResult.data ?? []) as WASendWithDetails[]}
         emailSendRecords={(emailSendRecordsResult.data ?? []) as EmailSendWithDetails[]}
         invoices={(invoicesResult.data ?? []) as InvoiceWithContact[]}
+        bookings={(bookingsResult.data ?? []) as BookingWithRelations[]}
       />
     </div>
   );
