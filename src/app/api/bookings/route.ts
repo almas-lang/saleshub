@@ -330,6 +330,64 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: bookingError.message }, { status: 500 });
   }
 
+  // ── Step 5b: Save qualifying data to contact_form_responses ───
+  if (formData && Object.keys(formData).length > 0) {
+    const fd = formData as Record<string, string>;
+
+    const findField = (keywords: string[]): string | null => {
+      const entry = Object.entries(fd).find(([k]) =>
+        keywords.every((kw) => k.toLowerCase().includes(kw))
+      );
+      return entry?.[1]?.trim() || null;
+    };
+
+    const mapWorkExp = (v: string | null): string | null => {
+      if (!v) return null;
+      const s = v.toLowerCase();
+      if (s.includes("< 2") || s.includes("less than 2") || s.includes("0-2") || s.includes("under 2")) return "<2_years";
+      if (s.includes("2-5") || s.includes("2 to 5") || s.includes("2–5")) return "2_5_years";
+      if (s.includes("5-10") || s.includes("5 to 10") || s.includes("5–10")) return "5_10_years";
+      if (s.includes("10+") || s.includes("more than 10") || s.includes("over 10")) return "10_plus_years";
+      return null;
+    };
+
+    const mapFinancial = (v: string | null): string | null => {
+      if (!v) return null;
+      const s = v.toLowerCase();
+      if (s.includes("tight") || s.includes("not ready") || s.includes("cannot")) return "not_ready";
+      if (s.includes("saving") || s.includes("almost") || s.includes("stretch")) return "saving_up";
+      if (s.includes("ready") || s.includes("100%") || s.includes("yes")) return "ready";
+      return null;
+    };
+
+    const mapUrgency = (v: string | null): string | null => {
+      if (!v) return null;
+      const s = v.toLowerCase();
+      if (s.includes("right now") || s.includes("immediately") || s.includes("asap")) return "right_now";
+      if (s.includes("3 month") || s.includes("next month") || s.includes("soon")) return "within_3_months";
+      if (s.includes("6 month") || s.includes("half year")) return "within_6_months";
+      if (s.includes("year") || s.includes("later") || s.includes("exploring")) return "just_exploring";
+      return null;
+    };
+
+    const { error: cfError } = await supabaseAdmin.from("contact_form_responses").insert({
+      contact_id: contactId,
+      booking_id: booking.id,
+      form_email: email,
+      work_experience: mapWorkExp(findField(["work", "experience"])),
+      current_role: findField(["role"]),
+      key_challenge: findField(["challenge"]),
+      desired_salary: findField(["salary"]),
+      blocker: findField(["stopping"]),
+      financial_readiness: mapFinancial(findField(["financial"])),
+      urgency: mapUrgency(findField(["soon"])) ?? mapUrgency(findField(["ready"])),
+    });
+
+    if (cfError) {
+      console.error("[Booking] contact_form_responses insert error:", cfError.message);
+    }
+  }
+
   // ── Step 6: Log activity ───────────────────────
   await supabaseAdmin.from("activities").insert({
     contact_id: contactId,

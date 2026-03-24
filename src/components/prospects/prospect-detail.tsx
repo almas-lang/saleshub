@@ -866,22 +866,8 @@ export function ProspectDetail({
                         </div>
                       </div>
 
-                      {/* Badges */}
+                      {/* Badges + Meet link */}
                       <div className="flex flex-shrink-0 items-center gap-2">
-                        {outcomeCfg && (
-                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${outcomeCfg.className}`}>
-                            {outcomeCfg.label}
-                          </span>
-                        )}
-                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusCfg.className}`}>
-                          {statusCfg.label}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Meet link / notes */}
-                    {(booking.meet_link || booking.notes) && (
-                      <div className="mt-3 flex flex-wrap items-center gap-3 border-t pt-3">
                         {booking.meet_link && (
                           <a
                             href={booking.meet_link}
@@ -894,11 +880,16 @@ export function ProspectDetail({
                             Join Meet
                           </a>
                         )}
-                        {booking.notes && (
-                          <p className="text-xs text-muted-foreground">{booking.notes}</p>
+                        {outcomeCfg && (
+                          <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${outcomeCfg.className}`}>
+                            {outcomeCfg.label}
+                          </span>
                         )}
+                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusCfg.className}`}>
+                          {statusCfg.label}
+                        </span>
                       </div>
-                    )}
+                    </div>
                   </div>
                 );
               })}
