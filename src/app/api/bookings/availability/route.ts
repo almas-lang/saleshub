@@ -84,19 +84,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: [] });
   }
 
-  // Get assigned team members
+  // Get assigned team members — only those with Google Calendar connected
   const assignedIds: string[] = page.assigned_to ?? [];
 
-  // If no one is assigned, try to get all active team members
-  let teamMemberIds: string[] = assignedIds;
-  if (teamMemberIds.length === 0) {
-    const { data: allMembers } = await supabaseAdmin
+  let teamMemberIds: string[];
+
+  if (assignedIds.length > 0) {
+    // Filter to only connected members from the assigned list
+    const { data: connectedAssigned } = await supabaseAdmin
+      .from("team_members")
+      .select("id")
+      .eq("is_active", true)
+      .eq("google_calendar_connected", true)
+      .in("id", assignedIds);
+    teamMemberIds = (connectedAssigned ?? []).map((m) => m.id);
+  } else {
+    // No specific assignment — use all connected active members
+    const { data: allConnected } = await supabaseAdmin
       .from("team_members")
       .select("id")
       .eq("is_active", true)
       .eq("google_calendar_connected", true);
-
-    teamMemberIds = (allMembers ?? []).map((m) => m.id);
+    teamMemberIds = (allConnected ?? []).map((m) => m.id);
   }
 
   if (teamMemberIds.length === 0) {

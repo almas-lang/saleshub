@@ -63,23 +63,55 @@ export async function POST(request: Request) {
   const startDate = parseDateInTz(startStr, tz);
   const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
 
-  // Determine assigned team member
-  let teamMemberId = assignedTo || null;
-  if (!teamMemberId) {
-    // Fallback to first assigned or first active member
-    const assignedIds: string[] = page.assigned_to ?? [];
-    if (assignedIds.length > 0) {
-      teamMemberId = assignedIds[0];
+  // Determine assigned team member — must have Google Calendar connected
+  // to be able to create the calendar event.
+  const assignedIds: string[] = page.assigned_to ?? [];
+
+  // Fetch connected team members upfront (avoids multiple queries below)
+  const { data: connectedMembers } = await supabaseAdmin
+    .from("team_members")
+    .select("id")
+    .eq("is_active", true)
+    .eq("google_calendar_connected", true)
+    .in("id", assignedIds.length > 0 ? assignedIds : ["__none__"]);
+
+  const connectedIds = new Set((connectedMembers ?? []).map((m) => m.id));
+
+  let teamMemberId: string | null = null;
+
+  if (assignedTo && connectedIds.has(assignedTo)) {
+    // Use the member the availability engine selected (already connected)
+    teamMemberId = assignedTo;
+  } else if (assignedTo && !connectedIds.has(assignedTo)) {
+    // The chosen member isn't connected — fall back to any connected assigned member
+    teamMemberId = [...connectedIds][0] ?? null;
+    console.warn(`[Booking] assignedTo ${assignedTo} not connected, falling back to ${teamMemberId}`);
+  } else if (assignedIds.length > 0) {
+    // No assignedTo provided — pick first connected member from page's assigned list
+    const firstConnected = assignedIds.find((id) => connectedIds.has(id));
+    if (firstConnected) {
+      teamMemberId = firstConnected;
     } else {
-      const { data: firstMember } = await supabaseAdmin
+      // None of the assigned members are connected — pick any connected active member
+      const { data: anyMember } = await supabaseAdmin
         .from("team_members")
         .select("id")
         .eq("is_active", true)
         .eq("google_calendar_connected", true)
         .limit(1)
         .maybeSingle();
-      teamMemberId = firstMember?.id ?? null;
+      teamMemberId = anyMember?.id ?? null;
     }
+  } else {
+    // No assigned members configured at all — pick any connected active member
+    const { data: anyMember } = await supabaseAdmin
+      .from("team_members")
+      .select("id")
+      .eq("is_active", true)
+      .eq("google_calendar_connected", true)
+      .limit(1)
+      .maybeSingle();
+    teamMemberId = anyMember?.id ?? null;
   }
 
   // Extract form data by field type from the booking page's form_fields config,
