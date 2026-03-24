@@ -2,11 +2,8 @@
 
 import { Users, TrendingUp, IndianRupee, Target } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
-import {
-  LineChart,
-  Line,
-  ResponsiveContainer,
-} from "recharts";
+import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { Card, CardContent } from "@/components/ui/card";
 import type { AnalyticsOverview } from "@/types/analytics";
 import type { LucideIcon } from "lucide-react";
 
@@ -15,19 +12,13 @@ function MiniSparkline({ data, color }: { data: { value: number }[]; color: stri
   return (
     <ResponsiveContainer width="100%" height={40}>
       <LineChart data={data}>
-        <Line
-          type="monotone"
-          dataKey="value"
-          stroke={color}
-          strokeWidth={1.5}
-          dot={false}
-        />
+        <Line type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} dot={false} />
       </LineChart>
     </ResponsiveContainer>
   );
 }
 
-interface AnalyticsOverviewCardProps {
+interface OverviewCardProps {
   label: string;
   value: string;
   sparkline: { value: number }[];
@@ -37,30 +28,28 @@ interface AnalyticsOverviewCardProps {
   icon: LucideIcon;
 }
 
-function OverviewCard({ label, value, sparkline, color, bgClass, iconBgClass, icon: Icon }: AnalyticsOverviewCardProps) {
+function OverviewCard({ label, value, sparkline, color, bgClass, iconBgClass, icon: Icon }: OverviewCardProps) {
   return (
-    <div className={`rounded-xl border p-5 ${bgClass}`}>
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-          {label}
-        </p>
-        <div className={`flex size-8 items-center justify-center rounded-lg ${iconBgClass}`}>
-          <Icon className="size-4" style={{ color }} />
+    <Card className={bgClass}>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <div className={`flex size-8 items-center justify-center rounded-lg ${iconBgClass}`}>
+            <Icon className="size-4" style={{ color }} />
+          </div>
         </div>
-      </div>
-      <p className="mt-2 font-mono text-2xl font-bold">{value}</p>
-      <div className="mt-3">
-        <MiniSparkline data={sparkline} color={color} />
-      </div>
-    </div>
+        <p className="mt-2 font-mono text-2xl font-bold">{value}</p>
+        <div className="mt-3">
+          <MiniSparkline data={sparkline} color={color} />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
-interface AnalyticsOverviewViewProps {
-  data: AnalyticsOverview;
-}
-
-export function AnalyticsOverviewView({ data }: AnalyticsOverviewViewProps) {
+export function AnalyticsOverviewView({ data }: { data: AnalyticsOverview }) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <OverviewCard

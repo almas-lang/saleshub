@@ -4,12 +4,10 @@ import { useState, useEffect } from "react";
 import { ArrowDown, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import type { PipelineAnalytics } from "@/types/analytics";
 
 interface PipelineAnalyticsViewProps {
@@ -54,17 +52,15 @@ export function PipelineAnalyticsView({ funnels }: PipelineAnalyticsViewProps) {
           </SelectContent>
         </Select>
         {data && (
-          <div className="ml-auto flex items-center gap-4">
-            <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-1.5">
-              <span className="text-sm font-semibold">{data.totalContacts}</span>
-              <span className="text-xs text-muted-foreground">contacts</span>
-            </div>
-            <div className="flex items-center gap-2 rounded-lg border bg-emerald-50/50 px-3 py-1.5 dark:bg-emerald-950/20">
-              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                {data.overallConversion.toFixed(1)}%
-              </span>
-              <span className="text-xs text-muted-foreground">overall conversion</span>
-            </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Badge variant="secondary" className="gap-1 px-3 py-1.5 tabular-nums">
+              <span className="font-semibold">{data.totalContacts}</span>
+              <span className="font-normal text-muted-foreground">contacts</span>
+            </Badge>
+            <Badge variant="secondary" className="gap-1 px-3 py-1.5 text-emerald-600 dark:text-emerald-400">
+              <span className="font-semibold">{data.overallConversion.toFixed(1)}%</span>
+              <span className="font-normal text-muted-foreground">overall conversion</span>
+            </Badge>
           </div>
         )}
       </div>
@@ -86,36 +82,38 @@ export function PipelineAnalyticsView({ funnels }: PipelineAnalyticsViewProps) {
 
             return (
               <div key={stage.stageId}>
-                <div className="rounded-xl border bg-card p-4 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-center justify-between mb-2.5">
-                    <div className="flex items-center gap-2.5">
-                      <span
-                        className="size-3 rounded-full ring-2 ring-offset-2 ring-offset-background"
-                        style={{ backgroundColor: stage.stageColor, ["--tw-ring-color" as string]: stage.stageColor + "40" }}
+                <Card className="transition-colors hover:bg-muted/30">
+                  <CardContent className="p-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="size-3 rounded-full"
+                          style={{ backgroundColor: stage.stageColor }}
+                        />
+                        <span className="text-sm font-semibold">{stage.stageName}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="secondary" className="tabular-nums">
+                          {stage.count} contacts
+                        </Badge>
+                        <span
+                          className="text-xs font-semibold tabular-nums"
+                          style={{ color: stage.stageColor }}
+                        >
+                          {stage.conversionRate.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ width: `${widthPct}%`, backgroundColor: stage.stageColor }}
                       />
-                      <span className="text-sm font-semibold">{stage.stageName}</span>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium tabular-nums">
-                        {stage.count} contacts
-                      </span>
-                      <span className="text-xs font-medium tabular-nums" style={{ color: stage.stageColor }}>
-                        {stage.conversionRate.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-2.5 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${widthPct}%`,
-                        backgroundColor: stage.stageColor,
-                      }}
-                    />
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
-                {/* Drop-off indicator between stages */}
+                {/* Drop-off indicator */}
                 {dropRate && (
                   <div className="flex items-center justify-center gap-1.5 py-1">
                     <ArrowDown className="size-3 text-muted-foreground/60" />
