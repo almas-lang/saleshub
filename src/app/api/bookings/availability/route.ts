@@ -179,6 +179,14 @@ export async function POST(request: Request) {
     })
   );
 
+  // Build a global list of already-booked time ranges for this page
+  // (regardless of which team member was assigned) — prevents double-booking
+  // the same slot across different team members.
+  const bookedSlots = (existingBookings ?? []).map((b) => ({
+    start: new Date(b.starts_at),
+    end: new Date(b.ends_at),
+  }));
+
   // For round-robin, find any available member for each slot
   // For specific mode, all assigned members must be checked
   const availableSlots: {
@@ -199,6 +207,12 @@ export async function POST(request: Request) {
     const bufferMs = buffer * 60 * 1000;
     const slotStartWithBuffer = new Date(slotStart.getTime() - bufferMs);
     const slotEndWithBuffer = new Date(slotEnd.getTime() + bufferMs);
+
+    // Skip slot if it overlaps any existing booking on this page (any member)
+    const alreadyBooked = bookedSlots.some(
+      (b) => b.start < slotEndWithBuffer && b.end > slotStartWithBuffer
+    );
+    if (alreadyBooked) continue;
 
     // Find a free team member for this slot
     let assignedMember: string | null = null;
