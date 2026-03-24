@@ -1,8 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { useRouter } from "next/navigation";
+import { format, parseISO } from "date-fns";
+import type { DateRange } from "react-day-picker";
 import { Plus, Download } from "lucide-react";
+import { DateRangePicker } from "@/components/shared/date-range-picker";
 
 import { formatCurrency } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -51,6 +54,8 @@ interface AdSpendListProps {
   dailySpend: DailySpendPoint[];
   campaignBreakdown: CampaignSpendPoint[];
   performance: PerformancePoint[];
+  initialFrom: string;
+  initialTo: string;
 }
 
 export function AdSpendList({
@@ -58,10 +63,26 @@ export function AdSpendList({
   dailySpend,
   campaignBreakdown,
   performance,
+  initialFrom,
+  initialTo,
 }: AdSpendListProps) {
+  const router = useRouter();
   const [showForm, setShowForm] = useState(false);
   const [showMetaImport, setShowMetaImport] = useState(false);
   const [platform, setPlatform] = useState("all");
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: parseISO(initialFrom),
+    to: parseISO(initialTo),
+  });
+
+  function handleDateChange(range: DateRange | undefined) {
+    setDateRange(range);
+    if (range?.from && range?.to) {
+      const from = format(range.from, "yyyy-MM-dd");
+      const to = format(range.to, "yyyy-MM-dd");
+      router.push(`/finance/ad-spend?from=${from}&to=${to}`);
+    }
+  }
 
   const { exportData, loading: exporting } = useExport({
     type: "ad_spend",
@@ -216,6 +237,7 @@ export function AdSpendList({
             <TabsTrigger value="manual">Manual</TabsTrigger>
           </TabsList>
         </Tabs>
+        <DateRangePicker value={dateRange} onChange={handleDateChange} />
         <ExportDropdown onExport={exportData} loading={exporting} />
         <Button
           variant="outline"

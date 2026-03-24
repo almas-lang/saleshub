@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { AdSpendList } from "@/components/finance/ad-spend-list";
 import { FinanceNav } from "@/components/finance/finance-nav";
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 import type { AdSpend } from "@/types/finance";
 import type {
   DailySpendPoint,
@@ -9,18 +9,24 @@ import type {
   PerformancePoint,
 } from "@/components/finance/ad-spend-charts";
 
-export default async function AdSpendPage() {
-  // Default: last 30 days
+export default async function AdSpendPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const { from: fromParam, to: toParam } = await searchParams;
+
   const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const fromDate = thirtyDaysAgo.toISOString().split("T")[0];
+  const fromDate = fromParam ?? format(subDays(now, 29), "yyyy-MM-dd");
+  const toDate = toParam ?? format(now, "yyyy-MM-dd");
 
   const { data } = await supabaseAdmin
     .from("ad_spend")
     .select("*")
     .gte("date", fromDate)
+    .lte("date", toDate)
     .order("date", { ascending: false })
-    .limit(500);
+    .limit(1000);
 
   const adSpend = (data ?? []) as AdSpend[];
 
@@ -31,7 +37,6 @@ export default async function AdSpendPage() {
 
   // ── Aggregate chart data ──
 
-  // Daily spend (grouped by date, ascending)
   const dailyMap = new Map<string, { spend: number; impressions: number; clicks: number; leads: number }>();
   for (const row of adSpend) {
     const existing = dailyMap.get(row.date);
@@ -65,7 +70,6 @@ export default async function AdSpendPage() {
     ctr: d.impressions > 0 ? +((d.clicks / d.impressions) * 100).toFixed(1) : 0,
   }));
 
-  // Campaign breakdown (top 5)
   const campaignMap = new Map<string, number>();
   for (const row of adSpend) {
     campaignMap.set(
@@ -101,6 +105,8 @@ export default async function AdSpendPage() {
         dailySpend={dailySpend}
         campaignBreakdown={campaignBreakdown}
         performance={performance}
+        initialFrom={fromDate}
+        initialTo={toDate}
       />
     </div>
   );
