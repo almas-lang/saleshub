@@ -311,7 +311,7 @@ export function BookingWidget({
                       week: "flex w-full mt-0.5 sm:mt-1",
                       day: "relative flex-1 p-0 text-center group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
                       today: "bg-primary/10 text-primary font-semibold rounded-lg data-[selected=true]:rounded-none",
-                      disabled: "text-muted-foreground/40 opacity-50",
+                      disabled: "text-muted-foreground/60 cursor-not-allowed",
                     }}
                   />
                 </div>
