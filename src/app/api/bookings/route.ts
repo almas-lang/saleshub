@@ -421,9 +421,10 @@ export async function POST(request: Request) {
         timeZone: tz,
       });
 
+      const emailSubject = `Booking Confirmed: ${page.title}`;
       const result = await sendEmail({
         to: email,
-        subject: `Booking Confirmed: ${page.title}`,
+        subject: emailSubject,
         html: `
           <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
             <h2>Your booking is confirmed!</h2>
@@ -442,12 +443,20 @@ export async function POST(request: Request) {
       });
 
       if (result.success) {
-        await supabaseAdmin.from("activities").insert({
-          contact_id: contactId,
-          type: "email_sent",
-          title: "Booking confirmation email sent",
-          metadata: { template: "booking-confirmation", booking_id: booking.id },
-        });
+        await Promise.all([
+          supabaseAdmin.from("activities").insert({
+            contact_id: contactId,
+            type: "email_sent",
+            title: "Booking confirmation email sent",
+            metadata: { template: "booking-confirmation", booking_id: booking.id },
+          }),
+          supabaseAdmin.from("email_sends").insert({
+            contact_id: contactId,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            resend_message_id: result.messageId ?? null,
+          }),
+        ]);
       }
     } catch (err) {
       console.error("[Booking] Email error:", err);

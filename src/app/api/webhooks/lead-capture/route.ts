@@ -222,13 +222,21 @@ export async function POST(request: NextRequest) {
       const { subject, html } = await renderWelcomeEmail({
         firstName: first_name,
       });
-      await sendEmail({ to: email, subject, html });
+      const welcomeResult = await sendEmail({ to: email, subject, html });
       await supabaseAdmin.from("activities").insert({
         contact_id: contactId,
         type: "email_sent",
         title: "Welcome email sent",
         metadata: { template: "welcome" },
       });
+      if (welcomeResult.success) {
+        await supabaseAdmin.from("email_sends").insert({
+          contact_id: contactId,
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          resend_message_id: welcomeResult.messageId ?? null,
+        });
+      }
     } catch (emailErr) {
       console.error("[Lead Capture] Welcome email failed:", emailErr);
     }
