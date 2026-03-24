@@ -332,6 +332,10 @@ export async function POST(request: Request) {
 
   // ── Step 5b: Save qualifying data to contact_form_responses ───
   if (formData && Object.keys(formData).length > 0) {
+    type WorkExp = "fresher" | "<2_years" | "3-5_years" | "5-10_years" | "10+_years";
+    type Financial = "ready" | "careful_but_open" | "not_ready";
+    type Urgency = "right_now" | "within_90_days" | "more_than_90_days";
+
     const fd = formData as Record<string, string>;
 
     const findField = (keywords: string[]): string | null => {
@@ -341,32 +345,32 @@ export async function POST(request: Request) {
       return entry?.[1]?.trim() || null;
     };
 
-    const mapWorkExp = (v: string | null): string | null => {
+    const mapWorkExp = (v: string | null): WorkExp | null => {
       if (!v) return null;
       const s = v.toLowerCase();
       if (s.includes("< 2") || s.includes("less than 2") || s.includes("0-2") || s.includes("under 2")) return "<2_years";
-      if (s.includes("2-5") || s.includes("2 to 5") || s.includes("2–5")) return "2_5_years";
-      if (s.includes("5-10") || s.includes("5 to 10") || s.includes("5–10")) return "5_10_years";
-      if (s.includes("10+") || s.includes("more than 10") || s.includes("over 10")) return "10_plus_years";
+      if (s.includes("2-5") || s.includes("2 to 5") || s.includes("2–5") || s.includes("3-5") || s.includes("3 to 5")) return "3-5_years";
+      if (s.includes("5-10") || s.includes("5 to 10") || s.includes("5–10")) return "5-10_years";
+      if (s.includes("10+") || s.includes("more than 10") || s.includes("over 10")) return "10+_years";
+      if (s.includes("fresh") || s.includes("0 year") || s.includes("no exp")) return "fresher";
       return null;
     };
 
-    const mapFinancial = (v: string | null): string | null => {
+    const mapFinancial = (v: string | null): Financial | null => {
       if (!v) return null;
       const s = v.toLowerCase();
-      if (s.includes("tight") || s.includes("not ready") || s.includes("cannot")) return "not_ready";
-      if (s.includes("saving") || s.includes("almost") || s.includes("stretch")) return "saving_up";
+      if (s.includes("tight") || s.includes("not ready") || s.includes("cannot") || s.includes("can't")) return "not_ready";
+      if (s.includes("careful") || s.includes("saving") || s.includes("almost") || s.includes("stretch")) return "careful_but_open";
       if (s.includes("ready") || s.includes("100%") || s.includes("yes")) return "ready";
       return null;
     };
 
-    const mapUrgency = (v: string | null): string | null => {
+    const mapUrgency = (v: string | null): Urgency | null => {
       if (!v) return null;
       const s = v.toLowerCase();
       if (s.includes("right now") || s.includes("immediately") || s.includes("asap")) return "right_now";
-      if (s.includes("3 month") || s.includes("next month") || s.includes("soon")) return "within_3_months";
-      if (s.includes("6 month") || s.includes("half year")) return "within_6_months";
-      if (s.includes("year") || s.includes("later") || s.includes("exploring")) return "just_exploring";
+      if (s.includes("3 month") || s.includes("next month") || s.includes("soon") || s.includes("90 day")) return "within_90_days";
+      if (s.includes("6 month") || s.includes("year") || s.includes("later") || s.includes("exploring")) return "more_than_90_days";
       return null;
     };
 
