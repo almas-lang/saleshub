@@ -64,6 +64,7 @@ export function BookingWidget({
   const [submitting, setSubmitting] = useState(false);
   const [meetLink, setMeetLink] = useState<string | null>(null);
   const [errors, setErrors] = useState<Set<string>>(new Set());
+  const [countdown, setCountdown] = useState<number>(5);
 
   useEffect(() => {
     const defaults: Record<string, string> = {};
@@ -74,6 +75,22 @@ export function BookingWidget({
     }
     setFormData(defaults);
   }, [formFields]);
+
+  useEffect(() => {
+    if (step !== "confirmed") return;
+    setCountdown(5);
+    const interval = setInterval(() => {
+      setCountdown((n) => {
+        if (n <= 1) {
+          clearInterval(interval);
+          window.location.href = "https://ld.xperiencewave.com/congratulations";
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [step]);
 
   const fetchSlots = useCallback(
     async (date: Date) => {
@@ -440,25 +457,24 @@ export function BookingWidget({
                   )}
                 </div>
 
-                <Button
-                  variant="outline"
-                  className="mt-2"
-                  onClick={() => {
-                    setStep("date");
-                    setSelectedDate(undefined);
-                    setSelectedSlot(null);
-                    setMeetLink(null);
-                    setFormData(() => {
-                      const defaults: Record<string, string> = {};
-                      for (const field of formFields) {
-                        if (field.defaultValue) defaults[field.label] = field.defaultValue;
-                      }
-                      return defaults;
-                    });
-                  }}
-                >
-                  Book another call
-                </Button>
+                {/* Redirect countdown */}
+                <div className="w-full max-w-sm space-y-3">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
+                    <span>Redirecting you in <span className="font-semibold tabular-nums text-foreground">{countdown}s</span>…</span>
+                    <a
+                      href="https://ld.xperiencewave.com/congratulations"
+                      className="font-medium text-primary underline-offset-2 hover:underline"
+                    >
+                      Go now →
+                    </a>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full bg-primary transition-none"
+                      style={{ width: `${((5 - countdown) / 5) * 100}%`, transition: "width 1s linear" }}
+                    />
+                  </div>
+                </div>
               </div>
             )}
           </div>
