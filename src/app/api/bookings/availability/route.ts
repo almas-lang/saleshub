@@ -90,7 +90,7 @@ export async function POST(request: Request) {
   let teamMemberIds: string[];
 
   if (assignedIds.length > 0) {
-    // Filter to only connected members from the assigned list
+    // Prefer connected members from the assigned list
     const { data: connectedAssigned } = await supabaseAdmin
       .from("team_members")
       .select("id")
@@ -98,6 +98,16 @@ export async function POST(request: Request) {
       .eq("google_calendar_connected", true)
       .in("id", assignedIds);
     teamMemberIds = (connectedAssigned ?? []).map((m) => m.id);
+
+    // If none of the assigned members are connected, fall back to any connected member
+    if (teamMemberIds.length === 0) {
+      const { data: anyConnected } = await supabaseAdmin
+        .from("team_members")
+        .select("id")
+        .eq("is_active", true)
+        .eq("google_calendar_connected", true);
+      teamMemberIds = (anyConnected ?? []).map((m) => m.id);
+    }
   } else {
     // No specific assignment — use all connected active members
     const { data: allConnected } = await supabaseAdmin
