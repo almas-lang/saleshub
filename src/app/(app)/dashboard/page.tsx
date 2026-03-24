@@ -29,10 +29,16 @@ import { TeamSummary } from "@/components/dashboard/team-summary";
 import { CommunicationPulseCard } from "@/components/dashboard/communication-pulse";
 
 function getGreeting(): string {
-  const hour = new Date().getHours();
-  if (hour >= 5 && hour < 12) return "Good morning";
-  if (hour >= 12 && hour < 17) return "Good afternoon";
-  if (hour >= 17 && hour < 21) return "Good evening";
+  const istHour = parseInt(
+    new Date().toLocaleString("en-US", {
+      timeZone: "Asia/Kolkata",
+      hour: "numeric",
+      hour12: false,
+    })
+  );
+  if (istHour >= 5 && istHour < 12) return "Good morning";
+  if (istHour >= 12 && istHour < 17) return "Good afternoon";
+  if (istHour >= 17 && istHour < 21) return "Good evening";
   return "Working late";
 }
 
@@ -53,8 +59,13 @@ export default async function DashboardPage() {
     startOfWeek(now, { weekStartsOn: 1 }),
     1
   ).toISOString();
-  const thisMonthStart = startOfMonth(now).toISOString();
-  const lastMonthStart = startOfMonth(subMonths(now, 1)).toISOString();
+  // Use IST-aware month boundaries (IST = UTC+5:30 = -330 min offset)
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+  const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+  const istMonthStart = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth(), 1) - IST_OFFSET_MS);
+  const istLastMonthStart = new Date(Date.UTC(nowIST.getUTCFullYear(), nowIST.getUTCMonth() - 1, 1) - IST_OFFSET_MS);
+  const thisMonthStart = istMonthStart.toISOString();
+  const lastMonthStart = istLastMonthStart.toISOString();
 
   // Run all queries in parallel
   const sevenDaysOut = addDays(startOfDay(now), 7).toISOString();
@@ -159,14 +170,15 @@ export default async function DashboardPage() {
       .not("due_at", "is", null),
 
     // Today's Focus: all pending/overdue tasks with contact + funnel + stage + priority
+    // Also fetch contact type so we can filter out tasks for converted customers
     supabase
       .from("tasks")
       .select(
-        "id, title, due_at, priority, contacts(id, first_name, last_name, phone, funnel_id, funnels(name), funnel_stages(name, color))"
+        "id, title, due_at, priority, contacts(id, first_name, last_name, phone, type, funnel_id, funnels(name), funnel_stages(name, color))"
       )
       .in("status", ["pending", "overdue"])
       .order("due_at", { ascending: true, nullsFirst: false })
-      .limit(10),
+      .limit(20),
 
     // Today's bookings
     supabase
@@ -360,17 +372,21 @@ export default async function DashboardPage() {
   // Build Today's Focus items
   const focusItems: TodaysFocusItem[] = [];
 
-  // 1. Tasks (overdue + upcoming)
+  // 1. Tasks (overdue + upcoming) — skip tasks for converted customers
   for (const task of focusTasksQuery.data ?? []) {
     const contact = task.contacts as unknown as {
       id: string;
       first_name: string;
       last_name: string | null;
       phone: string | null;
+      type: string | null;
       funnel_id: string | null;
       funnels: { name: string } | null;
       funnel_stages: { name: string; color: string } | null;
     } | null;
+
+    // Skip tasks for contacts that have been converted to customers
+    if (contact?.type === "customer") continue;
 
     const isOverdue = task.due_at && new Date(task.due_at) < now;
 
@@ -443,7 +459,7 @@ export default async function DashboardPage() {
     });
   }
 
-  // 3. Recently converted contacts
+  // 3. Recently converted contacts — link to /customers/ since they're no longer prospects
   for (const contact of recentlyConverted.data ?? []) {
     const stage = contact.funnel_stages as unknown as {
       name: string;
@@ -461,7 +477,7 @@ export default async function DashboardPage() {
       stageName: stage?.name ?? null,
       stageColor: stage?.color ?? null,
       contextDetail: null,
-      linkTo: `/prospects/${contact.id}`,
+      linkTo: `/customers/${contact.id}`,
       taskId: null,
       taskPriority: null,
     });
