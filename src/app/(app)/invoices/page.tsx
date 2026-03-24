@@ -167,15 +167,20 @@ export default async function InvoicesPage({
     pendingAmountByInvoice[inst.invoice_id] = (pendingAmountByInvoice[inst.invoice_id] ?? 0) + Number(inst.amount);
   }
 
-  // Outstanding = pending installment sum for installment invoices, full total for regular ones
-  const outstandingResult = (sentInvoicesData.data ?? []).reduce((sum, inv) => {
-    const amount = inv.has_installments
-      ? (pendingAmountByInvoice[inv.id] ?? 0)
-      : inv.total;
-    return sum + amount;
-  }, 0);
+  // Outstanding = ALL pending installment amounts (regardless of invoice status)
+  // + full total of sent/overdue invoices that have no installments
+  const allPendingInstallmentsTotal = (pendingInstallmentsForStats.data ?? [])
+    .reduce((sum, inst) => sum + Number(inst.amount), 0);
 
-  // Overdue = same logic but for overdue invoices
+  const nonInstallmentSentTotal = (sentInvoicesData.data ?? [])
+    .filter((inv) => !inv.has_installments)
+    .reduce((sum, inv) => sum + inv.total, 0);
+
+  const outstandingResult = allPendingInstallmentsTotal + nonInstallmentSentTotal;
+
+  // Overdue = non-installment overdue invoices + pending installments on overdue invoices
+  // (installment invoices that are overdue are already captured in allPendingInstallmentsTotal
+  //  via the global pending installments query above, so only add non-installment overdue here)
   const overdueResult = (overdueInvoicesData.data ?? []).reduce((sum, inv) => {
     const amount = inv.has_installments
       ? (pendingAmountByInvoice[inv.id] ?? 0)
