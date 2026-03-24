@@ -36,6 +36,13 @@ interface TimeSlot {
   assignedTo: string;
 }
 
+function to12Hour(time: string): string {
+  const [h, m] = time.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 interface BookingWidgetProps {
   slug: string;
   title: string;
@@ -238,7 +245,7 @@ export function BookingWidget({
           {selectedSlot && (
             <div className="mt-1 flex items-center gap-2 text-sm sm:mt-1.5">
               <Clock className="size-4 text-primary" />
-              <span className="font-medium">{selectedSlot.time} IST</span>
+              <span className="font-medium">{to12Hour(selectedSlot.time)} IST</span>
             </div>
           )}
         </div>
@@ -371,7 +378,7 @@ export function BookingWidget({
                         onClick={() => handleSlotSelect(slot)}
                         className="rounded-lg border bg-card px-4 py-3 text-sm font-medium transition-all hover:border-primary hover:bg-primary/5 hover:text-primary active:scale-[0.98]"
                       >
-                        {slot.time}
+                        {to12Hour(slot.time)}
                       </button>
                     ))}
                   </div>
@@ -434,7 +441,7 @@ export function BookingWidget({
                         {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {selectedSlot?.time} IST &middot; {durationMinutes} min
+                        {selectedSlot ? to12Hour(selectedSlot.time) : ""} IST &middot; {durationMinutes} min
                       </p>
                     </div>
                   </div>
