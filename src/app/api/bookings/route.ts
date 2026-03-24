@@ -299,6 +299,13 @@ export async function POST(request: Request) {
       meetLink = eventResult.meetLink ?? null;
     } else {
       console.error("[Booking] Calendar event error:", eventResult.error);
+      // Log to activities so the error is visible in the SalesHub UI
+      await supabaseAdmin.from("activities").insert({
+        contact_id: contactId,
+        type: "note",
+        title: "⚠️ Google Calendar event failed",
+        metadata: { error: eventResult.error, team_member_id: teamMemberId },
+      });
     }
   }
 

@@ -128,23 +128,26 @@ export async function createEvent(
 ): Promise<CreateEventResult> {
   const token = await getAccessToken(teamMemberId);
   if (!token) {
-    return { success: false, error: "Google Calendar not connected" };
+    return { success: false, error: "Google Calendar not connected — token missing or expired" };
   }
 
   const timeZone = options.timeZone ?? "Asia/Kolkata";
 
+  const baseEventBody: Record<string, unknown> = {
+    summary: options.summary,
+    description: options.description,
+    start: { dateTime: options.start.toISOString(), timeZone },
+    end: { dateTime: options.end.toISOString(), timeZone },
+  };
+
+  if (options.attendeeEmail) {
+    baseEventBody.attendees = [{ email: options.attendeeEmail }];
+  }
+
+  // Try with Google Meet conference link first
   try {
-    const eventBody: Record<string, unknown> = {
-      summary: options.summary,
-      description: options.description,
-      start: {
-        dateTime: options.start.toISOString(),
-        timeZone,
-      },
-      end: {
-        dateTime: options.end.toISOString(),
-        timeZone,
-      },
+    const eventBody = {
+      ...baseEventBody,
       conferenceData: {
         createRequest: {
           requestId: `saleshub-${Date.now()}`,
@@ -153,17 +156,10 @@ export async function createEvent(
       },
     };
 
-    if (options.attendeeEmail) {
-      eventBody.attendees = [{ email: options.attendeeEmail }];
-    }
-
     const data = await calendarFetch(
       token,
       "/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all",
-      {
-        method: "POST",
-        body: JSON.stringify(eventBody),
-      }
+      { method: "POST", body: JSON.stringify(eventBody) }
     );
 
     return {
@@ -171,10 +167,28 @@ export async function createEvent(
       eventId: data?.id ?? undefined,
       meetLink: data?.hangoutLink ?? undefined,
     };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Google Calendar] createEvent error:", message);
-    return { success: false, error: message };
+  } catch (confErr) {
+    const confMessage = confErr instanceof Error ? confErr.message : "Unknown error";
+    console.warn("[Google Calendar] createEvent with conferenceData failed, retrying without:", confMessage);
+
+    // Fallback: create event without Meet link
+    try {
+      const data = await calendarFetch(
+        token,
+        "/calendars/primary/events?sendUpdates=all",
+        { method: "POST", body: JSON.stringify(baseEventBody) }
+      );
+
+      return {
+        success: true,
+        eventId: data?.id ?? undefined,
+        meetLink: undefined,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      console.error("[Google Calendar] createEvent error:", message);
+      return { success: false, error: message };
+    }
   }
 }
 
