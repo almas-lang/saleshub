@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendEmail, renderVariables } from "@/lib/email/client";
-import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
+import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,19 +84,9 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Pre-render the wrapper HTML once per step (template is the same,
-  // only the variable-substituted body differs per contact — but the
-  // wrapper chrome is identical). We render with a placeholder and
-  // swap the body per-contact via string replace, avoiding 50 React renders.
-  const BODY_PLACEHOLDER = "<!--__BODY_PLACEHOLDER__-->";
-  const renderedWrapperCache = new Map<string, { wrapperHtml: string }>();
-  for (const [stepId, step] of stepMap) {
-    const { html } = await renderDripEmail({
-      subject: step.subject,
-      bodyHtml: BODY_PLACEHOLDER,
-    });
-    renderedWrapperCache.set(stepId, { wrapperHtml: html });
-  }
+  // Pre-render the wrapper HTML once (the chrome is identical for all sends).
+  // We get back a placeholder string that we swap per-contact, avoiding N React renders.
+  const { wrapperHtml, placeholder: BODY_PLACEHOLDER } = await renderDripWrapper();
 
   let sent = 0;
   let failed = 0;
@@ -105,9 +95,8 @@ export async function GET(request: NextRequest) {
   async function processSend(send: { id: string; campaign_id: string | null; step_id: string | null; contact_id: string }) {
     const step = send.step_id ? stepMap.get(send.step_id) : null;
     const contact = contactMap.get(send.contact_id);
-    const wrapper = send.step_id ? renderedWrapperCache.get(send.step_id) : null;
 
-    if (!step || !contact || !wrapper) {
+    if (!step || !contact) {
       await supabaseAdmin
         .from("email_sends")
         .update({ status: "failed" })
@@ -128,7 +117,7 @@ export async function GET(request: NextRequest) {
     const bodyHtml = renderVariables(step.body_html, vars);
 
     // Swap placeholder with the contact's rendered body (no React render needed)
-    const html = wrapper.wrapperHtml.replace(BODY_PLACEHOLDER, bodyHtml);
+    const html = wrapperHtml.replace(BODY_PLACEHOLDER, bodyHtml);
 
     const result = await sendEmail({
       to: contact.email,
