@@ -616,12 +616,19 @@ export function ProspectList({
                               {prospect.team_members?.name ?? "—"}
                             </TableCell>
                           );
-                        case "created_at":
+                        case "created_at": {
+                          const createdDate = new Date(prospect.created_at);
+                          const todayStart = new Date();
+                          todayStart.setHours(0, 0, 0, 0);
+                          const isToday = createdDate >= todayStart;
                           return (
                             <TableCell key={col.key} className="text-xs text-muted-foreground">
-                              {formatDate(prospect.created_at)}
+                              {isToday
+                                ? createdDate.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })
+                                : formatDate(prospect.created_at)}
                             </TableCell>
                           );
+                        }
                         case "call_booked": {
                           const cbMeta = prospect.metadata as Record<string, string> | null;
                           const callBooked = cbMeta

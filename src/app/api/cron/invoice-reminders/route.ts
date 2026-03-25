@@ -89,13 +89,20 @@ export async function GET(request: Request) {
         tags: [{ name: "type", value: "invoice_reminder" }],
       });
 
-      // Log activity
-      await supabaseAdmin.from("activities").insert({
-        contact_id: invoice.contact_id,
-        type: "invoice_sent",
-        title: `Payment reminder sent for ${invoice.invoice_number}`,
-        body: `Overdue invoice reminder: ${formatCurrency(invoice.total)}`,
-      });
+      // Log activity + email_sends
+      await Promise.all([
+        supabaseAdmin.from("activities").insert({
+          contact_id: invoice.contact_id,
+          type: "invoice_sent",
+          title: `Payment reminder sent for ${invoice.invoice_number}`,
+          body: `Overdue invoice reminder: ${formatCurrency(invoice.total)}`,
+        }),
+        supabaseAdmin.from("email_sends").insert({
+          contact_id: invoice.contact_id,
+          status: "sent",
+          sent_at: new Date().toISOString(),
+        }),
+      ]);
 
       reminded++;
     }

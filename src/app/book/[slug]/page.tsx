@@ -26,10 +26,13 @@ export async function generateMetadata({
 
 export default async function PublicBookingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const { slug } = await params;
+  const queryParams = await searchParams;
 
   const { data: page, error } = await supabaseAdmin
     .from("booking_pages")
@@ -45,6 +48,13 @@ export default async function PublicBookingPage({
   const formFields = (page.form_fields as unknown as FormField[]) ?? [];
   const availability = (page.availability_rules as unknown as AvailabilityRules) ?? null;
 
+  // Extract tracking params to pass through the booking flow
+  const trackingParams: Record<string, string> = {};
+  const TRACKING_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "lead_id", "fbclid", "gclid"];
+  for (const key of TRACKING_KEYS) {
+    if (queryParams[key]) trackingParams[key] = queryParams[key]!;
+  }
+
   return (
     <div className="flex min-h-svh items-start justify-center bg-muted/30 px-0 py-0 sm:px-4 sm:py-8 md:items-center md:py-12">
       <BookingWidget
@@ -54,6 +64,7 @@ export default async function PublicBookingPage({
         durationMinutes={page.duration_minutes}
         formFields={formFields}
         availability={availability}
+        trackingParams={trackingParams}
       />
     </div>
   );

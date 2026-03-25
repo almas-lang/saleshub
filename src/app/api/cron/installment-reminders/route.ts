@@ -165,13 +165,25 @@ export async function GET(request: Request) {
         }
       }
 
-      // Log activity
-      await supabaseAdmin.from("activities").insert({
-        contact_id: invoice.contact_id,
-        type: "installment_reminder",
-        title: `Installment reminder sent [${inst.id.slice(0, 8)}]`,
-        body: `${formattedAmount} due ${dueContext} — installment ${inst.installment_number}/${totalCount} for ${invoice.invoice_number}`,
-      });
+      // Log activity + email_sends
+      const inserts: PromiseLike<unknown>[] = [
+        supabaseAdmin.from("activities").insert({
+          contact_id: invoice.contact_id,
+          type: "installment_reminder",
+          title: `Installment reminder sent [${inst.id.slice(0, 8)}]`,
+          body: `${formattedAmount} due ${dueContext} — installment ${inst.installment_number}/${totalCount} for ${invoice.invoice_number}`,
+        }),
+      ];
+      if (contact.email) {
+        inserts.push(
+          supabaseAdmin.from("email_sends").insert({
+            contact_id: invoice.contact_id,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+          })
+        );
+      }
+      await Promise.all(inserts);
 
       reminded++;
     }

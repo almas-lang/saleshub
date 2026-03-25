@@ -84,12 +84,20 @@ export async function GET(request: Request) {
         });
 
         if (result.success) {
-          await supabaseAdmin.from("activities").insert({
-            contact_id: booking.contact_id,
-            type: "email_sent",
-            title: "Booking reminder email sent",
-            metadata: { template: "booking-reminder", booking_id: booking.id },
-          });
+          await Promise.all([
+            supabaseAdmin.from("activities").insert({
+              contact_id: booking.contact_id,
+              type: "email_sent",
+              title: "Booking reminder email sent",
+              metadata: { template: "booking-reminder", booking_id: booking.id },
+            }),
+            supabaseAdmin.from("email_sends").insert({
+              contact_id: booking.contact_id,
+              status: "sent",
+              sent_at: new Date().toISOString(),
+              resend_message_id: result.messageId ?? null,
+            }),
+          ]);
           emailsSent++;
         }
       } catch (err) {

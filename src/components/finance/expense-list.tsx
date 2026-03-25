@@ -19,8 +19,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatCard } from "@/components/shared/stat-card";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -152,56 +153,15 @@ export function ExpenseList({
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/30">
-              <TrendingDown className="size-4 text-red-600" />
-            </div>
-            <p className="text-xs text-muted-foreground">Total Expenses</p>
-          </div>
-          <p className="mt-2 font-mono text-lg font-semibold">
-            {formatCurrency(summary.totalAmount)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/30">
-              <CalendarDays className="size-4 text-amber-600" />
-            </div>
-            <p className="text-xs text-muted-foreground">This Month</p>
-          </div>
-          <p className="mt-2 font-mono text-lg font-semibold">
-            {formatCurrency(summary.thisMonthTotal)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-950/30">
-              <Calculator className="size-4 text-blue-600" />
-            </div>
-            <p className="text-xs text-muted-foreground">Input GST</p>
-          </div>
-          <p className="mt-2 font-mono text-lg font-semibold">
-            {formatCurrency(summary.gstTotal)}
-          </p>
-        </div>
-
-        <div className="rounded-lg border bg-card p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
-              <Receipt className="size-4 text-muted-foreground" />
-            </div>
-            <p className="text-xs text-muted-foreground">Average</p>
-          </div>
-          <p className="mt-2 font-mono text-lg font-semibold">
-            {formatCurrency(
-              summary.count > 0 ? summary.totalAmount / summary.count : 0
-            )}
-          </p>
-        </div>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <StatCard label="Total Expenses" value={summary.totalAmount} color="red" index={0} />
+        <StatCard label="This Month" value={summary.thisMonthTotal} color="amber" index={1} />
+        <StatCard label="Input GST" value={summary.gstTotal} color="blue" index={2} />
+        <StatCard
+          label="Average"
+          value={summary.count > 0 ? Math.round(summary.totalAmount / summary.count) : 0}
+          index={3}
+        />
       </div>
 
       {/* Filters */}
@@ -260,7 +220,9 @@ export function ExpenseList({
           }
         />
       ) : (
-        <div className="rounded-lg border">
+        <>
+        {/* Desktop Table */}
+        <div className="hidden lg:block rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -274,7 +236,7 @@ export function ExpenseList({
             </TableHeader>
             <TableBody>
               {filtered.map((exp) => (
-                <TableRow key={exp.id}>
+                <TableRow key={exp.id} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="text-sm tabular-nums text-muted-foreground">
                     {format(new Date(exp.date), "dd MMM yyyy")}
                   </TableCell>
@@ -328,6 +290,58 @@ export function ExpenseList({
             </TableBody>
           </Table>
         </div>
+
+        {/* Mobile Cards */}
+        <div className="flex flex-col gap-2 lg:hidden">
+          {filtered.map((exp) => (
+            <div key={exp.id} className="rounded-xl border bg-card p-3">
+              <div className="flex items-start justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">
+                    {exp.description || exp.category}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <ExpenseCategoryBadge category={exp.category} />
+                    <span className="text-[11px] text-muted-foreground">
+                      {format(new Date(exp.date), "dd MMM yyyy")}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-mono text-sm font-semibold">
+                    {formatCurrency(exp.amount)}
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="size-7">
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setEditItem(exp);
+                          setShowForm(true);
+                        }}
+                      >
+                        <Pencil className="mr-2 size-3.5" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteId(exp.id)}
+                      >
+                        <Trash2 className="mr-2 size-3.5" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {/* Showing count when filtered */}

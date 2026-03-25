@@ -267,12 +267,20 @@ export async function POST(
       .eq("id", id);
   }
 
-  await supabaseAdmin.from("activities").insert({
-    contact_id: invoice.contact_id,
-    type: "invoice_sent",
-    title: `Invoice ${invoice.invoice_number} sent`,
-    body: `${formatCurrency(invoice.total)} invoice sent to ${contact.email}`,
-  });
+  await Promise.all([
+    supabaseAdmin.from("activities").insert({
+      contact_id: invoice.contact_id,
+      type: "invoice_sent",
+      title: `Invoice ${invoice.invoice_number} sent`,
+      body: `${formatCurrency(invoice.total)} invoice sent to ${contact.email}`,
+    }),
+    supabaseAdmin.from("email_sends").insert({
+      contact_id: invoice.contact_id,
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      resend_message_id: emailResult.messageId ?? null,
+    }),
+  ]);
 
   return NextResponse.json({
     success: true,

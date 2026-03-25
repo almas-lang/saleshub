@@ -10,7 +10,7 @@ export default async function CustomersPage({
   const supabase = await createClient();
 
   const page = Math.max(1, parseInt(params.page ?? "1"));
-  const perPage = 25;
+  const perPage = Math.min(Math.max(parseInt(params.per_page ?? "25"), 10), 100);
   const search = params.search?.trim() ?? "";
 
   const from = (page - 1) * perPage;
@@ -80,6 +80,7 @@ export default async function CustomersPage({
       customers={customersWithPrograms as any}
       total={total}
       page={page}
+      perPage={perPage}
       totalPages={totalPages}
     />
   );

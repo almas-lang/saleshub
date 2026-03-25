@@ -7,8 +7,9 @@ import type { DateRange } from "react-day-picker";
 import { Plus, Download } from "lucide-react";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { StatCard } from "@/components/shared/stat-card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -184,49 +185,7 @@ export function AdSpendList({
 
   return (
     <div className="space-y-4">
-      {/* Metrics */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Total Spend
-          </p>
-          <p className="mt-1 font-mono text-lg font-bold">
-            {formatCurrency(totalSpend)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Impressions
-          </p>
-          <p className="mt-1 font-mono text-lg font-bold">
-            {totalImpressions.toLocaleString()}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Clicks
-          </p>
-          <p className="mt-1 font-mono text-lg font-bold">
-            {totalClicks.toLocaleString()}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Leads
-          </p>
-          <p className="mt-1 font-mono text-lg font-bold">{totalLeads}</p>
-        </div>
-        <div className="rounded-xl border bg-card p-4">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            CPL / CTR
-          </p>
-          <p className="mt-1 font-mono text-lg font-bold">
-            {formatCurrency(cpl)} / {ctr.toFixed(1)}%
-          </p>
-        </div>
-      </div>
-
-      {/* Filters */}
+      {/* Filters & Actions */}
       <div className="flex flex-wrap items-center gap-2">
         <Tabs value={platform} onValueChange={setPlatform} className="flex-1">
           <TabsList>
@@ -251,6 +210,19 @@ export function AdSpendList({
           <Plus className="mr-1 size-4" />
           Add Entry
         </Button>
+      </div>
+
+      {/* Metrics */}
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+        <StatCard label="Total Spend" value={totalSpend} color="red" index={0} />
+        <StatCard label="Impressions" value={totalImpressions} format="number" index={1} />
+        <StatCard label="Clicks" value={totalClicks} format="number" index={2} />
+        <StatCard label="Leads" value={totalLeads} format="number" color="emerald" index={3} />
+        <StatCard label="CPL" value={Math.round(cpl)} color="amber" index={4}>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            CTR: {ctr.toFixed(1)}%
+          </p>
+        </StatCard>
       </div>
 
       {/* Charts */}

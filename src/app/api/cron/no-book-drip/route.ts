@@ -118,12 +118,20 @@ export async function GET(request: Request) {
         });
 
         if (result.success) {
-          await supabaseAdmin.from("activities").insert({
-            contact_id: contact.id,
-            type: "email_sent",
-            title: `No-book drip: ${templateKey}`,
-            metadata: { template: templateKey },
-          });
+          await Promise.all([
+            supabaseAdmin.from("activities").insert({
+              contact_id: contact.id,
+              type: "email_sent",
+              title: `No-book drip: ${templateKey}`,
+              metadata: { template: templateKey },
+            }),
+            supabaseAdmin.from("email_sends").insert({
+              contact_id: contact.id,
+              status: "sent",
+              sent_at: new Date().toISOString(),
+              resend_message_id: result.messageId ?? null,
+            }),
+          ]);
           emailsSent++;
         }
       } catch (err) {

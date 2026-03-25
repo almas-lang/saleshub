@@ -27,12 +27,13 @@ import type { AvailabilityRules } from "@/types/bookings";
  */
 export async function POST(request: Request) {
   const body = await request.json();
-  const { slug, date, time, assignedTo, formData } = body as {
+  const { slug, date, time, assignedTo, formData, trackingParams } = body as {
     slug?: string;
     date?: string;
     time?: string;
     assignedTo?: string;
     formData?: Record<string, string>;
+    trackingParams?: Record<string, string>;
   };
 
   if (!slug || !date || !time || !formData) {
@@ -260,6 +261,7 @@ export async function POST(request: Request) {
           booked_at: startDate.toISOString(),
           booking_page: slug,
           form_responses: formData,
+          ...(trackingParams && Object.keys(trackingParams).length > 0 ? trackingParams : {}),
         },
       };
 
@@ -306,6 +308,33 @@ export async function POST(request: Request) {
         title: "⚠️ Google Calendar event failed",
         metadata: { error: eventResult.error, team_member_id: teamMemberId },
       });
+
+      // Alert the assigned team member via email
+      const { data: assignedMember } = await supabaseAdmin
+        .from("team_members")
+        .select("email, name")
+        .eq("id", teamMemberId)
+        .single();
+
+      if (assignedMember?.email) {
+        sendEmail({
+          to: assignedMember.email,
+          subject: `Booking Alert: Calendar event failed for ${fullName}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+              <h2 style="color:#e53e3e">Calendar Event Failed</h2>
+              <p>Hi ${assignedMember.name},</p>
+              <p>A booking was created for <strong>${fullName}</strong> (${email}) but the Google Calendar event could not be created.</p>
+              <p><strong>Date:</strong> ${startDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+              <p><strong>Time:</strong> ${startDate.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true })}</p>
+              <p style="color:#e53e3e"><strong>Please manually add this to your calendar.</strong></p>
+              <p>Error: ${eventResult.error ?? "Unknown"}</p>
+              <hr style="margin:30px 0;border:none;border-top:1px solid #eee" />
+              <p style="color:#999;font-size:12px">SalesHub — Xperience Wave</p>
+            </div>
+          `,
+        }).catch(() => {}); // fire-and-forget
+      }
     }
   }
 
@@ -326,6 +355,13 @@ export async function POST(request: Request) {
     .single();
 
   if (bookingError) {
+    // Check for unique constraint violation (concurrent slot booking)
+    if (bookingError.code === "23505") {
+      return NextResponse.json(
+        { error: "This time slot was just booked by someone else. Please select a different time.", code: "SLOT_TAKEN" },
+        { status: 409 }
+      );
+    }
     console.error("[Booking] Insert error:", bookingError.message);
     return NextResponse.json({ error: bookingError.message }, { status: 500 });
   }

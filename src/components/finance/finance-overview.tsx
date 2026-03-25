@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { TrendingUp, TrendingDown, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { StatCard } from "@/components/shared/stat-card";
 import { RevenueExpenseChart } from "./revenue-expense-chart";
 import { ExpensePieChart } from "./expense-pie-chart";
-import type { FinanceSummary, Transaction } from "@/types/finance";
+import type { FinanceSummary } from "@/types/finance";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Advertising": "#EF4444",
@@ -27,55 +28,38 @@ interface FinanceOverviewProps {
 }
 
 export function FinanceOverview({ summary }: FinanceOverviewProps) {
-  const profitPositive = summary.netProfit >= 0;
-
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Total Revenue
-          </p>
-          <p className="mt-1 font-mono text-2xl font-bold text-emerald-600">
-            {formatCurrency(summary.totalRevenue)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Total Expenses
-          </p>
-          <p className="mt-1 font-mono text-2xl font-bold text-red-500">
-            {formatCurrency(summary.totalExpenses)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Net Profit
-          </p>
-          <p
-            className={cn(
-              "mt-1 flex items-center gap-1 font-mono text-2xl font-bold",
-              profitPositive ? "text-emerald-600" : "text-red-500"
-            )}
-          >
-            {profitPositive ? (
-              <TrendingUp className="size-5" />
-            ) : (
-              <TrendingDown className="size-5" />
-            )}
-            {formatCurrency(Math.abs(summary.netProfit))}
-          </p>
-        </div>
+        <StatCard
+          label="Total Revenue"
+          value={summary.totalRevenue}
+          color="emerald"
+          index={0}
+        />
+        <StatCard
+          label="Total Expenses"
+          value={summary.totalExpenses}
+          color="red"
+          index={1}
+        />
+        <StatCard
+          label="Net Profit"
+          value={Math.abs(summary.netProfit)}
+          color={summary.netProfit >= 0 ? "emerald" : "red"}
+          danger={summary.netProfit < 0}
+          index={2}
+        />
       </div>
 
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
           <h3 className="mb-4 text-sm font-medium">Revenue vs Expenses</h3>
           <RevenueExpenseChart data={summary.revenueByMonth} />
         </div>
-        <div className="rounded-xl border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
           <h3 className="mb-4 text-sm font-medium">Expense Breakdown</h3>
           <ExpensePieChart
             data={summary.expensesByCategory.map((e) => ({
@@ -87,7 +71,7 @@ export function FinanceOverview({ summary }: FinanceOverviewProps) {
       </div>
 
       {/* Recent Transactions */}
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-xl border bg-card shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
         <div className="flex items-center justify-between border-b px-5 py-3">
           <h3 className="text-sm font-medium">Recent Transactions</h3>
           <Button variant="ghost" size="sm" asChild>
@@ -105,14 +89,14 @@ export function FinanceOverview({ summary }: FinanceOverviewProps) {
             summary.recentTransactions.map((t) => (
               <div
                 key={t.id}
-                className="flex items-center justify-between px-5 py-3"
+                className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors"
               >
                 <div>
                   <p className="text-sm font-medium">
                     {t.description || t.category}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    {t.category} · {formatDate(t.date)}
+                    {t.category} &middot; {formatDate(t.date)}
                   </p>
                 </div>
                 <p
@@ -129,7 +113,6 @@ export function FinanceOverview({ summary }: FinanceOverviewProps) {
           )}
         </div>
       </div>
-
     </div>
   );
 }

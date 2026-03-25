@@ -5,8 +5,10 @@ import { subDays, format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 
 import { formatCurrency } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { StatCard } from "@/components/shared/stat-card";
 import { useExport } from "@/hooks/use-export";
 import {
   Table,
@@ -17,6 +19,23 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { GSTReport } from "@/types/finance";
+
+function GSTSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2">
+        <Skeleton className="h-9 w-64" />
+        <Skeleton className="h-9 w-24" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-24 rounded-xl" />
+        ))}
+      </div>
+      <Skeleton className="h-64 rounded-xl" />
+    </div>
+  );
+}
 
 export function GSTReportView() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -46,10 +65,7 @@ export function GSTReportView() {
       .finally(() => setLoading(false));
   }, [dateRange]);
 
-  if (loading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>;
-  }
-
+  if (loading) return <GSTSkeleton />;
   if (!report) return null;
 
   const monthLabel = (m: string) => {
@@ -67,34 +83,13 @@ export function GSTReportView() {
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Output GST
-          </p>
-          <p className="mt-1 font-mono text-xl font-bold">
-            {formatCurrency(report.totalOutput)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Input GST
-          </p>
-          <p className="mt-1 font-mono text-xl font-bold">
-            {formatCurrency(report.totalInput)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Net Payable
-          </p>
-          <p className="mt-1 font-mono text-xl font-bold text-amber-600">
-            {formatCurrency(report.totalNetPayable)}
-          </p>
-        </div>
+        <StatCard label="Output GST" value={report.totalOutput} index={0} />
+        <StatCard label="Input GST" value={report.totalInput} color="emerald" index={1} />
+        <StatCard label="Net Payable" value={report.totalNetPayable} color="amber" index={2} />
       </div>
 
       {/* Monthly breakdown table */}
-      <div className="rounded-xl border">
+      <div className="rounded-xl border shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
         <Table>
           <TableHeader>
             <TableRow>
@@ -118,7 +113,7 @@ export function GSTReportView() {
               </TableRow>
             ) : (
               report.rows.map((row) => (
-                <TableRow key={row.month}>
+                <TableRow key={row.month} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="text-sm font-medium">
                     {monthLabel(row.month)}
                   </TableCell>

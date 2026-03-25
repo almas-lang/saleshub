@@ -178,9 +178,23 @@ export async function POST(request: Request) {
 
   const memberBusyMap = new Map<string, { start: Date; end: Date }[]>();
 
+  // Fetch free/busy for each member; exclude members whose API call fails
+  // (treating a failed member as "fully free" would cause double-bookings)
+  const failedMemberIds = new Set<string>();
+
   await Promise.all(
     teamMemberIds.map(async (memberId) => {
       const result = await getFreeBusy(memberId, dayStartDate, dayEndDate);
+
+      if (!result.success) {
+        // Cannot verify availability — exclude this member entirely
+        failedMemberIds.add(memberId);
+        console.error(
+          `[Availability] getFreeBusy failed for ${memberId}: ${result.error}`
+        );
+        return;
+      }
+
       const busySlots = (result.data ?? []).map((b) => ({
         start: new Date(b.start),
         end: new Date(b.end),
@@ -197,6 +211,13 @@ export async function POST(request: Request) {
       memberBusyMap.set(memberId, [...busySlots, ...memberBookings]);
     })
   );
+
+  // Remove members with failed API calls from the pool
+  const validMemberIds = teamMemberIds.filter((id) => !failedMemberIds.has(id));
+
+  if (validMemberIds.length === 0) {
+    return NextResponse.json({ data: [] });
+  }
 
   // Build a global list of already-booked time ranges for this page
   // (regardless of which team member was assigned) — prevents double-booking
@@ -236,7 +257,7 @@ export async function POST(request: Request) {
     // Find a free team member for this slot
     let assignedMember: string | null = null;
 
-    for (const memberId of teamMemberIds) {
+    for (const memberId of validMemberIds) {
       const busy = memberBusyMap.get(memberId) ?? [];
       const hasConflict = busy.some(
         (b) => b.start < slotEndWithBuffer && b.end > slotStartWithBuffer

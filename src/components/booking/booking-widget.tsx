@@ -50,6 +50,7 @@ interface BookingWidgetProps {
   durationMinutes: number;
   formFields: FormField[];
   availability: AvailabilityRules | null;
+  trackingParams?: Record<string, string>;
 }
 
 type Step = "date" | "time" | "form" | "confirmed";
@@ -61,6 +62,7 @@ export function BookingWidget({
   durationMinutes,
   formFields,
   availability,
+  trackingParams = {},
 }: BookingWidgetProps) {
   const [step, setStep] = useState<Step>("date");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
@@ -83,6 +85,16 @@ export function BookingWidget({
     setFormData(defaults);
   }, [formFields]);
 
+  // Build redirect URL with tracking params
+  const redirectUrl = (() => {
+    const base = "https://ld.xperiencewave.com/congratulations";
+    const params = new URLSearchParams({ booked: "true" });
+    for (const [k, v] of Object.entries(trackingParams)) {
+      if (v) params.set(k, v);
+    }
+    return `${base}?${params.toString()}`;
+  })();
+
   useEffect(() => {
     if (step !== "confirmed") return;
     setCountdown(5);
@@ -90,14 +102,14 @@ export function BookingWidget({
       setCountdown((n) => {
         if (n <= 1) {
           clearInterval(interval);
-          window.location.href = "https://ld.xperiencewave.com/congratulations";
+          window.location.href = redirectUrl;
           return 0;
         }
         return n - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [step]);
+  }, [step, redirectUrl]);
 
   const fetchSlots = useCallback(
     async (date: Date) => {
@@ -173,6 +185,7 @@ export function BookingWidget({
         time: selectedSlot.time,
         assignedTo: selectedSlot.assignedTo,
         formData,
+        trackingParams,
       }),
     });
 
@@ -180,6 +193,19 @@ export function BookingWidget({
     if (result.ok) {
       setMeetLink(result.data.meet_link);
       setStep("confirmed");
+      // Fire Meta Pixel Lead event if pixel is loaded
+      if (typeof window !== "undefined" && (window as any).fbq) {
+        (window as any).fbq("track", "Lead", {
+          content_name: title,
+          ...(trackingParams.utm_source && { utm_source: trackingParams.utm_source }),
+        });
+      }
+    } else if ((result as any).data?.code === "SLOT_TAKEN" || result.error?.includes("just booked")) {
+      toast.error("This slot was just taken. Refreshing available times...");
+      // Re-fetch availability to show updated slots
+      setStep("time");
+      setSelectedSlot(null);
+      if (selectedDate) fetchSlots(selectedDate);
     } else {
       toast.error(result.error || "Something went wrong. Please try again.");
     }
@@ -469,7 +495,7 @@ export function BookingWidget({
                   <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <span>Redirecting you in <span className="font-semibold tabular-nums text-foreground">{countdown}s</span>…</span>
                     <a
-                      href="https://ld.xperiencewave.com/congratulations"
+                      href={redirectUrl}
                       className="font-medium text-primary underline-offset-2 hover:underline"
                     >
                       Go now →

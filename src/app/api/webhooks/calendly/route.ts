@@ -442,12 +442,20 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       emailErrors.push(`confirmation: ${result.error}`);
     } else {
-      await supabaseAdmin.from("activities").insert({
-        contact_id: contactId,
-        type: "email_sent",
-        title: "Booking confirmation email sent",
-        metadata: { template: "booking-confirmation" },
-      });
+      await Promise.all([
+        supabaseAdmin.from("activities").insert({
+          contact_id: contactId,
+          type: "email_sent",
+          title: "Booking confirmation email sent",
+          metadata: { template: "booking-confirmation" },
+        }),
+        supabaseAdmin.from("email_sends").insert({
+          contact_id: contactId,
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          resend_message_id: result.messageId ?? null,
+        }),
+      ]);
     }
   } catch (emailErr) {
     emailErrors.push(`confirmation: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`);

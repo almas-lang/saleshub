@@ -11,7 +11,7 @@ export default async function InvoicesPage({
   const supabase = await createClient();
 
   const page = Math.max(1, parseInt(params.page ?? "1"));
-  const perPage = 25;
+  const perPage = Math.min(Math.max(parseInt(params.per_page ?? "25"), 10), 100);
   const status = params.status ?? "";
   const search = params.search?.trim() ?? "";
   const month = params.month ?? ""; // format: YYYY-MM

@@ -15,10 +15,33 @@ import {
 } from "recharts";
 
 import { formatCurrency } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { StatCard } from "@/components/shared/stat-card";
 import { useExport } from "@/hooks/use-export";
 import type { PnLReport } from "@/types/finance";
+
+function PnLSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2">
+        <Skeleton className="h-9 w-64" />
+        <Skeleton className="h-9 w-24" />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} className="h-24 rounded-xl" />
+        ))}
+      </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Skeleton className="h-48 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
+      </div>
+      <Skeleton className="h-72 rounded-xl" />
+    </div>
+  );
+}
 
 export function PnLReportView() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -48,10 +71,7 @@ export function PnLReportView() {
       .finally(() => setLoading(false));
   }, [dateRange]);
 
-  if (loading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>;
-  }
-
+  if (loading) return <PnLSkeleton />;
   if (!report) return null;
 
   const chartData = [
@@ -76,37 +96,20 @@ export function PnLReportView() {
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Total Income
-          </p>
-          <p className="mt-1 font-mono text-xl font-bold text-emerald-600">
-            {formatCurrency(report.totalIncome)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Total Expenses
-          </p>
-          <p className="mt-1 font-mono text-xl font-bold text-red-500">
-            {formatCurrency(report.totalExpenses)}
-          </p>
-        </div>
-        <div className="rounded-xl border bg-card p-5">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-            Net Profit
-          </p>
-          <p
-            className={`mt-1 font-mono text-xl font-bold ${report.netProfit >= 0 ? "text-emerald-600" : "text-red-500"}`}
-          >
-            {formatCurrency(report.netProfit)}
-          </p>
-        </div>
+        <StatCard label="Total Income" value={report.totalIncome} color="emerald" index={0} />
+        <StatCard label="Total Expenses" value={report.totalExpenses} color="red" index={1} />
+        <StatCard
+          label="Net Profit"
+          value={Math.abs(report.netProfit)}
+          color={report.netProfit >= 0 ? "emerald" : "red"}
+          danger={report.netProfit < 0}
+          index={2}
+        />
       </div>
 
       {/* Category breakdown */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
           <h3 className="mb-3 text-sm font-medium">Income by Category</h3>
           <div className="space-y-2">
             {report.income.length === 0 ? (
@@ -123,7 +126,7 @@ export function PnLReportView() {
             )}
           </div>
         </div>
-        <div className="rounded-xl border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
           <h3 className="mb-3 text-sm font-medium">Expenses by Category</h3>
           <div className="space-y-2">
             {report.expenses.length === 0 ? (
@@ -144,7 +147,7 @@ export function PnLReportView() {
 
       {/* Chart */}
       {chartData.length > 0 && (
-        <div className="rounded-xl border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
           <h3 className="mb-4 text-sm font-medium">Income vs Expenses by Category</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>

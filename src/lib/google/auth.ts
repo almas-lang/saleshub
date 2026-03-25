@@ -68,7 +68,17 @@ export async function getAuthenticatedClient(teamMemberId: string) {
 
   if (isExpired) {
     const refreshed = await refreshToken(teamMemberId, oauth2Client);
-    if (!refreshed.success) return null;
+    if (!refreshed.success) {
+      // Mark as disconnected so the UI can show a warning
+      await supabaseAdmin
+        .from("team_members")
+        .update({ google_calendar_connected: false })
+        .eq("id", teamMemberId);
+      console.error(
+        `[Google Auth] Token refresh failed for ${teamMemberId}, marking disconnected`
+      );
+      return null;
+    }
   }
 
   return oauth2Client;
@@ -173,12 +183,18 @@ export async function refreshToken(
       ? new Date(credentials.expiry_date).toISOString()
       : null;
 
+    // Save new access token + refresh token if Google rotated it
+    const updatePayload: Record<string, unknown> = {
+      google_access_token: credentials.access_token,
+      google_token_expires_at: expiresAt,
+    };
+    if (credentials.refresh_token) {
+      updatePayload.google_refresh_token = credentials.refresh_token;
+    }
+
     const { error } = await supabaseAdmin
       .from("team_members")
-      .update({
-        google_access_token: credentials.access_token,
-        google_token_expires_at: expiresAt,
-      })
+      .update(updatePayload)
       .eq("id", teamMemberId);
 
     if (error) {
@@ -190,6 +206,15 @@ export async function refreshToken(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[Google Auth] refresh error:", message);
+    // Mark as disconnected on refresh failure (best-effort)
+    try {
+      await supabaseAdmin
+        .from("team_members")
+        .update({ google_calendar_connected: false })
+        .eq("id", teamMemberId);
+    } catch {
+      // Ignore DB errors during error handling
+    }
     return { success: false, error: message };
   }
 }

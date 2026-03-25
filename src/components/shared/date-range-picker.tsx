@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { format, subDays, startOfMonth, endOfMonth, subMonths, isSameDay } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import type { DateRange } from "react-day-picker";
 
@@ -32,6 +32,17 @@ const PRESETS = [
   },
 ];
 
+function matchesPreset(range: DateRange | undefined): string | null {
+  if (!range?.from || !range?.to) return null;
+  for (const preset of PRESETS) {
+    const pv = preset.getValue();
+    if (isSameDay(range.from, pv.from) && isSameDay(range.to, pv.to)) {
+      return preset.label;
+    }
+  }
+  return null;
+}
+
 interface DateRangePickerProps {
   value: DateRange | undefined;
   onChange: (range: DateRange | undefined) => void;
@@ -40,6 +51,26 @@ interface DateRangePickerProps {
 
 export function DateRangePicker({ value, onChange, className }: DateRangePickerProps) {
   const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState<DateRange | undefined>(value);
+
+  // Sync draft when popover opens
+  React.useEffect(() => {
+    if (open) setDraft(value);
+  }, [open, value]);
+
+  const activePreset = matchesPreset(draft);
+
+  function handleApply() {
+    onChange(draft);
+    setOpen(false);
+  }
+
+  function handlePreset(preset: (typeof PRESETS)[number]) {
+    const range = preset.getValue();
+    setDraft(range);
+    onChange(range);
+    setOpen(false);
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -70,34 +101,59 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <div className="flex">
-          <div className="border-r p-2 space-y-1">
+          {/* Presets */}
+          <div className="border-r p-2 space-y-0.5 min-w-[140px]">
             {PRESETS.map((preset) => (
               <Button
                 key={preset.label}
-                variant="ghost"
+                variant={activePreset === preset.label ? "secondary" : "ghost"}
                 size="sm"
-                className="w-full justify-start text-xs"
-                onClick={() => {
-                  const range = preset.getValue();
-                  onChange(range);
-                  setOpen(false);
-                }}
+                className={cn(
+                  "w-full justify-start text-xs",
+                  activePreset === preset.label && "font-medium"
+                )}
+                onClick={() => handlePreset(preset)}
               >
                 {preset.label}
               </Button>
             ))}
           </div>
-          <Calendar
-            mode="range"
-            defaultMonth={value?.from}
-            selected={value}
-            onSelect={(range) => {
-              onChange(range);
-              if (range?.from && range?.to) setOpen(false);
-            }}
-            numberOfMonths={2}
-            initialFocus
-          />
+
+          {/* Calendar */}
+          <div>
+            <Calendar
+              mode="range"
+              defaultMonth={draft?.from}
+              selected={draft}
+              onSelect={setDraft}
+              numberOfMonths={2}
+            />
+
+            {/* Footer: summary + Apply */}
+            <div className="flex items-center justify-between border-t px-4 py-2">
+              <p className="text-xs text-muted-foreground">
+                {draft?.from ? (
+                  draft.to ? (
+                    <>
+                      {format(draft.from, "dd MMM")} – {format(draft.to, "dd MMM yyyy")}
+                    </>
+                  ) : (
+                    <>Pick end date</>
+                  )
+                ) : (
+                  <>Pick start date</>
+                )}
+              </p>
+              <Button
+                size="sm"
+                className="h-7 text-xs px-3"
+                disabled={!draft?.from || !draft?.to}
+                onClick={handleApply}
+              >
+                Apply
+              </Button>
+            </div>
+          </div>
         </div>
       </PopoverContent>
     </Popover>

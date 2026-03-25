@@ -14,8 +14,10 @@ import {
 } from "recharts";
 
 import { formatCurrency } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
+import { StatCard } from "@/components/shared/stat-card";
 import { useExport } from "@/hooks/use-export";
 import {
   Table,
@@ -30,6 +32,20 @@ interface RevenueData {
   byMonth: { month: string; amount: number }[];
   topCustomers: { contactName: string; amount: number }[];
   total: number;
+}
+
+function RevenueSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex gap-2">
+        <Skeleton className="h-9 w-64" />
+        <Skeleton className="h-9 w-24" />
+      </div>
+      <Skeleton className="h-24 rounded-xl" />
+      <Skeleton className="h-72 rounded-xl" />
+      <Skeleton className="h-64 rounded-xl" />
+    </div>
+  );
 }
 
 export function RevenueReportView() {
@@ -60,10 +76,7 @@ export function RevenueReportView() {
       .finally(() => setLoading(false));
   }, [dateRange]);
 
-  if (loading) {
-    return <div className="py-8 text-center text-sm text-muted-foreground">Loading...</div>;
-  }
-
+  if (loading) return <RevenueSkeleton />;
   if (!data) return null;
 
   const chartData = data.byMonth.map((d) => ({
@@ -79,18 +92,11 @@ export function RevenueReportView() {
       </div>
 
       {/* Total */}
-      <div className="rounded-xl border bg-card p-5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          Total Revenue
-        </p>
-        <p className="mt-1 font-mono text-2xl font-bold text-emerald-600">
-          {formatCurrency(data.total)}
-        </p>
-      </div>
+      <StatCard label="Total Revenue" value={data.total} color="emerald" index={0} />
 
       {/* Monthly chart */}
       {chartData.length > 0 && (
-        <div className="rounded-xl border bg-card p-5">
+        <div className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
           <h3 className="mb-4 text-sm font-medium">Revenue by Month</h3>
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={chartData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
@@ -116,14 +122,14 @@ export function RevenueReportView() {
       )}
 
       {/* Top customers */}
-      <div className="rounded-xl border bg-card">
+      <div className="rounded-xl border bg-card shadow-[0_1px_3px_0_rgba(0,0,0,0.04)]">
         <div className="border-b px-5 py-3">
           <h3 className="text-sm font-medium">Top 10 Customers</h3>
         </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>#</TableHead>
+              <TableHead className="w-12">#</TableHead>
               <TableHead>Customer</TableHead>
               <TableHead className="text-right">Revenue</TableHead>
             </TableRow>
@@ -140,14 +146,14 @@ export function RevenueReportView() {
               </TableRow>
             ) : (
               data.topCustomers.map((c, i) => (
-                <TableRow key={c.contactName}>
+                <TableRow key={c.contactName} className="hover:bg-muted/50 transition-colors">
                   <TableCell className="text-sm text-muted-foreground">
                     {i + 1}
                   </TableCell>
                   <TableCell className="text-sm font-medium">
                     {c.contactName}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
+                  <TableCell className="text-right font-mono text-sm font-medium text-emerald-600">
                     {formatCurrency(c.amount)}
                   </TableCell>
                 </TableRow>
