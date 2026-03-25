@@ -48,6 +48,8 @@ export interface AvailabilityRules {
   max_per_day: number;
   blocked_dates: string[];
   assignment_mode: "round_robin" | "specific";
+  /** Rolling window: only allow bookings within the next N days. 0 or undefined = 60 days. */
+  booking_window_days?: number;
 }
 
 // Team member for assignment

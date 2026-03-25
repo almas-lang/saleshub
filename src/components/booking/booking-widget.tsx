@@ -211,8 +211,12 @@ export function BookingWidget({
     }
   }
 
+  const bookingWindowDays = availability?.booking_window_days || 60;
+  const maxBookingDate = addDays(new Date(), bookingWindowDays);
+
   function isDayDisabled(date: Date): boolean {
     if (isBefore(date, startOfDay(new Date()))) return true;
+    if (date > maxBookingDate) return true;
     if (!availability) return true;
     const dayOfWeek = date.getDay();
     const daySchedule: DaySchedule | undefined = availability.schedule.find(
@@ -343,12 +347,12 @@ export function BookingWidget({
                 <div className="flex justify-center py-2">
                   <Calendar
                     mode="single"
-                    fixedWeeks
+                    showOutsideDays={false}
                     selected={selectedDate}
                     onSelect={handleDateSelect}
                     disabled={isDayDisabled}
                     fromDate={new Date()}
-                    toDate={addDays(new Date(), 60)}
+                    toDate={maxBookingDate}
                     className="w-full rounded-xl p-2 [--cell-size:2.5rem] sm:p-4 sm:[--cell-size:3rem]"
                     classNames={{
                       root: "w-full",

@@ -86,6 +86,7 @@ export async function POST(request: Request) {
 
   // Get assigned team members — only those with Google Calendar connected
   const assignedIds: string[] = page.assigned_to ?? [];
+  const isSpecificMode = rules.assignment_mode === "specific";
 
   let teamMemberIds: string[];
 
@@ -99,8 +100,14 @@ export async function POST(request: Request) {
       .in("id", assignedIds);
     teamMemberIds = (connectedAssigned ?? []).map((m) => m.id);
 
+    // In specific mode, only use the first assigned member — no fallback
+    if (isSpecificMode && teamMemberIds.length > 0) {
+      teamMemberIds = [teamMemberIds[0]];
+    }
+
     // If none of the assigned members are connected, fall back to any connected member
-    if (teamMemberIds.length === 0) {
+    // (only in round_robin mode — specific mode shows no slots if the person is disconnected)
+    if (teamMemberIds.length === 0 && !isSpecificMode) {
       const { data: anyConnected } = await supabaseAdmin
         .from("team_members")
         .select("id")
