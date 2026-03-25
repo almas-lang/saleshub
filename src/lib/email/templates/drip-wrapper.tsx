@@ -1,8 +1,19 @@
-import { render } from "@react-email/components";
+import {
+  Body,
+  Container,
+  Head,
+  Html,
+  Link,
+  Preview,
+  Text,
+  render,
+} from "@react-email/components";
 import * as React from "react";
-import { BaseLayout } from "./base-layout";
 
 const BODY_SLOT = "%%BODY_SLOT%%";
+
+const fontFamily =
+  '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
 // ── Props ───────────────────────────────────────────
 interface DripWrapperProps {
@@ -11,15 +22,56 @@ interface DripWrapperProps {
   unsubscribeUrl?: string;
 }
 
-// ── Component (uses text placeholder — no dangerouslySetInnerHTML) ──
+// ── Component — clean, plain-text-style layout (no card/header chrome) ──
 function DripWrapperEmail({
   preview,
-  unsubscribeUrl,
+  unsubscribeUrl = "#",
 }: Omit<DripWrapperProps, "bodyHtml">) {
   return (
-    <BaseLayout preview={preview} unsubscribeUrl={unsubscribeUrl}>
-      <div>{BODY_SLOT}</div>
-    </BaseLayout>
+    <Html>
+      <Head />
+      {preview && <Preview>{preview}</Preview>}
+      <Body
+        style={{
+          backgroundColor: "#ffffff",
+          fontFamily,
+          margin: 0,
+          padding: 0,
+        }}
+      >
+        <Container
+          style={{
+            maxWidth: "600px",
+            margin: "0 auto",
+            padding: "32px 20px",
+          }}
+        >
+          {/* Body content gets swapped in here */}
+          <div>{BODY_SLOT}</div>
+
+          {/* Minimal footer */}
+          <Text
+            style={{
+              fontSize: "12px",
+              color: "#999999",
+              lineHeight: "18px",
+              marginTop: "40px",
+              borderTop: "1px solid #eeeeee",
+              paddingTop: "16px",
+            }}
+          >
+            <Link
+              href={unsubscribeUrl}
+              style={{ color: "#999999", textDecoration: "underline" }}
+            >
+              Unsubscribe
+            </Link>
+            {" | "}
+            Xperience Wave · Bangalore, India
+          </Text>
+        </Container>
+      </Body>
+    </Html>
   );
 }
 
@@ -33,7 +85,6 @@ export async function renderDripEmail(
       unsubscribeUrl={props.unsubscribeUrl}
     />
   );
-  // Swap the text placeholder with the actual HTML body
   const html = wrapperHtml.replace(BODY_SLOT, props.bodyHtml);
   return {
     subject: props.subject,
