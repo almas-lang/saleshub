@@ -1,4 +1,3 @@
-import { Section } from "@react-email/components";
 import { render } from "@react-email/components";
 import * as React from "react";
 import { BaseLayout } from "./base-layout";
@@ -18,7 +17,7 @@ export function DripWrapperEmail({
 }: DripWrapperProps) {
   return (
     <BaseLayout preview={preview} unsubscribeUrl={unsubscribeUrl}>
-      <Section dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+      <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
     </BaseLayout>
   );
 }
