@@ -52,8 +52,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No availability rules configured" }, { status: 400 });
   }
 
-  // Check what day of the week this is
+  // Check booking window — reject dates beyond the allowed window
+  const bookingWindowDays = rules.booking_window_days || 60;
   const requestedDate = new Date(date + "T00:00:00");
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + bookingWindowDays);
+  maxDate.setHours(23, 59, 59, 999);
+  if (requestedDate > maxDate) {
+    return NextResponse.json({ data: [] });
+  }
+
+  // Check what day of the week this is
   const dayOfWeek = requestedDate.getDay(); // 0=Sun, 6=Sat
   const daySchedule: DaySchedule | undefined = rules.schedule.find(
     (d) => d.day === dayOfWeek
