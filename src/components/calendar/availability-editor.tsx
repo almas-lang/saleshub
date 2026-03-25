@@ -87,8 +87,8 @@ export function AvailabilityEditor({ rules, onChange }: AvailabilityEditorProps)
         </div>
       </div>
 
-      {/* Buffer & max per day */}
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Buffer, max per day, booking window */}
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <Label htmlFor="buffer">Buffer between bookings (min)</Label>
           <Input
@@ -116,6 +116,23 @@ export function AvailabilityEditor({ rules, onChange }: AvailabilityEditorProps)
             }
             className="h-9 w-32"
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="windowDays">Booking window (days ahead)</Label>
+          <Input
+            id="windowDays"
+            type="number"
+            min={1}
+            max={90}
+            value={rules.booking_window_days ?? 60}
+            onChange={(e) =>
+              onChange({ ...rules, booking_window_days: parseInt(e.target.value) || 60 })
+            }
+            className="h-9 w-32"
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Only the next {rules.booking_window_days ?? 60} days are bookable
+          </p>
         </div>
       </div>
 
