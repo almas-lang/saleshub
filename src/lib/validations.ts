@@ -294,6 +294,7 @@ export const availabilityRulesSchema = z.object({
   max_per_day: z.number().int().min(1).max(50),
   blocked_dates: z.array(z.string()),
   assignment_mode: z.enum(["round_robin", "specific"]),
+  booking_window_days: z.number().int().min(1).max(90).optional(),
 });
 
 export const bookingPageSchema = z.object({
