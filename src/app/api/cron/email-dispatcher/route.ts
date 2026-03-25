@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
   let failed = 0;
 
   // Process a single send
-  async function processSend(send: typeof queuedSends[number]) {
+  async function processSend(send: { id: string; campaign_id: string | null; step_id: string | null; contact_id: string }) {
     const step = send.step_id ? stepMap.get(send.step_id) : null;
     const contact = contactMap.get(send.contact_id);
     const wrapper = send.step_id ? renderedWrapperCache.get(send.step_id) : null;
