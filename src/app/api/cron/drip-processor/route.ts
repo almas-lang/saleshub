@@ -35,6 +35,7 @@ interface EmailStepRow {
   campaign_id: string;
   order: number;
   subject: string;
+  preview_text: string | null;
   body_html: string;
   delay_hours: number;
   condition: { check: string; value?: string } | null;
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
 
           const { data: emailSteps } = await supabaseAdmin
             .from("email_steps")
-            .select("id, campaign_id, order, subject, body_html, delay_hours, condition")
+            .select("id, campaign_id, order, subject, preview_text, body_html, delay_hours, condition")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
@@ -165,9 +166,14 @@ export async function GET(request: Request) {
           const rawSubject = renderVariables(currentStep.subject, variables);
           const rawBody = renderVariables(currentStep.body_html, variables);
 
+          const rawPreview = currentStep.preview_text
+            ? renderVariables(currentStep.preview_text, variables)
+            : undefined;
+
           const { subject: resolvedSubject, html: resolvedBody } = await renderDripEmail({
             subject: rawSubject,
             bodyHtml: rawBody,
+            preview: rawPreview,
           });
 
           // Send email

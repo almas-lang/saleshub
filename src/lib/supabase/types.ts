@@ -738,6 +738,7 @@ export type Database = {
           delay_hours: number
           id: string
           order: number
+          preview_text: string | null
           subject: string
           template_id: string | null
         }
@@ -749,6 +750,7 @@ export type Database = {
           delay_hours?: number
           id?: string
           order: number
+          preview_text?: string | null
           subject: string
           template_id?: string | null
         }
@@ -760,6 +762,7 @@ export type Database = {
           delay_hours?: number
           id?: string
           order?: number
+          preview_text?: string | null
           subject?: string
           template_id?: string | null
         }

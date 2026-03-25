@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
   const [{ data: steps }, { data: contacts }] = await Promise.all([
     supabaseAdmin
       .from("email_steps")
-      .select("id, subject, body_html")
+      .select("id, subject, preview_text, body_html")
       .in("id", stepIds),
     supabaseAdmin
       .from("contacts")
@@ -62,9 +62,9 @@ export async function GET(request: NextRequest) {
       .in("id", contactIds),
   ]);
 
-  const stepMap = new Map<string, { subject: string; body_html: string }>();
+  const stepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string }>();
   for (const step of steps ?? []) {
-    stepMap.set(step.id, { subject: step.subject, body_html: step.body_html });
+    stepMap.set(step.id, { subject: step.subject, preview_text: step.preview_text, body_html: step.body_html });
   }
 
   const contactMap = new Map<string, {
@@ -84,9 +84,13 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Pre-render the wrapper HTML once (the chrome is identical for all sends).
-  // We get back a placeholder string that we swap per-contact, avoiding N React renders.
-  const { wrapperHtml, placeholder: BODY_PLACEHOLDER } = await renderDripWrapper();
+  // Pre-render the wrapper HTML once per step (preview text differs per step).
+  // Each step gets its own wrapper with the correct preview text baked in.
+  const wrapperCache = new Map<string, { wrapperHtml: string; placeholder: string }>();
+  for (const [stepId, step] of stepMap) {
+    const result = await renderDripWrapper({ preview: step.preview_text ?? step.subject });
+    wrapperCache.set(stepId, result);
+  }
 
   let sent = 0;
   let failed = 0;
@@ -95,8 +99,9 @@ export async function GET(request: NextRequest) {
   async function processSend(send: { id: string; campaign_id: string | null; step_id: string | null; contact_id: string }) {
     const step = send.step_id ? stepMap.get(send.step_id) : null;
     const contact = contactMap.get(send.contact_id);
+    const wrapper = send.step_id ? wrapperCache.get(send.step_id) : null;
 
-    if (!step || !contact) {
+    if (!step || !contact || !wrapper) {
       await supabaseAdmin
         .from("email_sends")
         .update({ status: "failed" })
@@ -117,7 +122,7 @@ export async function GET(request: NextRequest) {
     const bodyHtml = renderVariables(step.body_html, vars);
 
     // Swap placeholder with the contact's rendered body (no React render needed)
-    const html = wrapperHtml.replace(BODY_PLACEHOLDER, bodyHtml);
+    const html = wrapper.wrapperHtml.replace(wrapper.placeholder, bodyHtml);
 
     const result = await sendEmail({
       to: contact.email,

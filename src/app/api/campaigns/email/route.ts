@@ -175,6 +175,7 @@ export async function POST(request: Request) {
     campaign_id: campaign.id,
     order: s.order,
     subject: s.subject,
+    preview_text: s.preview_text ?? null,
     body_html: s.body_html,
     delay_hours: s.delay_hours,
     condition: s.condition ?? null,
@@ -260,6 +261,7 @@ export async function PATCH(request: NextRequest) {
   const stepsToUpdate = Array.isArray(body.steps) ? body.steps as {
     id: string;
     subject?: string;
+    preview_text?: string;
     body_html?: string;
     delay_hours?: number;
   }[] : null;
@@ -316,6 +318,7 @@ export async function PATCH(request: NextRequest) {
       if (!step.id) continue;
       const stepUpdate: Record<string, unknown> = {};
       if (typeof step.subject === "string") stepUpdate.subject = step.subject;
+      if (typeof step.preview_text === "string") stepUpdate.preview_text = step.preview_text;
       if (typeof step.body_html === "string") stepUpdate.body_html = step.body_html;
       if (typeof step.delay_hours === "number") stepUpdate.delay_hours = step.delay_hours;
 

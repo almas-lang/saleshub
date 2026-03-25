@@ -254,6 +254,7 @@ export const createEmailCampaignSchema = z.object({
   steps: z.array(z.object({
     order: z.number().int().min(1),
     subject: z.string().min(1, "Subject is required"),
+    preview_text: z.string().max(150).optional(),
     body_html: z.string().min(1, "Body is required"),
     delay_hours: z.number().int().min(0),
     condition: z.object({
