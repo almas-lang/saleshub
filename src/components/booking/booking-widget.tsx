@@ -118,7 +118,7 @@ export function BookingWidget({
       setCountdown((n) => {
         if (n <= 1) {
           clearInterval(interval);
-          window.location.href = redirectUrl;
+          window.location.assign(redirectUrl);
           return 0;
         }
         return n - 1;

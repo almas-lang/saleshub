@@ -55,7 +55,7 @@ export function IntegrationsSettings({
       const res = await fetch("/api/integrations/google", { method: "POST" });
       const data = await res.json();
       if (data.url) {
-        window.location.href = data.url;
+        window.location.assign(data.url);
       } else {
         toast.error("Failed to get authorization URL");
         setLoading(false);

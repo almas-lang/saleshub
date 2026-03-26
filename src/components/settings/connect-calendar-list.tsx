@@ -30,7 +30,7 @@ export function ConnectCalendarList({ members }: { members: Member[] }) {
     setLoading(null);
 
     if (result.ok) {
-      window.location.href = result.data.url;
+      window.location.assign(result.data.url);
     } else {
       toast.error(result.error || "Failed to generate auth URL");
     }
