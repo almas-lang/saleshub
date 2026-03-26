@@ -25,9 +25,21 @@ export function useNotifications() {
   }, []);
 
   useEffect(() => {
-    refresh();
+    let cancelled = false;
+
+    async function fetchInitial() {
+      const result = await safeFetch<NotificationsResponse>("/api/notifications");
+      if (!cancelled && result.ok) {
+        setNotifications(result.data.data);
+        setUnreadCount(result.data.unread_count);
+      }
+      if (!cancelled) setLoading(false);
+    }
+
+    fetchInitial();
     intervalRef.current = setInterval(refresh, 60_000);
     return () => {
+      cancelled = true;
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [refresh]);
