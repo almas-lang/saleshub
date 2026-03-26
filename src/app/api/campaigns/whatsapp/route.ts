@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createCampaignSchema } from "@/lib/validations";
 import type { WACampaignWithStats, WACampaign, WASendStatus, AudienceFilter } from "@/types/campaigns";
-import { enrollAudience } from "./enroll/route";
+import { enrollAudience } from "@/lib/campaigns/wa-audience";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
