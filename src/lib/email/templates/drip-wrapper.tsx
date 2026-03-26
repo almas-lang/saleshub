@@ -42,7 +42,7 @@ function DripWrapperEmail({
         <Container
           style={{
             maxWidth: "600px",
-            margin: "0 auto",
+            margin: "0",
             padding: "32px 20px",
           }}
         >
@@ -81,7 +81,7 @@ export async function renderDripEmail(
 ): Promise<{ subject: string; html: string }> {
   const wrapperHtml = await render(
     <DripWrapperEmail
-      preview={props.subject}
+      preview={props.preview ?? props.subject}
       unsubscribeUrl={props.unsubscribeUrl}
     />
   );
