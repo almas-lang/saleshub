@@ -11,6 +11,10 @@ import {
   Video,
   Globe,
   User,
+  Phone,
+  Mail,
+  ChevronRight,
+  Check,
 } from "lucide-react";
 import { safeFetch } from "@/lib/fetch";
 import { toast } from "sonner";
@@ -20,6 +24,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Progress } from "@/components/ui/progress";
+import {
+  Card,
+  CardContent,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -55,6 +66,9 @@ interface BookingWidgetProps {
 
 type Step = "date" | "time" | "form" | "confirmed";
 
+const STEPS: Step[] = ["date", "time", "form"];
+const STEP_LABELS: Record<string, string> = { date: "Date", time: "Time", form: "Details" };
+
 export function BookingWidget({
   slug,
   title,
@@ -74,6 +88,8 @@ export function BookingWidget({
   const [meetLink, setMeetLink] = useState<string | null>(null);
   const [errors, setErrors] = useState<Set<string>>(new Set());
   const [countdown, setCountdown] = useState<number>(5);
+
+  const stepIndex = STEPS.indexOf(step);
 
   useEffect(() => {
     const defaults: Record<string, string> = {};
@@ -152,7 +168,6 @@ export function BookingWidget({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // Validate all required fields (especially radio/select which HTML5 can't validate)
     const missing = new Set<string>();
     for (const field of formFields) {
       if (field.required && !formData[field.label]?.trim()) {
@@ -162,9 +177,10 @@ export function BookingWidget({
     if (missing.size > 0) {
       setErrors(missing);
       toast.error("Please fill in all required fields");
-      // Scroll to first missing field
       const firstId = Array.from(missing)[0];
-      document.getElementById(`field-${firstId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document
+        .getElementById(`field-${firstId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     setErrors(new Set());
@@ -193,16 +209,19 @@ export function BookingWidget({
     if (result.ok) {
       setMeetLink(result.data.meet_link);
       setStep("confirmed");
-      // Fire Meta Pixel Lead event if pixel is loaded
       if (typeof window !== "undefined" && (window as any).fbq) {
         (window as any).fbq("track", "Lead", {
           content_name: title,
-          ...(trackingParams.utm_source && { utm_source: trackingParams.utm_source }),
+          ...(trackingParams.utm_source && {
+            utm_source: trackingParams.utm_source,
+          }),
         });
       }
-    } else if ((result as any).data?.code === "SLOT_TAKEN" || result.error?.includes("just booked")) {
+    } else if (
+      (result as any).data?.code === "SLOT_TAKEN" ||
+      result.error?.includes("just booked")
+    ) {
       toast.error("This slot was just taken. Refreshing available times...");
-      // Re-fetch availability to show updated slots
       setStep("time");
       setSelectedSlot(null);
       if (selectedDate) fetchSlots(selectedDate);
@@ -228,38 +247,50 @@ export function BookingWidget({
     return false;
   }
 
-  // Sidebar info — compact on mobile, full on md+
+  // ── Sidebar ──
   const sidebar = (
-    <div className="flex flex-col gap-3 border-b p-4 sm:gap-5 sm:p-6 md:w-72 md:shrink-0 md:border-b-0 md:border-r lg:w-80">
+    <div className="flex flex-col gap-4 border-b border-gray-100 bg-gray-50/60 p-5 sm:gap-5 sm:p-6 md:w-[280px] md:shrink-0 md:border-b-0 md:border-r lg:w-[300px]">
       {/* Brand */}
       <div className="flex items-center gap-2.5">
-        <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground sm:size-9">
-          <User className="size-3.5 sm:size-4" />
+        <div className="flex size-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+          <User className="size-4" />
         </div>
-        <span className="text-sm font-medium text-muted-foreground">Xperience Wave</span>
+        <span className="text-sm font-medium text-gray-500">
+          Xperience Wave
+        </span>
       </div>
 
-      {/* Title + meta: inline on mobile, stacked on md+ */}
+      {/* Title */}
       <div>
-        <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl">{title}</h1>
+        <h1 className="text-xl font-bold tracking-tight text-gray-900 sm:text-2xl">
+          {title}
+        </h1>
         {description && (
-          <p className="mt-1.5 hidden text-sm leading-relaxed text-muted-foreground sm:mt-2 md:block">{description}</p>
+          <p className="mt-2 hidden text-sm leading-relaxed text-gray-500 md:block">
+            {description}
+          </p>
         )}
       </div>
 
-      {/* Meta pills — horizontal row on mobile, vertical on md+ */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground md:flex-col md:items-start md:gap-2.5">
-        <div className="flex items-center gap-1.5 md:gap-2">
-          <Clock className="size-3.5 md:size-4" />
+      {/* Meta info */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 md:flex-col md:items-start md:gap-3">
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex size-7 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-gray-200/60">
+            <Clock className="size-3.5 text-gray-400" />
+          </div>
           <span>{durationMinutes} min</span>
         </div>
-        <div className="flex items-center gap-1.5 md:gap-2">
-          <Video className="size-3.5 md:size-4" />
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex size-7 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-gray-200/60">
+            <Video className="size-3.5 text-gray-400" />
+          </div>
           <span>Google Meet</span>
         </div>
         {availability?.timezone && (
-          <div className="flex items-center gap-1.5 md:gap-2">
-            <Globe className="size-3.5 md:size-4" />
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="flex size-7 items-center justify-center rounded-md bg-white shadow-sm ring-1 ring-gray-200/60">
+              <Globe className="size-3.5 text-gray-400" />
+            </div>
             <span>{availability.timezone.replace("_", " ")}</span>
           </div>
         )}
@@ -267,84 +298,123 @@ export function BookingWidget({
 
       {/* Selected date/time summary */}
       {selectedDate && step !== "date" && (
-        <div className="rounded-lg border bg-muted/40 p-2.5 sm:p-3">
-          <div className="flex items-center gap-2 text-sm">
-            <CalendarIcon className="size-4 text-primary" />
-            <span className="font-medium">{format(selectedDate, "EEEE, MMMM d, yyyy")}</span>
-          </div>
-          {selectedSlot && (
-            <div className="mt-1 flex items-center gap-2 text-sm sm:mt-1.5">
-              <Clock className="size-4 text-primary" />
-              <span className="font-medium">{to12Hour(selectedSlot.time)} IST</span>
+        <>
+          <Separator className="bg-gray-200/80" />
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+              Your selection
+            </p>
+            <div className="rounded-lg bg-white p-3 shadow-sm ring-1 ring-gray-200/60">
+              <div className="flex items-center gap-2.5 text-sm">
+                <CalendarIcon className="size-4 text-indigo-500" />
+                <span className="font-medium text-gray-800">
+                  {format(selectedDate, "EEE, MMM d, yyyy")}
+                </span>
+              </div>
+              {selectedSlot && (
+                <div className="mt-2 flex items-center gap-2.5 text-sm">
+                  <Clock className="size-4 text-indigo-500" />
+                  <span className="font-medium text-gray-800">
+                    {to12Hour(selectedSlot.time)} IST
+                  </span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </>
       )}
     </div>
   );
 
   return (
-    <div className="w-full max-w-4xl overflow-hidden border-y bg-card sm:rounded-2xl sm:border sm:shadow-xl">
-      <div className="flex flex-col md:flex-row md:min-h-[560px]">
+    <div className="w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl">
+      <div className="flex flex-col md:flex-row md:min-h-[580px]">
         {sidebar}
 
         {/* Main content */}
         <div className="flex flex-1 flex-col">
           {/* Step indicator */}
           {step !== "confirmed" && (
-            <div className="flex items-center gap-2 border-b px-4 py-3 sm:px-6">
-              {step !== "date" && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="mr-1 h-7 gap-1 px-2 text-xs text-muted-foreground"
-                  onClick={() =>
-                    setStep(step === "form" ? "time" : "date")
-                  }
-                >
-                  <ArrowLeft className="size-3" />
-                  Back
-                </Button>
-              )}
-              <div className="flex flex-1 items-center justify-end gap-1.5">
-                {(["date", "time", "form"] as const).map((s, i) => (
-                  <div key={s} className="flex items-center gap-1.5">
-                    <div
-                      className={`flex size-6 items-center justify-center rounded-full text-xs font-medium transition-colors ${
-                        s === step
-                          ? "bg-primary text-primary-foreground"
-                          : (["date", "time", "form"].indexOf(step) > i)
-                            ? "bg-primary/20 text-primary"
-                            : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {i + 1}
-                    </div>
-                    {i < 2 && (
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 sm:px-6">
+              <div>
+                {step !== "date" ? (
+                  <button
+                    onClick={() =>
+                      setStep(step === "form" ? "time" : "date")
+                    }
+                    className="flex items-center gap-1 text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
+                  >
+                    <ArrowLeft className="size-3.5" />
+                    Back
+                  </button>
+                ) : (
+                  <div className="h-5" />
+                )}
+              </div>
+
+              {/* Steps */}
+              <div className="flex items-center gap-1">
+                {STEPS.map((s, i) => {
+                  const isComplete = stepIndex > i;
+                  const isCurrent = s === step;
+                  return (
+                    <div key={s} className="flex items-center gap-1">
                       <div
-                        className={`h-px w-4 transition-colors ${
-                          (["date", "time", "form"].indexOf(step) > i)
-                            ? "bg-primary/40"
-                            : "bg-border"
+                        className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-all ${
+                          isCurrent
+                            ? "bg-indigo-50 text-indigo-600"
+                            : isComplete
+                              ? "text-indigo-400"
+                              : "text-gray-300"
                         }`}
-                      />
-                    )}
-                  </div>
-                ))}
+                      >
+                        <div
+                          className={`flex size-5 items-center justify-center rounded-full text-[10px] font-bold transition-all ${
+                            isCurrent
+                              ? "bg-indigo-600 text-white shadow-sm"
+                              : isComplete
+                                ? "bg-indigo-100 text-indigo-600"
+                                : "bg-gray-100 text-gray-400"
+                          }`}
+                        >
+                          {isComplete ? (
+                            <Check className="size-3" />
+                          ) : (
+                            i + 1
+                          )}
+                        </div>
+                        <span className="hidden sm:inline">
+                          {STEP_LABELS[s]}
+                        </span>
+                      </div>
+                      {i < STEPS.length - 1 && (
+                        <div
+                          className={`h-px w-5 transition-colors ${
+                            isComplete ? "bg-indigo-300" : "bg-gray-200"
+                          }`}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Content area */}
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6">
             {/* ── Step 1: Date ── */}
             {step === "date" && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <h2 className="text-lg font-semibold">Select a Date</h2>
-                  <p className="text-sm text-muted-foreground">Choose a day that works for you</p>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Select a Date
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Pick a day that works best for you
+                  </p>
                 </div>
-                <div className="flex justify-center py-2">
+                <div className="flex justify-center">
                   <Calendar
                     mode="single"
                     showOutsideDays={false}
@@ -358,14 +428,18 @@ export function BookingWidget({
                       root: "w-full",
                       months: "flex flex-col w-full relative",
                       month: "flex flex-col w-full gap-3 sm:gap-4",
-                      month_caption: "flex items-center justify-center h-10 w-full px-10 sm:h-12 sm:px-12",
-                      caption_label: "text-sm font-semibold select-none sm:text-base",
+                      month_caption:
+                        "flex items-center justify-center h-10 w-full px-10 sm:h-12 sm:px-12",
+                      caption_label:
+                        "text-sm font-semibold select-none sm:text-base text-gray-900",
                       weekdays: "flex w-full",
-                      weekday: "text-muted-foreground flex-1 font-medium text-xs select-none sm:text-sm",
+                      weekday:
+                        "text-gray-400 flex-1 font-medium text-xs select-none sm:text-sm",
                       week: "flex w-full mt-0.5 sm:mt-1",
                       day: "relative flex-1 p-0 text-center group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
-                      today: "bg-primary/10 text-primary font-semibold rounded-lg data-[selected=true]:rounded-none",
-                      disabled: "text-muted-foreground/60 cursor-not-allowed",
+                      today:
+                        "bg-indigo-50 text-indigo-600 font-semibold rounded-lg data-[selected=true]:rounded-none",
+                      disabled: "text-gray-300 cursor-not-allowed",
                     }}
                   />
                 </div>
@@ -374,44 +448,73 @@ export function BookingWidget({
 
             {/* ── Step 2: Time ── */}
             {step === "time" && (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div>
-                  <h2 className="text-lg font-semibold">Select a Time</h2>
-                  <p className="text-sm text-muted-foreground">
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Select a Time
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-500">
                     {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
                   </p>
                 </div>
 
                 {loadingSlots ? (
-                  <div className="flex flex-col items-center justify-center gap-3 py-16">
-                    <Loader2 className="size-7 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground">Loading available times...</p>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <Skeleton
+                          key={i}
+                          className="h-12 rounded-xl bg-gray-100"
+                        />
+                      ))}
+                    </div>
+                    <p className="text-center text-sm text-gray-400">
+                      Loading available times...
+                    </p>
                   </div>
                 ) : slots.length === 0 ? (
-                  <div className="flex flex-col items-center gap-3 py-12 text-center">
-                    <CalendarIcon className="size-10 text-muted-foreground/50" />
-                    <div>
-                      <p className="font-medium">No slots available</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Try selecting a different date
-                      </p>
-                    </div>
-                    <Button variant="outline" onClick={() => setStep("date")}>
-                      Pick another date
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {slots.map((slot) => (
-                      <button
-                        key={slot.time}
-                        onClick={() => handleSlotSelect(slot)}
-                        className="rounded-lg border bg-card px-4 py-3 text-sm font-medium transition-all hover:border-primary hover:bg-primary/5 hover:text-primary active:scale-[0.98]"
+                  <Card className="border-dashed border-gray-200 bg-gray-50/50 py-10 shadow-none">
+                    <CardContent className="flex flex-col items-center gap-4 text-center">
+                      <div className="flex size-14 items-center justify-center rounded-full bg-gray-100">
+                        <CalendarIcon className="size-6 text-gray-400" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="font-semibold text-gray-700">
+                          No available times
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          All slots on this date are booked. Try another day.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="mt-1"
+                        onClick={() => setStep("date")}
                       >
-                        {to12Hour(slot.time)}
-                      </button>
-                    ))}
-                  </div>
+                        <ArrowLeft className="mr-1.5 size-3.5" />
+                        Pick another date
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                      {slots.map((slot) => (
+                        <button
+                          key={slot.time}
+                          onClick={() => handleSlotSelect(slot)}
+                          className="group flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-md active:scale-[0.98]"
+                        >
+                          <Clock className="size-3.5 text-gray-400 transition-colors group-hover:text-indigo-400" />
+                          {to12Hour(slot.time)}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-center text-xs text-gray-400">
+                      {slots.length} time{slots.length !== 1 ? "s" : ""}{" "}
+                      available
+                    </p>
+                  </>
                 )}
               </div>
             )}
@@ -420,111 +523,146 @@ export function BookingWidget({
             {step === "form" && (
               <div className="space-y-5">
                 <div>
-                  <h2 className="text-lg font-semibold">Enter Your Details</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Please fill out the form to complete your booking
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Enter Your Details
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Fill in your information to confirm the booking
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} className="space-y-4">
                   {renderFormFields(formFields, formData, updateField, errors)}
 
-                  <div className="pt-2">
-                    <Button
-                      type="submit"
-                      className="h-12 w-full text-base font-semibold"
-                      disabled={submitting}
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="mr-2 size-4 animate-spin" />
-                          Scheduling...
-                        </>
-                      ) : (
-                        "Schedule Event"
-                      )}
-                    </Button>
-                  </div>
+                  <Separator className="bg-gray-100" />
+
+                  <Button
+                    type="submit"
+                    className="h-12 w-full bg-indigo-600 text-base font-semibold text-white shadow-md transition-all hover:bg-indigo-700 hover:shadow-lg active:scale-[0.99]"
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 size-4 animate-spin" />
+                        Scheduling...
+                      </>
+                    ) : (
+                      <>
+                        Confirm Booking
+                        <ChevronRight className="ml-1 size-4" />
+                      </>
+                    )}
+                  </Button>
                 </form>
               </div>
             )}
 
             {/* ── Step 4: Confirmed ── */}
             {step === "confirmed" && (
-              <div className="flex flex-col items-center justify-center gap-5 py-8 text-center">
-                <div className="flex size-20 items-center justify-center rounded-full bg-green-50 dark:bg-green-950/30">
-                  <CheckCircle2 className="size-10 text-green-500" />
+              <div className="flex flex-col items-center justify-center gap-6 py-8 text-center">
+                {/* Animated success icon */}
+                <div className="relative">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-emerald-100" />
+                  <div className="relative flex size-20 items-center justify-center rounded-full bg-emerald-50 ring-4 ring-emerald-100/50">
+                    <CheckCircle2 className="size-10 text-emerald-500" />
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-bold">You&apos;re all set!</h2>
-                  <p className="text-muted-foreground">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    You&apos;re all set!
+                  </h2>
+                  <p className="text-gray-500">
                     A calendar invitation has been sent to your email.
                   </p>
                 </div>
 
-                <div className="w-full max-w-sm space-y-3 rounded-xl border bg-muted/30 p-5 text-left">
-                  <div className="flex items-center gap-3">
-                    <CalendarIcon className="size-5 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {selectedSlot ? to12Hour(selectedSlot.time) : ""} IST &middot; {durationMinutes} min
-                      </p>
-                    </div>
+                {/* Booking summary card */}
+                <div className="w-full max-w-sm overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                  <div className="bg-gray-50 px-5 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                      Booking confirmed
+                    </p>
                   </div>
-
-                  {meetLink && (
-                    <div className="flex items-start gap-3">
-                      <Video className="mt-0.5 size-5 text-primary" />
-                      <div>
-                        <p className="text-sm font-medium">Google Meet</p>
-                        <a
-                          href={meetLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary underline-offset-2 hover:underline break-all"
-                        >
-                          Join meeting
-                        </a>
+                  <div className="space-y-3 p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-indigo-50">
+                        <CalendarIcon className="size-4 text-indigo-500" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-sm font-medium text-gray-800">
+                          {selectedDate &&
+                            format(selectedDate, "EEEE, MMMM d, yyyy")}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {selectedSlot
+                            ? to12Hour(selectedSlot.time)
+                            : ""}{" "}
+                          IST &middot; {durationMinutes} min
+                        </p>
                       </div>
                     </div>
-                  )}
+
+                    {meetLink && (
+                      <>
+                        <Separator className="bg-gray-100" />
+                        <div className="flex items-center gap-3">
+                          <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50">
+                            <Video className="size-4 text-blue-500" />
+                          </div>
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-gray-800">
+                              Google Meet
+                            </p>
+                            <a
+                              href={meetLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-indigo-600 underline-offset-2 hover:underline"
+                            >
+                              Join meeting
+                            </a>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Redirect countdown */}
-                <div className="w-full max-w-sm space-y-3">
-                  <div className="flex items-center justify-between text-sm text-muted-foreground">
-                    <span>Redirecting you in <span className="font-semibold tabular-nums text-foreground">{countdown}s</span>…</span>
+                <div className="w-full max-w-sm space-y-2.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">
+                      Redirecting in{" "}
+                      <span className="font-semibold tabular-nums text-gray-700">
+                        {countdown}s
+                      </span>
+                    </span>
                     <a
                       href={redirectUrl}
-                      className="font-medium text-primary underline-offset-2 hover:underline"
+                      className="font-medium text-indigo-600 underline-offset-2 hover:underline"
                     >
-                      Go now →
+                      Continue now
                     </a>
                   </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-none"
-                      style={{ width: `${((5 - countdown) / 5) * 100}%`, transition: "width 1s linear" }}
-                    />
-                  </div>
+                  <Progress
+                    value={((5 - countdown) / 5) * 100}
+                    className="h-1.5 bg-gray-100"
+                  />
                 </div>
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="border-t px-4 py-3 text-center sm:px-6">
-            <p className="text-xs text-muted-foreground">
+          <div className="border-t border-gray-100 px-5 py-3 text-center sm:px-6">
+            <p className="text-xs text-gray-400">
               Powered by{" "}
               <a
                 href="https://xperiencewave.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-semibold text-foreground/60 hover:text-foreground/80 transition-colors"
+                className="font-semibold text-gray-500 transition-colors hover:text-gray-700"
               >
                 Xperience Wave
               </a>
@@ -551,9 +689,15 @@ function renderFormFields(
     const field = fields[i];
     const next = fields[i + 1];
 
-    // Pair up short text fields side-by-side (e.g. First Name + Last Name)
-    const isShortText = field.type === "text" && !field.label.includes("?") && field.label.length < 30;
-    const nextIsShortText = next && next.type === "text" && !next.label.includes("?") && next.label.length < 30;
+    const isShortText =
+      field.type === "text" &&
+      !field.label.includes("?") &&
+      field.label.length < 30;
+    const nextIsShortText =
+      next &&
+      next.type === "text" &&
+      !next.label.includes("?") &&
+      next.label.length < 30;
 
     if (isShortText && nextIsShortText) {
       elements.push(
@@ -602,15 +746,24 @@ function FormFieldInput({
   hasError?: boolean;
 }) {
   const id = `field-${field.id}`;
+  const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
+  const inputBase = `h-11 rounded-lg bg-white shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
 
   return (
-    <div id={id} className="space-y-2">
-      <Label htmlFor={`${id}-input`} className="text-sm font-medium">
+    <div id={id} className="space-y-1.5">
+      <Label
+        htmlFor={`${id}-input`}
+        className="text-sm font-medium text-gray-700"
+      >
         {field.label}
-        {field.required && <span className="ml-0.5 text-destructive">*</span>}
+        {field.required && (
+          <span className="ml-0.5 text-red-400">*</span>
+        )}
       </Label>
       {hasError && !value?.trim() && (
-        <p className="text-xs text-destructive">This field is required</p>
+        <p className="text-xs font-medium text-red-500">
+          This field is required
+        </p>
       )}
 
       {field.type === "text" && (
@@ -620,32 +773,41 @@ function FormFieldInput({
           onChange={(e) => onChange(e.target.value)}
           placeholder={field.placeholder}
           required={field.required}
-          className={`h-10 ${hasError && !value?.trim() ? "border-destructive" : ""}`}
+          className={inputBase}
         />
       )}
 
       {field.type === "email" && (
-        <Input
-          id={`${id}-input`}
-          type="email"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          required={field.required}
-          className={`h-10 ${hasError && !value?.trim() ? "border-destructive" : ""}`}
-        />
+        <div className="relative">
+          <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+          <Input
+            id={`${id}-input`}
+            type="email"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder || "you@example.com"}
+            required={field.required}
+            className={`pl-9 ${inputBase}`}
+          />
+        </div>
       )}
 
       {field.type === "phone" && (
-        <Input
-          id={`${id}-input`}
-          type="tel"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          required={field.required}
-          className={`h-10 ${hasError && !value?.trim() ? "border-destructive" : ""}`}
-        />
+        <div className="flex">
+          <div className="flex h-11 items-center gap-1.5 rounded-l-lg border border-r-0 border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-500 shadow-sm">
+            <Phone className="size-3.5 text-gray-400" />
+            +91
+          </div>
+          <Input
+            id={`${id}-input`}
+            type="tel"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder || "98765 43210"}
+            required={field.required}
+            className={`rounded-l-none ${inputBase}`}
+          />
+        </div>
       )}
 
       {field.type === "textarea" && (
@@ -656,13 +818,20 @@ function FormFieldInput({
           placeholder={field.placeholder}
           required={field.required}
           rows={3}
-          className={`resize-none ${hasError && !value?.trim() ? "border-destructive" : ""}`}
+          className={`resize-none rounded-lg bg-white shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`}
         />
       )}
 
       {field.type === "select" && (
-        <Select value={value} onValueChange={onChange} required={field.required}>
-          <SelectTrigger id={`${id}-input`} className={`h-10 w-full ${hasError && !value?.trim() ? "border-destructive" : ""}`}>
+        <Select
+          value={value}
+          onValueChange={onChange}
+          required={field.required}
+        >
+          <SelectTrigger
+            id={`${id}-input`}
+            className={`h-11 w-full rounded-lg bg-white shadow-sm ${errorClass}`}
+          >
             <SelectValue placeholder={field.placeholder || "Select..."} />
           </SelectTrigger>
           <SelectContent>
@@ -679,16 +848,22 @@ function FormFieldInput({
         <RadioGroup
           value={value}
           onValueChange={onChange}
-          className="space-y-1"
+          className="space-y-1.5"
         >
           {(field.options ?? []).map((opt) => (
             <label
               key={opt}
               htmlFor={`${id}-${opt}`}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors active:scale-[0.99] hover:bg-muted/50 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.995] has-[[data-state=checked]]:border-indigo-300 has-[[data-state=checked]]:bg-indigo-50 has-[[data-state=checked]]:shadow-none"
             >
-              <RadioGroupItem value={opt} id={`${id}-${opt}`} className="mt-0.5" />
-              <span className="text-sm leading-snug">{opt}</span>
+              <RadioGroupItem
+                value={opt}
+                id={`${id}-${opt}`}
+                className="mt-0.5"
+              />
+              <span className="text-sm leading-snug text-gray-700">
+                {opt}
+              </span>
             </label>
           ))}
         </RadioGroup>

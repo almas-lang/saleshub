@@ -6,6 +6,10 @@ const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID;
 export default function BookLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      {/* Force light theme on public booking pages */}
+      <Script id="force-light-theme" strategy="beforeInteractive">
+        {`document.documentElement.classList.remove('dark');document.documentElement.classList.add('light');document.documentElement.style.colorScheme='light';`}
+      </Script>
       {/* Meta Pixel */}
       {META_PIXEL_ID && (
         <>

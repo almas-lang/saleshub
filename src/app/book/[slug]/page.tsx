@@ -56,7 +56,7 @@ export default async function PublicBookingPage({
   }
 
   return (
-    <div className="flex min-h-svh items-start justify-center bg-muted/30 px-0 py-0 sm:px-4 sm:py-8 md:items-center md:py-12">
+    <div className="flex min-h-svh items-start justify-center bg-gradient-to-b from-gray-50 to-gray-100/80 px-0 py-0 sm:px-4 sm:py-8 md:items-center md:py-12">
       <BookingWidget
         slug={page.slug}
         title={page.title}

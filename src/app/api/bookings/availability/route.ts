@@ -161,7 +161,7 @@ export async function POST(request: Request) {
     const endStr = `${date}T${String(slotEndH).padStart(2, "0")}:${String(slotEndM).padStart(2, "0")}:00`;
 
     slots.push({ start: startStr, end: endStr });
-    cursor += duration + buffer;
+    cursor += 30; // offer slots every 30 minutes; conflict checking filters overlaps
   }
 
   if (slots.length === 0) {

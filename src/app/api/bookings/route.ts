@@ -129,7 +129,9 @@ export async function POST(request: Request) {
   const emailByType = findByType("email");
   const email = emailByType || formData["Email"] || formData["email"] || "";
   const phoneByType = findByType("phone");
-  const phone = phoneByType || formData["Whatsapp/Phone number"] || formData["Phone Number"] || formData["phone"] || "";
+  const rawPhone = (phoneByType || formData["Whatsapp/Phone number"] || formData["Phone Number"] || formData["phone"] || "").replace(/\s+/g, "");
+  // Normalize to E.164-ish: prepend +91 if no country code present
+  const phone = rawPhone && !rawPhone.startsWith("+") ? `+91${rawPhone}` : rawPhone;
   const linkedinUrl = formData["Share your LinkedIn profile link"] || formData["LinkedIn Profile"] || formData["linkedin_url"] || "";
 
   let firstName: string;
