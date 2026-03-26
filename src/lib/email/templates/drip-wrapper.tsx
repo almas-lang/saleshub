@@ -29,7 +29,14 @@ function DripWrapperEmail({
 }: Omit<DripWrapperProps, "bodyHtml">) {
   return (
     <Html>
-      <Head />
+      <Head>
+        <style>{`
+          ul, ol { padding-left: 24px; margin: 8px 0; }
+          li { margin: 0; padding: 0; }
+          li + li { margin-top: 4px; }
+          p { margin: 0 0 12px 0; }
+        `}</style>
+      </Head>
       {preview && <Preview>{preview}</Preview>}
       <Body
         style={{
@@ -43,7 +50,7 @@ function DripWrapperEmail({
           style={{
             maxWidth: "600px",
             margin: "0",
-            padding: "32px 20px",
+            padding: "16px 20px",
           }}
         >
           {/* Body content gets swapped in here */}
