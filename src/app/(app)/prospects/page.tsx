@@ -198,7 +198,7 @@ export default async function ProspectsPage({
 
   // Build lastActivityMap — most recent activity per contact
   const contactIds = prospects.map((p) => p.id);
-  let lastActivityMap: Record<string, string> = {};
+  const lastActivityMap: Record<string, string> = {};
   let calendlyBookedIds: string[] = [];
 
   if (contactIds.length > 0) {

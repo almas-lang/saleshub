@@ -200,7 +200,7 @@ export default async function InvoicesPage({
 
   // For installment payments, fetch parent invoice subtotal/total to derive tax ratio
   const instInvoiceIds = [...new Set(paidInstallmentsData.map((i) => i.invoice_id))];
-  let invoiceTaxMap: Record<string, { subtotal: number; total: number }> = {};
+  const invoiceTaxMap: Record<string, { subtotal: number; total: number }> = {};
   if (instInvoiceIds.length > 0) {
     const { data: parentInvs } = await supabase
       .from("invoices")
