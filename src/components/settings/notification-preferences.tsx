@@ -8,51 +8,79 @@ import { safeFetch } from "@/lib/fetch";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 
 interface NotificationPreferencesProps {
   initialPreferences: Record<string, boolean>;
 }
 
-const NOTIFICATION_TYPES = [
+const NOTIFICATION_GROUPS = [
   {
-    key: "new_lead_assigned",
-    label: "New lead assigned",
-    description: "Get notified when a new lead is assigned to you.",
+    heading: "Activity",
+    description: "Stay on top of leads, tasks, and bookings.",
+    items: [
+      {
+        key: "new_lead_assigned",
+        label: "New lead assigned",
+        description: "Get notified when a new lead is assigned to you.",
+        channel: "In-App",
+      },
+      {
+        key: "task_overdue",
+        label: "Task overdue",
+        description: "Get notified when a task passes its due date.",
+        channel: "In-App",
+      },
+      {
+        key: "booking_created",
+        label: "Booking created",
+        description: "Get notified when a new booking is made.",
+        channel: "In-App",
+      },
+    ],
   },
   {
-    key: "task_overdue",
-    label: "Task overdue",
-    description: "Get notified when a task passes its due date.",
+    heading: "Digest",
+    description: "Periodic summaries delivered to your email.",
+    items: [
+      {
+        key: "daily_digest_email",
+        label: "Daily digest email",
+        description: "Receive a daily email summary of your activity.",
+        channel: "Email",
+      },
+      {
+        key: "weekly_analytics_email",
+        label: "Weekly analytics email",
+        description: "Receive a weekly analytics summary every Monday at 8 AM IST.",
+        channel: "Email",
+      },
+    ],
   },
   {
-    key: "booking_created",
-    label: "Booking created",
-    description: "Get notified when a new booking is made.",
-  },
-  {
-    key: "daily_digest_email",
-    label: "Daily digest email",
-    description: "Receive a daily email summary of your activity.",
-  },
-  {
-    key: "weekly_analytics_email",
-    label: "Weekly analytics email",
-    description: "Receive a weekly analytics summary every Monday at 8 AM IST.",
-  },
-  {
-    key: "payment_received",
-    label: "Payment received",
-    description: "Get notified when a payment is received on an invoice.",
+    heading: "Payments",
+    description: "Get notified about incoming payments.",
+    items: [
+      {
+        key: "payment_received",
+        label: "Payment received",
+        description: "Get notified when a payment is received on an invoice.",
+        channel: "Email",
+      },
+    ],
   },
 ] as const;
+
+const ALL_KEYS = NOTIFICATION_GROUPS.flatMap((g) => g.items.map((i) => i.key));
 
 export function NotificationPreferences({
   initialPreferences,
 }: NotificationPreferencesProps) {
   const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
     const defaults: Record<string, boolean> = {};
-    for (const t of NOTIFICATION_TYPES) {
-      defaults[t.key] = initialPreferences[t.key] ?? true;
+    for (const key of ALL_KEYS) {
+      defaults[key] = initialPreferences[key] ?? true;
     }
     return defaults;
   });
@@ -80,20 +108,45 @@ export function NotificationPreferences({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border bg-card p-6 space-y-6">
-        {NOTIFICATION_TYPES.map(({ key, label, description }) => (
-          <div key={key} className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor={key} className="text-sm font-medium">
-                {label}
-              </Label>
-              <p className="text-sm text-muted-foreground">{description}</p>
+      <div className="rounded-xl border bg-card p-6 space-y-0">
+        {NOTIFICATION_GROUPS.map((group, gi) => (
+          <div key={group.heading}>
+            {gi > 0 && <Separator className="my-6" />}
+            <div className="mb-4">
+              <h3 className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                {group.heading}
+              </h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {group.description}
+              </p>
             </div>
-            <Switch
-              id={key}
-              checked={prefs[key] ?? true}
-              onCheckedChange={() => toggle(key)}
-            />
+            <div className="space-y-5">
+              {group.items.map(({ key, label, description, channel }) => (
+                <div key={key} className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor={key} className="text-sm font-medium">
+                        {label}
+                      </Label>
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 font-normal"
+                      >
+                        {channel}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {description}
+                    </p>
+                  </div>
+                  <Switch
+                    id={key}
+                    checked={prefs[key] ?? true}
+                    onCheckedChange={() => toggle(key)}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         ))}
       </div>

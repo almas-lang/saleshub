@@ -23,8 +23,8 @@ export default async function CustomerDetailPage({
     notFound();
   }
 
-  // Fetch programs and invoices in parallel
-  const [programsResult, invoicesResult] = await Promise.all([
+  // Fetch programs, invoices, and activities in parallel
+  const [programsResult, invoicesResult, activitiesResult] = await Promise.all([
     supabase
       .from("customer_programs")
       .select("*")
@@ -35,10 +35,17 @@ export default async function CustomerDetailPage({
       .select("*, contacts(id, first_name, last_name, email, phone, company_name)")
       .eq("contact_id", id)
       .order("created_at", { ascending: false }),
+    supabase
+      .from("activities")
+      .select("id, type, title, body, created_at")
+      .eq("contact_id", id)
+      .order("created_at", { ascending: false })
+      .limit(50),
   ]);
 
   const programs = programsResult.data ?? [];
   const invoices = (invoicesResult.data ?? []) as InvoiceWithContact[];
+  const activities = activitiesResult.data ?? [];
   const totalPaid = invoices
     .filter((i) => i.status === "paid")
     .reduce((sum, i) => sum + i.total, 0);
@@ -49,6 +56,7 @@ export default async function CustomerDetailPage({
       programs={programs}
       invoices={invoices}
       totalPaid={totalPaid}
+      activities={activities}
     />
   );
 }

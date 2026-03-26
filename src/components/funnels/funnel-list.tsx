@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, MoreVertical, Pencil, Trash2, Layers, Users } from "lucide-react";
+import { Plus, MoreVertical, Pencil, Trash2, Layers, Users, Search } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch, throwOnError } from "@/lib/fetch";
 import type { Funnel } from "@/types/funnels";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -16,12 +17,20 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { StatCard } from "@/components/shared/stat-card";
 import { FunnelForm } from "./funnel-form";
 
 type FunnelWithCount = Funnel & { stage_count: number; contact_count: number };
@@ -35,11 +44,30 @@ const SALES_TYPE_LABELS: Record<string, string> = {
   custom: "Custom",
 };
 
-export function FunnelList({ funnels }: { funnels: FunnelWithCount[] }) {
+interface FunnelListProps {
+  funnels: FunnelWithCount[];
+  stats: { totalFunnels: number; totalContacts: number };
+}
+
+export function FunnelList({ funnels, stats }: FunnelListProps) {
   const router = useRouter();
   const [formOpen, setFormOpen] = useState(false);
   const [editingFunnel, setEditingFunnel] = useState<Funnel | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+
+  const filtered = useMemo(() => {
+    let result = funnels;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter((f) => f.name.toLowerCase().includes(q));
+    }
+    if (typeFilter !== "all") {
+      result = result.filter((f) => f.sales_type === typeFilter);
+    }
+    return result;
+  }, [funnels, search, typeFilter]);
 
   function handleDelete() {
     if (!deleteId) return;
@@ -57,10 +85,49 @@ export function FunnelList({ funnels }: { funnels: FunnelWithCount[] }) {
     );
   }
 
+  const avgPerFunnel =
+    stats.totalFunnels > 0
+      ? Math.round(stats.totalContacts / stats.totalFunnels)
+      : 0;
+
   return (
     <>
-      <div className="flex justify-end">
-        <Button onClick={() => setFormOpen(true)}>
+      {/* Stats */}
+      {funnels.length > 0 && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <StatCard label="Total Funnels" value={stats.totalFunnels} format="number" color="blue" index={0} />
+          <StatCard label="Total Contacts" value={stats.totalContacts} format="number" color="emerald" index={1} />
+          <StatCard label="Avg. per Funnel" value={avgPerFunnel} format="number" index={2} />
+        </div>
+      )}
+
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <div className="relative max-w-xs flex-1">
+            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search funnels..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-9 w-48 pl-9 text-sm"
+            />
+          </div>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="h-9 w-36 text-sm">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {Object.entries(SALES_TYPE_LABELS).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={() => setFormOpen(true)} size="sm">
           <Plus className="mr-2 size-4" />
           Create funnel
         </Button>
@@ -78,12 +145,21 @@ export function FunnelList({ funnels }: { funnels: FunnelWithCount[] }) {
             Create funnel
           </Button>
         </Card>
+      ) : filtered.length === 0 ? (
+        <div className="flex min-h-[180px] items-center justify-center">
+          <p className="text-sm text-muted-foreground">
+            No funnels matching your filters
+          </p>
+        </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {funnels.map((funnel) => (
+          {filtered.map((funnel, index) => (
             <Card
               key={funnel.id}
               className="cursor-pointer shadow-sm transition-all duration-150 hover:border-foreground/20 hover:shadow-md"
+              style={{
+                animation: `fadeInUp 350ms cubic-bezier(0.16, 1, 0.3, 1) ${index * 50}ms both`,
+              }}
               onClick={() => router.push(`/funnels/${funnel.id}`)}
             >
               <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">

@@ -1,6 +1,8 @@
 "use client";
 
+import { Printer } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { PnLReportView } from "@/components/finance/pnl-report";
 import { GSTReportView } from "@/components/finance/gst-report";
 import { RevenueReportView } from "@/components/finance/revenue-report";
@@ -9,11 +11,22 @@ import { FinanceNav } from "@/components/finance/finance-nav";
 export default function ReportsPage() {
   return (
     <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Finance</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          P&L, GST, and revenue reports with export options.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Finance</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            P&L, GST, and revenue reports with export options.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden sm:flex"
+          onClick={() => window.print()}
+        >
+          <Printer className="mr-2 size-4" />
+          Print
+        </Button>
       </div>
 
       <FinanceNav />

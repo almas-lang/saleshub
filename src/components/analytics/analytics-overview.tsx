@@ -3,7 +3,6 @@
 import { Users, TrendingUp, IndianRupee, Target } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
-import { Card, CardContent } from "@/components/ui/card";
 import type { AnalyticsOverview } from "@/types/analytics";
 import type { LucideIcon } from "lucide-react";
 
@@ -23,29 +22,31 @@ interface OverviewCardProps {
   value: string;
   sparkline: { value: number }[];
   color: string;
-  bgClass: string;
-  iconBgClass: string;
   icon: LucideIcon;
+  index: number;
 }
 
-function OverviewCard({ label, value, sparkline, color, bgClass, iconBgClass, icon: Icon }: OverviewCardProps) {
+function OverviewCard({ label, value, sparkline, color, icon: Icon, index }: OverviewCardProps) {
   return (
-    <Card className={bgClass}>
-      <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            {label}
-          </p>
-          <div className={`flex size-8 items-center justify-center rounded-lg ${iconBgClass}`}>
-            <Icon className="size-4" style={{ color }} />
-          </div>
+    <div
+      className="rounded-xl border bg-card p-5 shadow-[0_1px_3px_0_rgba(0,0,0,0.04),0_1px_2px_-1px_rgba(0,0,0,0.03)] transition-shadow duration-[180ms] hover:shadow-[0_4px_12px_0_rgba(0,0,0,0.06),0_2px_4px_-1px_rgba(0,0,0,0.04)]"
+      style={{
+        animation: `fadeInUp 350ms cubic-bezier(0.16, 1, 0.3, 1) ${index * 50}ms both`,
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+          <Icon className="size-4 text-muted-foreground" />
         </div>
-        <p className="mt-2 font-mono text-2xl font-bold">{value}</p>
-        <div className="mt-3">
-          <MiniSparkline data={sparkline} color={color} />
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="mt-2 font-mono text-2xl font-bold tracking-tight">{value}</p>
+      <div className="mt-3">
+        <MiniSparkline data={sparkline} color={color} />
+      </div>
+    </div>
   );
 }
 
@@ -57,36 +58,32 @@ export function AnalyticsOverviewView({ data }: { data: AnalyticsOverview }) {
         value={data.totalLeads.toString()}
         sparkline={data.leadsTrend}
         color="#3B82F6"
-        bgClass="bg-blue-50/50 border-blue-100 dark:bg-blue-950/20 dark:border-blue-900/50"
-        iconBgClass="bg-blue-100 dark:bg-blue-900/50"
         icon={Users}
+        index={0}
       />
       <OverviewCard
         label="Conversion Rate"
         value={`${data.conversionRate.toFixed(1)}%`}
         sparkline={data.conversionTrend}
         color="#8B5CF6"
-        bgClass="bg-violet-50/50 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900/50"
-        iconBgClass="bg-violet-100 dark:bg-violet-900/50"
         icon={Target}
+        index={1}
       />
       <OverviewCard
         label="Revenue"
         value={formatCurrency(data.totalRevenue)}
         sparkline={data.revenueTrend}
         color="#22c55e"
-        bgClass="bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900/50"
-        iconBgClass="bg-emerald-100 dark:bg-emerald-900/50"
         icon={IndianRupee}
+        index={2}
       />
       <OverviewCard
         label="Avg Deal Size"
         value={formatCurrency(data.avgDealSize)}
         sparkline={data.dealSizeTrend}
         color="#F59E0B"
-        bgClass="bg-amber-50/50 border-amber-100 dark:bg-amber-950/20 dark:border-amber-900/50"
-        iconBgClass="bg-amber-100 dark:bg-amber-900/50"
         icon={TrendingUp}
+        index={3}
       />
     </div>
   );

@@ -17,7 +17,7 @@ export async function getAnalyticsOverview(
 ): Promise<AnalyticsOverview> {
   const supabase = await createClient();
 
-  const [leadsRes, customersRes, revenueRes] = await Promise.all([
+  const [leadsRes, customersRes, revenueRes, installmentsRes] = await Promise.all([
     supabase
       .from("contacts")
       .select("id, created_at")
@@ -32,9 +32,18 @@ export async function getAnalyticsOverview(
       .gte("converted_at", from)
       .lte("converted_at", to)
       .is("deleted_at", null),
+    // Fully-paid invoices (non-installment)
     supabase
       .from("invoices")
       .select("total, paid_at")
+      .eq("status", "paid")
+      .eq("has_installments", false)
+      .gte("paid_at", from)
+      .lte("paid_at", to),
+    // Paid installments in the date range
+    supabase
+      .from("installments")
+      .select("amount, paid_at")
       .eq("status", "paid")
       .gte("paid_at", from)
       .lte("paid_at", to),
@@ -43,11 +52,14 @@ export async function getAnalyticsOverview(
   const leads = leadsRes.data ?? [];
   const customers = customersRes.data ?? [];
   const invoices = revenueRes.data ?? [];
+  const installments = installmentsRes.data ?? [];
 
   const totalLeads = leads.length;
   const totalConversions = customers.length;
   const conversionRate = totalLeads > 0 ? (totalConversions / totalLeads) * 100 : 0;
-  const totalRevenue = invoices.reduce((s, i) => s + (i.total ?? 0), 0);
+  const invoiceRevenue = invoices.reduce((s, i) => s + (i.total ?? 0), 0);
+  const installmentRevenue = installments.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const totalRevenue = invoiceRevenue + installmentRevenue;
   const avgDealSize = totalConversions > 0 ? totalRevenue / totalConversions : 0;
 
   // Build sparklines (daily for last 30 days)
@@ -67,6 +79,11 @@ export async function getAnalyticsOverview(
     if (!i.paid_at) continue;
     const d = format(parseISO(i.paid_at), "yyyy-MM-dd");
     revenueByDay.set(d, (revenueByDay.get(d) ?? 0) + (i.total ?? 0));
+  }
+  for (const inst of installments) {
+    if (!inst.paid_at) continue;
+    const d = format(parseISO(inst.paid_at), "yyyy-MM-dd");
+    revenueByDay.set(d, (revenueByDay.get(d) ?? 0) + (Number(inst.amount) || 0));
   }
 
   const leadsTrend: SparklinePoint[] = days.map((d) => ({

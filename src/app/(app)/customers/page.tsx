@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { CustomerList } from "@/components/customers/customer-list";
 
+const ALLOWED_SORT_FIELDS = ["converted_at", "first_name", "totalPaid"] as const;
+
 export default async function CustomersPage({
   searchParams,
 }: {
@@ -12,6 +14,9 @@ export default async function CustomersPage({
   const page = Math.max(1, parseInt(params.page ?? "1"));
   const perPage = Math.min(Math.max(parseInt(params.per_page ?? "25"), 10), 100);
   const search = params.search?.trim() ?? "";
+  const sortField = ALLOWED_SORT_FIELDS.includes(params.sort as any) ? params.sort! : "converted_at";
+  const sortOrder = params.order === "asc" ? true : false;
+  const statusFilter = params.status ?? "all";
 
   const from = (page - 1) * perPage;
   const to = from + perPage - 1;
@@ -31,7 +36,9 @@ export default async function CustomersPage({
     );
   }
 
-  query = query.order("converted_at", { ascending: false, nullsFirst: false }).range(from, to);
+  // Sort (totalPaid is computed client-side, so fallback to converted_at for DB sort)
+  const dbSort = sortField === "totalPaid" ? "converted_at" : sortField;
+  query = query.order(dbSort, { ascending: sortOrder, nullsFirst: false }).range(from, to);
 
   const { data: customers, count } = await query;
   const total = count ?? 0;
@@ -69,11 +76,31 @@ export default async function CustomersPage({
     }
   }
 
-  const customersWithPrograms = (customers ?? []).map((c) => ({
+  let customersWithPrograms = (customers ?? []).map((c) => ({
     ...c,
     programs: programsMap[c.id] ?? [],
     totalPaid: paidTotalsMap[c.id] ?? 0,
   }));
+
+  // Client-side sort by totalPaid if needed
+  if (sortField === "totalPaid") {
+    customersWithPrograms.sort((a, b) =>
+      sortOrder ? a.totalPaid - b.totalPaid : b.totalPaid - a.totalPaid
+    );
+  }
+
+  // Filter by program status (client-side since it's a computed field)
+  if (statusFilter === "active") {
+    customersWithPrograms = customersWithPrograms.filter((c) =>
+      (c.programs as any[]).some((p) => p.status === "active")
+    );
+  } else if (statusFilter === "completed") {
+    customersWithPrograms = customersWithPrograms.filter((c) =>
+      (c.programs as any[]).every((p) => p.status === "completed") && c.programs.length > 0
+    );
+  } else if (statusFilter === "no_program") {
+    customersWithPrograms = customersWithPrograms.filter((c) => c.programs.length === 0);
+  }
 
   return (
     <CustomerList
@@ -82,6 +109,9 @@ export default async function CustomersPage({
       page={page}
       perPage={perPage}
       totalPages={totalPages}
+      currentSort={sortField}
+      currentOrder={sortOrder ? "asc" : "desc"}
+      currentStatus={statusFilter}
     />
   );
 }

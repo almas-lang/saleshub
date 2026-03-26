@@ -104,6 +104,9 @@ export default async function DashboardPage() {
     emailPulseQuery,
     // Upcoming installments
     upcomingInstallmentsQuery,
+    // Paid installments this/last month for revenue KPI
+    paidInstallmentsThisMonth,
+    paidInstallmentsLastMonth,
   ] = await Promise.all([
     // New leads this week
     supabase
@@ -138,18 +141,20 @@ export default async function DashboardPage() {
       .gte("due_at", lastWeekStart)
       .lte("due_at", thisWeekStart),
 
-    // Revenue this month: paid invoices
+    // Revenue this month: fully-paid invoices (non-installment)
     supabase
       .from("invoices")
       .select("total")
       .eq("status", "paid")
+      .eq("has_installments", false)
       .gte("paid_at", thisMonthStart),
 
-    // Revenue last month
+    // Revenue last month: fully-paid invoices (non-installment)
     supabase
       .from("invoices")
       .select("total")
       .eq("status", "paid")
+      .eq("has_installments", false)
       .gte("paid_at", lastMonthStart)
       .lt("paid_at", thisMonthStart),
 
@@ -305,17 +310,43 @@ export default async function DashboardPage() {
       .lte("due_date", sevenDaysOut)
       .order("due_date", { ascending: true })
       .limit(5),
+
+    // Paid installments this month (for revenue KPI)
+    supabase
+      .from("installments")
+      .select("amount")
+      .eq("status", "paid")
+      .gte("paid_at", thisMonthStart),
+
+    // Paid installments last month (for revenue KPI comparison)
+    supabase
+      .from("installments")
+      .select("amount")
+      .eq("status", "paid")
+      .gte("paid_at", lastMonthStart)
+      .lt("paid_at", thisMonthStart),
   ]);
 
-  // Build KPI data
-  const revenueThisMonthTotal = (revenueThisMonth.data ?? []).reduce(
+  // Build KPI data — revenue = fully-paid invoices + paid installments
+  const invoiceRevenueThisMonth = (revenueThisMonth.data ?? []).reduce(
     (sum, inv) => sum + (inv.total ?? 0),
     0
   );
-  const revenueLastMonthTotal = (revenueLastMonth.data ?? []).reduce(
+  const installmentRevenueThisMonth = (paidInstallmentsThisMonth.data ?? []).reduce(
+    (sum, inst) => sum + (Number(inst.amount) || 0),
+    0
+  );
+  const revenueThisMonthTotal = invoiceRevenueThisMonth + installmentRevenueThisMonth;
+
+  const invoiceRevenueLastMonth = (revenueLastMonth.data ?? []).reduce(
     (sum, inv) => sum + (inv.total ?? 0),
     0
   );
+  const installmentRevenueLastMonth = (paidInstallmentsLastMonth.data ?? []).reduce(
+    (sum, inst) => sum + (Number(inst.amount) || 0),
+    0
+  );
+  const revenueLastMonthTotal = invoiceRevenueLastMonth + installmentRevenueLastMonth;
 
   // Build revenue sparkline from last 7 days
   const revenueSparkline: SparklinePoint[] = [];

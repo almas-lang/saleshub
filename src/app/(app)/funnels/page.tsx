@@ -15,6 +15,8 @@ export default async function FunnelsPage() {
     contact_count: (f.contacts as unknown as { count: number }[])?.[0]?.count ?? 0,
   }));
 
+  const totalContacts = funnels.reduce((sum, f) => sum + f.contact_count, 0);
+
   return (
     <div className="page-enter space-y-6">
       <div>
@@ -23,7 +25,10 @@ export default async function FunnelsPage() {
           Manage your sales pipeline templates and stages.
         </p>
       </div>
-      <FunnelList funnels={funnels} />
+      <FunnelList
+        funnels={funnels}
+        stats={{ totalFunnels: funnels.length, totalContacts }}
+      />
     </div>
   );
 }

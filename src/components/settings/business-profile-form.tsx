@@ -132,6 +132,9 @@ export function BusinessProfileForm({ initialData }: BusinessProfileFormProps) {
               <Loader2 className="size-4 animate-spin text-muted-foreground" />
             )}
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Recommended: 200x200px, PNG or SVG. Max 2 MB.
+          </p>
         </div>
 
         {/* Business Details */}
