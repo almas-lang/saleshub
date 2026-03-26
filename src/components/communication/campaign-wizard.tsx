@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -115,20 +115,23 @@ export function CampaignWizard({
   const [saving, setSaving] = useState(false);
 
   // Reset steps when campaign type changes
-  const prevType = useRef(type);
-  useEffect(() => {
-    if (prevType.current !== type) {
-      prevType.current = type;
+  const handleTypeChange = (newType: CampaignType) => {
+    if (newType !== type) {
+      setType(newType);
       setCampaignSteps([
         { template_id: "", wa_template_name: "", delay_hours: 0, wa_template_params: [] },
       ]);
       setFlowData(null);
     }
-  }, [type]);
+  };
+
+  const handleFilterChange = (filter: AudienceFilter) => {
+    setAudienceFilter(filter);
+    setCountLoading(true);
+  };
 
   // Audience count — debounced
   useEffect(() => {
-    setCountLoading(true);
     const params = new URLSearchParams();
     if (audienceFilter.source) params.set("source", audienceFilter.source);
     if (audienceFilter.funnel_id) params.set("funnel_id", audienceFilter.funnel_id);
@@ -268,14 +271,14 @@ export function CampaignWizard({
             name={name}
             onNameChange={setName}
             type={type}
-            onTypeChange={setType}
+            onTypeChange={handleTypeChange}
           />
         )}
 
         {step === 1 && (
           <CampaignStepAudience
             filter={audienceFilter}
-            onFilterChange={setAudienceFilter}
+            onFilterChange={handleFilterChange}
             sources={sources}
             funnels={funnels}
             stages={stages}

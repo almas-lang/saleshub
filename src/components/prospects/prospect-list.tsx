@@ -173,15 +173,18 @@ export function ProspectList({
   // Sync visible columns with localStorage after mount (avoids hydration mismatch)
   const [columnsHydrated, setColumnsHydrated] = useState(false);
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setVisibleColumns(new Set(JSON.parse(saved)));
-      } catch {
-        // ignore corrupt data
+    const run = () => {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          setVisibleColumns(new Set(JSON.parse(saved)));
+        } catch {
+          // ignore corrupt data
+        }
       }
-    }
-    setColumnsHydrated(true);
+      setColumnsHydrated(true);
+    };
+    run();
   }, []);
 
   useEffect(() => {

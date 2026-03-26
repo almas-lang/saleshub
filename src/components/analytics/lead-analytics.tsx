@@ -32,9 +32,13 @@ export function LeadAnalyticsView() {
   const [data, setData] = useState<LeadAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
+    setLoading(true);
+  };
+
   useEffect(() => {
     if (!dateRange?.from || !dateRange?.to) return;
-    setLoading(true);
     fetch(`/api/analytics/leads?from=${format(dateRange.from, "yyyy-MM-dd")}&to=${format(dateRange.to, "yyyy-MM-dd")}`)
       .then((r) => r.json())
       .then(setData)
@@ -55,7 +59,7 @@ export function LeadAnalyticsView() {
     <div className="space-y-6">
       {/* Header bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
         <div className="ml-auto flex items-center gap-2">
           <Badge variant="secondary" className="gap-1.5 px-3 py-1.5">
             <Users className="size-3.5 text-blue-600 dark:text-blue-400" />

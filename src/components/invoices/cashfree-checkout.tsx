@@ -28,15 +28,18 @@ export function CashfreeCheckout({ paymentSessionId, mode }: CashfreeCheckoutPro
     if (!sdkReady || launched.current) return;
     launched.current = true;
 
-    try {
-      const cashfree = window.Cashfree({ mode });
-      cashfree.checkout({
-        paymentSessionId,
-        redirectTarget: "_self",
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to open checkout");
-    }
+    const run = () => {
+      try {
+        const cashfree = window.Cashfree({ mode });
+        cashfree.checkout({
+          paymentSessionId,
+          redirectTarget: "_self",
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to open checkout");
+      }
+    };
+    run();
   }, [sdkReady, paymentSessionId, mode]);
 
   return (

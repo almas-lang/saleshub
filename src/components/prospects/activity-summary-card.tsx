@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -17,23 +18,26 @@ export function ActivitySummaryCard({
   lastContactDate,
 }: ActivitySummaryProps) {
   // Color code the last contact date
-  let lastContactColor = "text-muted-foreground";
-  let lastContactText = "Never";
-  if (lastContactDate) {
-    const daysSince = Math.floor(
-      (Date.now() - new Date(lastContactDate).getTime()) / (1000 * 60 * 60 * 24)
-    );
-    if (daysSince <= 3) {
-      lastContactColor = "text-emerald-600";
-      lastContactText = daysSince === 0 ? "Today" : `${daysSince}d ago`;
-    } else if (daysSince <= 7) {
-      lastContactColor = "text-amber-600";
-      lastContactText = `${daysSince}d ago`;
-    } else {
-      lastContactColor = "text-destructive";
-      lastContactText = `${daysSince}d ago`;
+  const { lastContactColor, lastContactText } = useMemo(() => {
+    let color = "text-muted-foreground";
+    let text = "Never";
+    if (lastContactDate) {
+      const daysSince = Math.floor(
+        (Date.now() - new Date(lastContactDate).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      if (daysSince <= 3) {
+        color = "text-emerald-600";
+        text = daysSince === 0 ? "Today" : `${daysSince}d ago`;
+      } else if (daysSince <= 7) {
+        color = "text-amber-600";
+        text = `${daysSince}d ago`;
+      } else {
+        color = "text-destructive";
+        text = `${daysSince}d ago`;
+      }
     }
-  }
+    return { lastContactColor: color, lastContactText: text };
+  }, [lastContactDate]);
 
   return (
     <Card>

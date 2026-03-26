@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { format, addDays, isBefore, startOfDay } from "date-fns";
 import {
   Calendar as CalendarIcon,
@@ -83,7 +83,17 @@ export function BookingWidget({
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
-  const [formData, setFormData] = useState<Record<string, string>>({});
+  const formDefaults = useMemo(() => {
+    const defaults: Record<string, string> = {};
+    for (const field of formFields) {
+      if (field.defaultValue) {
+        defaults[field.label] = field.defaultValue;
+      }
+    }
+    return defaults;
+  }, [formFields]);
+
+  const [formData, setFormData] = useState<Record<string, string>>(formDefaults);
   const [submitting, setSubmitting] = useState(false);
   const [meetLink, setMeetLink] = useState<string | null>(null);
   const [errors, setErrors] = useState<Set<string>>(new Set());
@@ -91,15 +101,13 @@ export function BookingWidget({
 
   const stepIndex = STEPS.indexOf(step);
 
+  const prevDefaultsRef = useRef(formDefaults);
   useEffect(() => {
-    const defaults: Record<string, string> = {};
-    for (const field of formFields) {
-      if (field.defaultValue) {
-        defaults[field.label] = field.defaultValue;
-      }
+    if (prevDefaultsRef.current !== formDefaults) {
+      prevDefaultsRef.current = formDefaults;
+      setFormData(formDefaults);
     }
-    setFormData(defaults);
-  }, [formFields]);
+  }, [formDefaults]);
 
   // Build redirect URL with tracking params
   const redirectUrl = (() => {
@@ -113,7 +121,6 @@ export function BookingWidget({
 
   useEffect(() => {
     if (step !== "confirmed") return;
-    setCountdown(5);
     const interval = setInterval(() => {
       setCountdown((n) => {
         if (n <= 1) {
@@ -127,27 +134,24 @@ export function BookingWidget({
     return () => clearInterval(interval);
   }, [step, redirectUrl]);
 
-  const fetchSlots = useCallback(
-    async (date: Date) => {
-      setLoadingSlots(true);
-      setSlots([]);
-      setSelectedSlot(null);
+  const fetchSlots = async (date: Date) => {
+    setLoadingSlots(true);
+    setSlots([]);
+    setSelectedSlot(null);
 
-      const dateStr = format(date, "yyyy-MM-dd");
-      const result = await safeFetch<{ data: TimeSlot[] }>(
-        "/api/bookings/availability",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slug, date: dateStr }),
-        }
-      );
+    const dateStr = format(date, "yyyy-MM-dd");
+    const result = await safeFetch<{ data: TimeSlot[] }>(
+      "/api/bookings/availability",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug, date: dateStr }),
+      }
+    );
 
-      setLoadingSlots(false);
-      if (result.ok) setSlots(result.data.data);
-    },
-    [slug]
-  );
+    setLoadingSlots(false);
+    if (result.ok) setSlots(result.data.data);
+  };
 
   function handleDateSelect(date: Date | undefined) {
     if (!date) return;
@@ -208,9 +212,10 @@ export function BookingWidget({
     setSubmitting(false);
     if (result.ok) {
       setMeetLink(result.data.meet_link);
+      setCountdown(5);
       setStep("confirmed");
-      if (typeof window !== "undefined" && (window as any).fbq) {
-        (window as any).fbq("track", "Lead", {
+      if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).fbq) {
+        (window as unknown as Record<string, ((...args: unknown[]) => void)>).fbq("track", "Lead", {
           content_name: title,
           ...(trackingParams.utm_source && {
             utm_source: trackingParams.utm_source,
@@ -218,7 +223,7 @@ export function BookingWidget({
         });
       }
     } else if (
-      (result as any).data?.code === "SLOT_TAKEN" ||
+      (result as unknown as { data?: { code?: string } }).data?.code === "SLOT_TAKEN" ||
       result.error?.includes("just booked")
     ) {
       toast.error("This slot was just taken. Refreshing available times...");

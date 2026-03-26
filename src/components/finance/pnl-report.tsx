@@ -62,13 +62,19 @@ export function PnLReportView() {
   useEffect(() => {
     if (!dateRange?.from || !dateRange?.to) return;
 
-    setLoading(true);
-    fetch(
-      `/api/finance/reports/pnl?from=${format(dateRange.from, "yyyy-MM-dd")}&to=${format(dateRange.to, "yyyy-MM-dd")}`
-    )
-      .then((r) => r.json())
-      .then(setReport)
-      .finally(() => setLoading(false));
+    const run = async () => {
+      setLoading(true);
+      try {
+        const r = await fetch(
+          `/api/finance/reports/pnl?from=${format(dateRange.from!, "yyyy-MM-dd")}&to=${format(dateRange.to!, "yyyy-MM-dd")}`
+        );
+        const json = await r.json();
+        setReport(json);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
   }, [dateRange]);
 
   if (loading) return <PnLSkeleton />;

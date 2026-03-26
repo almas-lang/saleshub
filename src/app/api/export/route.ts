@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       if (filters.to) query = query.lte("date", filters.to);
 
       const { data } = await query.limit(1000);
-      rows = (data ?? []).map((r: Record<string, any>) => ({
+      rows = (data ?? []).map((r) => ({
         Date: r.date,
         Platform: r.platform,
         Campaign: r.campaign_name,

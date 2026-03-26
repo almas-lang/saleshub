@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { CustomerList } from "@/components/customers/customer-list";
+import type { ContactWithStage } from "@/types/contacts";
+import type { CustomerProgram } from "@/types/customers";
 
 const ALLOWED_SORT_FIELDS = ["converted_at", "first_name", "totalPaid"] as const;
 
@@ -14,7 +16,7 @@ export default async function CustomersPage({
   const page = Math.max(1, parseInt(params.page ?? "1"));
   const perPage = Math.min(Math.max(parseInt(params.per_page ?? "25"), 10), 100);
   const search = params.search?.trim() ?? "";
-  const sortField = ALLOWED_SORT_FIELDS.includes(params.sort as any) ? params.sort! : "converted_at";
+  const sortField = ALLOWED_SORT_FIELDS.includes(params.sort as typeof ALLOWED_SORT_FIELDS[number]) ? params.sort! : "converted_at";
   const sortOrder = params.order === "asc" ? true : false;
   const statusFilter = params.status ?? "all";
 
@@ -46,8 +48,8 @@ export default async function CustomersPage({
 
   // Fetch programs and paid invoice totals for all customers
   const contactIds = (customers ?? []).map((c) => c.id);
-  let programsMap: Record<string, unknown[]> = {};
-  let paidTotalsMap: Record<string, number> = {};
+  const programsMap: Record<string, unknown[]> = {};
+  const paidTotalsMap: Record<string, number> = {};
 
   if (contactIds.length > 0) {
     const [{ data: programs }, { data: invoices }] = await Promise.all([
@@ -92,11 +94,11 @@ export default async function CustomersPage({
   // Filter by program status (client-side since it's a computed field)
   if (statusFilter === "active") {
     customersWithPrograms = customersWithPrograms.filter((c) =>
-      (c.programs as any[]).some((p) => p.status === "active")
+      (c.programs as CustomerProgram[]).some((p) => p.status === "active")
     );
   } else if (statusFilter === "completed") {
     customersWithPrograms = customersWithPrograms.filter((c) =>
-      (c.programs as any[]).every((p) => p.status === "completed") && c.programs.length > 0
+      (c.programs as CustomerProgram[]).every((p) => p.status === "completed") && c.programs.length > 0
     );
   } else if (statusFilter === "no_program") {
     customersWithPrograms = customersWithPrograms.filter((c) => c.programs.length === 0);
@@ -104,7 +106,7 @@ export default async function CustomersPage({
 
   return (
     <CustomerList
-      customers={customersWithPrograms as any}
+      customers={customersWithPrograms as unknown as (ContactWithStage & { programs: CustomerProgram[]; totalPaid: number })[]}
       total={total}
       page={page}
       perPage={perPage}

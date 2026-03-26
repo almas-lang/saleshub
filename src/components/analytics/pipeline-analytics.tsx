@@ -19,9 +19,13 @@ export function PipelineAnalyticsView({ funnels }: PipelineAnalyticsViewProps) {
   const [data, setData] = useState<PipelineAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const handleFunnelChange = (funnelId: string) => {
+    setSelectedFunnel(funnelId);
+    setLoading(true);
+  };
+
   useEffect(() => {
     if (!selectedFunnel) return;
-    setLoading(true);
     fetch(`/api/analytics/pipeline?funnel_id=${selectedFunnel}`)
       .then((r) => r.json())
       .then(setData)
@@ -39,7 +43,7 @@ export function PipelineAnalyticsView({ funnels }: PipelineAnalyticsViewProps) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={selectedFunnel} onValueChange={setSelectedFunnel}>
+        <Select value={selectedFunnel} onValueChange={handleFunnelChange}>
           <SelectTrigger className="h-9 w-[200px]">
             <SelectValue placeholder="Select funnel" />
           </SelectTrigger>

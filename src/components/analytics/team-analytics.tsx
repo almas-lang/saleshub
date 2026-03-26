@@ -62,9 +62,13 @@ export function TeamAnalyticsView() {
   const [data, setData] = useState<TeamAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setDateRange(range);
+    setLoading(true);
+  };
+
   useEffect(() => {
     if (!dateRange?.from || !dateRange?.to) return;
-    setLoading(true);
     fetch(`/api/analytics/team?from=${format(dateRange.from, "yyyy-MM-dd")}&to=${format(dateRange.to, "yyyy-MM-dd")}`)
       .then((r) => r.json())
       .then(setData)
@@ -92,7 +96,7 @@ export function TeamAnalyticsView() {
 
   return (
     <div className="space-y-6">
-      <DateRangePicker value={dateRange} onChange={setDateRange} />
+      <DateRangePicker value={dateRange} onChange={handleDateRangeChange} />
 
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

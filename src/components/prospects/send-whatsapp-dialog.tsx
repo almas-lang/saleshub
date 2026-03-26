@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Send, ArrowLeft, Loader2, Check } from "lucide-react";
@@ -50,34 +50,29 @@ export function SendWhatsAppDialog({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<WATemplate | null>(null);
   const [sending, setSending] = useState(false);
-  const prevOpenRef = useRef(open);
 
-  // Reset state synchronously on open change (outside effect)
-  if (open && !prevOpenRef.current) {
-    setSelected(null);
-    setError(null);
-    setLoading(true);
-  }
-  prevOpenRef.current = open;
-
-  // Fetch templates when dialog opens
+  // Reset state and fetch templates when dialog opens
   useEffect(() => {
     if (!open) return;
 
-    safeFetch<{ templates: WATemplate[] }>("/api/whatsapp/templates").then(
-      (result) => {
-        setLoading(false);
-        if (!result.ok) {
-          setError(result.error);
-          return;
-        }
-        // Only show approved templates
-        const approved = result.data.templates.filter(
-          (t) => t.status === "APPROVED"
-        );
-        setTemplates(approved);
+    const run = async () => {
+      setSelected(null);
+      setError(null);
+      setLoading(true);
+
+      const result = await safeFetch<{ templates: WATemplate[] }>("/api/whatsapp/templates");
+      setLoading(false);
+      if (!result.ok) {
+        setError(result.error);
+        return;
       }
-    );
+      // Only show approved templates
+      const approved = result.data.templates.filter(
+        (t) => t.status === "APPROVED"
+      );
+      setTemplates(approved);
+    };
+    run();
   }, [open]);
 
   function getBodyText(template: WATemplate): string {

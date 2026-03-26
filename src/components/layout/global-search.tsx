@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserPlus, ListChecks } from "lucide-react";
 import {
@@ -35,30 +35,31 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   const [searching, setSearching] = useState(false);
 
   // Reset query when dialog closes
-  useEffect(() => {
-    if (!open) setQuery("");
-  }, [open]);
+  const handleOpenChange = useCallback(
+    (value: boolean) => {
+      if (!value) setQuery("");
+      onOpenChange(value);
+    },
+    [onOpenChange]
+  );
 
   // Fetch contacts when debounced query changes
   useEffect(() => {
-    if (debouncedQuery.length < 2) {
-      setContacts([]);
-      setSearching(false);
-      return;
-    }
+    if (debouncedQuery.length < 2) return;
 
     let cancelled = false;
-    setSearching(true);
-
-    safeFetch<ContactsResponse>(
-      `/api/contacts?search=${encodeURIComponent(debouncedQuery)}&per_page=5`
-    ).then((result) => {
+    const run = async () => {
+      setSearching(true);
+      const result = await safeFetch<ContactsResponse>(
+        `/api/contacts?search=${encodeURIComponent(debouncedQuery)}&per_page=5`
+      );
       if (cancelled) return;
       if (result.ok) {
         setContacts(result.data.data);
       }
       setSearching(false);
-    });
+    };
+    run();
 
     return () => {
       cancelled = true;
@@ -74,7 +75,7 @@ export function GlobalSearch({ open, onOpenChange }: GlobalSearchProps) {
   const lowerQuery = query.toLowerCase();
 
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false}>
+    <CommandDialog open={open} onOpenChange={handleOpenChange} shouldFilter={false}>
       <CommandInput
         placeholder="Search contacts, pages..."
         value={query}

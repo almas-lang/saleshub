@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft,
   Pencil,
@@ -902,12 +903,12 @@ export function ProspectDetail({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-medium">Invoices</h3>
-              <a href="/invoices/new">
+              <Link href="/invoices/new">
                 <Button size="sm" variant="outline">
                   <FileText className="mr-1.5 size-3.5" />
                   New Invoice
                 </Button>
-              </a>
+              </Link>
             </div>
             {invoices.length === 0 ? (
               <div className="py-8 text-center">

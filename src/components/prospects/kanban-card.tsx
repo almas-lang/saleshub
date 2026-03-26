@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { useRouter } from "next/navigation";
 import { Phone, AlertCircle, ArrowRightLeft } from "lucide-react";
@@ -25,18 +25,19 @@ const LONG_PRESS_MS = 500;
 
 function getUrgencyBorderColor(
   lastActivity: string | undefined,
-  stageColor: string
+  stageColor: string,
+  now: number
 ) {
   if (!lastActivity) return "var(--destructive, #D94F4F)";
-  const elapsed = Date.now() - new Date(lastActivity).getTime();
+  const elapsed = now - new Date(lastActivity).getTime();
   if (elapsed > SEVEN_DAYS_MS) return "var(--destructive, #D94F4F)";
   if (elapsed > THREE_DAYS_MS) return "var(--warning, #E59A0B)";
   return stageColor;
 }
 
-function getActivityTimeColor(lastActivity: string | undefined) {
+function getActivityTimeColor(lastActivity: string | undefined, now: number) {
   if (!lastActivity) return "text-destructive";
-  const elapsed = Date.now() - new Date(lastActivity).getTime();
+  const elapsed = now - new Date(lastActivity).getTime();
   if (elapsed > SEVEN_DAYS_MS) return "text-destructive";
   if (elapsed > THREE_DAYS_MS) return "text-amber-500";
   return "text-muted-foreground";
@@ -64,10 +65,11 @@ export function KanbanCard({
     disabled: isOverlay || !!onMovePress,
   });
 
-  const borderColor = getUrgencyBorderColor(lastActivity, stageColor);
+  const now = useMemo(() => Date.now(), []);
+  const borderColor = getUrgencyBorderColor(lastActivity, stageColor, now);
   const isUrgent =
     !lastActivity ||
-    Date.now() - new Date(lastActivity).getTime() > THREE_DAYS_MS;
+    now - new Date(lastActivity).getTime() > THREE_DAYS_MS;
 
   const waLink = contact.phone
     ? `https://wa.me/${contact.phone.replace(/\D/g, "")}`
@@ -177,7 +179,7 @@ export function KanbanCard({
           suppressHydrationWarning
           className={cn(
             "text-[11px] leading-none",
-            getActivityTimeColor(lastActivity)
+            getActivityTimeColor(lastActivity, now)
           )}
         >
           {lastActivity ? timeAgo(lastActivity) : "No activity"}

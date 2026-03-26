@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   }
 
-  const eventData = event as Record<string, any>;
+  const eventData = event as { data?: { object?: { metadata?: { invoice_id?: string }; id: string } } };
   const session = eventData.data?.object as { metadata?: { invoice_id?: string }; id: string };
   const invoiceId = session.metadata?.invoice_id;
 

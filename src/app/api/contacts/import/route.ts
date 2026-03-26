@@ -98,8 +98,8 @@ export async function POST(request: Request) {
   // Normalize phones for lookup
   const normalizedPhones = phones.map((p) => formatPhone(p));
 
-  let existingByEmail: Record<string, Record<string, unknown>> = {};
-  let existingByPhone: Record<string, Record<string, unknown>> = {};
+  const existingByEmail: Record<string, Record<string, unknown>> = {};
+  const existingByPhone: Record<string, Record<string, unknown>> = {};
 
   if (config.duplicate_handling !== "create_always") {
     if (emails.length > 0) {

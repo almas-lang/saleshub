@@ -202,8 +202,11 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+    edgesRef.current = edges;
+  });
 
   useEffect(() => {
     clearTimeout(debounceRef.current);

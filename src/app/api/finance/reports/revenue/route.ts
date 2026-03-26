@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   // Fetch parent invoice contact info for installments
   const instInvoiceIds = [...new Set(installments.map((i) => i.invoice_id))];
-  let instContactMap: Record<string, { contact_id: string | null; name: string }> = {};
+  const instContactMap: Record<string, { contact_id: string | null; name: string }> = {};
   if (instInvoiceIds.length > 0) {
     const { data: parentInvs } = await supabase
       .from("invoices")

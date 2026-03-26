@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
 import { CustomerDetail } from "@/components/customers/customer-detail";
 import type { InvoiceWithContact } from "@/types/invoices";
+import type { ContactWithStage } from "@/types/contacts";
 
 export default async function CustomerDetailPage({
   params,
@@ -52,7 +53,7 @@ export default async function CustomerDetailPage({
 
   return (
     <CustomerDetail
-      customer={customer as any}
+      customer={customer as unknown as ContactWithStage}
       programs={programs}
       invoices={invoices}
       totalPaid={totalPaid}
