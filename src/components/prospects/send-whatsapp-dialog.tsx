@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Send, ArrowLeft, Loader2, Check } from "lucide-react";
@@ -50,13 +50,19 @@ export function SendWhatsAppDialog({
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<WATemplate | null>(null);
   const [sending, setSending] = useState(false);
+  const prevOpenRef = useRef(open);
+
+  // Reset state synchronously on open change (outside effect)
+  if (open && !prevOpenRef.current) {
+    setSelected(null);
+    setError(null);
+    setLoading(true);
+  }
+  prevOpenRef.current = open;
 
   // Fetch templates when dialog opens
   useEffect(() => {
     if (!open) return;
-    setSelected(null);
-    setError(null);
-    setLoading(true);
 
     safeFetch<{ templates: WATemplate[] }>("/api/whatsapp/templates").then(
       (result) => {
