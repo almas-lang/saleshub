@@ -254,6 +254,7 @@ export const createEmailCampaignSchema = z.object({
   steps: z.array(z.object({
     order: z.number().int().min(1),
     subject: z.string().min(1, "Subject is required"),
+    preview_text: z.string().max(150).optional(),
     body_html: z.string().min(1, "Body is required"),
     delay_hours: z.number().int().min(0),
     condition: z.object({
@@ -294,6 +295,7 @@ export const availabilityRulesSchema = z.object({
   max_per_day: z.number().int().min(1).max(50),
   blocked_dates: z.array(z.string()),
   assignment_mode: z.enum(["round_robin", "specific"]),
+  booking_window_days: z.number().int().min(1).max(90).optional(),
 });
 
 export const bookingPageSchema = z.object({
@@ -455,3 +457,15 @@ export const bankImportBatchSchema = z.object({
 });
 
 export type BankImportBatchValues = z.infer<typeof bankImportBatchSchema>;
+
+// ──────────────────────────────────────────
+// Email Templates
+// ──────────────────────────────────────────
+
+export const emailTemplateSchema = z.object({
+  name: z.string().min(1, "Template name is required").max(100),
+  subject: z.string().min(1, "Subject line is required").max(200),
+  body_html: z.string().min(1, "Email body is required"),
+});
+
+export type EmailTemplateValues = z.infer<typeof emailTemplateSchema>;

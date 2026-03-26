@@ -16,7 +16,7 @@ export default async function FinancePage() {
 
   const fyStartStr = format(fyStart, "yyyy-MM-dd");
 
-  const [expenseTransactionsRes, paidInvoicesRes, recentRes] = await Promise.all([
+  const [expenseTransactionsRes, paidInvoicesRes, paidInstallmentsRes, recentRes] = await Promise.all([
     // Only expense transactions — avoids double-counting invoice income transactions
     supabase
       .from("transactions")
@@ -24,12 +24,19 @@ export default async function FinancePage() {
       .eq("type", "expense")
       .gte("date", fyStartStr)
       .order("date", { ascending: true }),
-    // Paid invoices are the authoritative revenue source
+    // Paid invoices (non-installment) are the authoritative revenue source
     supabase
       .from("invoices")
       .select("id, total, paid_at, contact_id")
       .eq("status", "paid")
+      .eq("has_installments", false)
       .not("paid_at", "is", null)
+      .gte("paid_at", fyStart.toISOString()),
+    // Paid installments in the FY
+    supabase
+      .from("installments")
+      .select("id, amount, paid_at, invoice_id")
+      .eq("status", "paid")
       .gte("paid_at", fyStart.toISOString()),
     supabase
       .from("transactions")
@@ -40,9 +47,12 @@ export default async function FinancePage() {
 
   const expenses = (expenseTransactionsRes.data ?? []) as Transaction[];
   const paidInvoices = paidInvoicesRes.data ?? [];
+  const paidInstallments = paidInstallmentsRes.data ?? [];
   const recentTransactions = (recentRes.data ?? []) as Transaction[];
 
-  const totalRevenue = paidInvoices.reduce((s, i) => s + (i.total ?? 0), 0);
+  const invoiceRevenue = paidInvoices.reduce((s, i) => s + (i.total ?? 0), 0);
+  const installmentRevenue = paidInstallments.reduce((s, i) => s + (Number(i.amount) || 0), 0);
+  const totalRevenue = invoiceRevenue + installmentRevenue;
   const totalExpenses = expenses.reduce((s, t) => s + t.amount, 0);
   const netProfit = totalRevenue - totalExpenses;
 
@@ -64,7 +74,25 @@ export default async function FinancePage() {
       updated_at: i.paid_at!,
     }));
 
-  const revenueByMonth = groupByMonth([...syntheticIncome, ...expenses]);
+  // Synthetic income from paid installments
+  const installmentIncome: Transaction[] = paidInstallments
+    .filter((i) => i.paid_at)
+    .map((i) => ({
+      id: i.id,
+      type: "income" as const,
+      amount: Number(i.amount) || 0,
+      date: i.paid_at!.split("T")[0],
+      category: "Invoice Payment",
+      description: null,
+      invoice_id: i.invoice_id ?? null,
+      contact_id: null,
+      gst_applicable: null,
+      receipt_url: null,
+      created_at: i.paid_at!,
+      updated_at: i.paid_at!,
+    }));
+
+  const revenueByMonth = groupByMonth([...syntheticIncome, ...installmentIncome, ...expenses]);
   const expensesByCategory = groupByCategory(expenses);
 
   const summary: FinanceSummary = {

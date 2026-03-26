@@ -70,6 +70,21 @@ export function EmailCampaignStepMessages({
           </div>
 
           <div className="space-y-2">
+            <Label>
+              Preview Text
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                (shown in inbox before opening)
+              </span>
+            </Label>
+            <Input
+              placeholder="Optional preview text..."
+              value={step.preview_text ?? ""}
+              onChange={(e) => updateStep(i, { preview_text: e.target.value || undefined })}
+              maxLength={150}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label>Body</Label>
             <EmailBlockEditor
               content={step.body_html}

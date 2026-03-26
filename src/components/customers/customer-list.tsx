@@ -7,7 +7,7 @@ import {
   UserCheck,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2,
+  ArrowUpDown,
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import type { ContactWithStage } from "@/types/contacts";
@@ -45,6 +45,9 @@ interface CustomerListProps {
   page: number;
   perPage: number;
   totalPages: number;
+  currentSort?: string;
+  currentOrder?: string;
+  currentStatus?: string;
 }
 
 const PER_PAGE_OPTIONS = [10, 25, 50];
@@ -67,6 +70,9 @@ export function CustomerList({
   page,
   perPage,
   totalPages,
+  currentSort = "converted_at",
+  currentOrder = "desc",
+  currentStatus = "all",
 }: CustomerListProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -88,7 +94,9 @@ export function CustomerList({
   const activeCount = customers.filter((c) =>
     c.programs?.some((p) => p.status === "active")
   ).length;
-  const totalRevenue = customers.reduce((s, c) => s + c.totalPaid, 0);
+  const completedCount = customers.filter((c) =>
+    c.programs?.some((p) => p.status === "completed")
+  ).length;
 
   return (
     <div className="space-y-4">
@@ -102,19 +110,37 @@ export function CustomerList({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="Total Customers" value={total} format="number" index={0} />
         <StatCard label="Active Programs" value={activeCount} format="number" color="emerald" index={1} />
-        <StatCard label="Total Revenue" value={totalRevenue} color="emerald" index={2} />
+        <StatCard label="Completed Programs" value={completedCount} format="number" color="blue" index={2} />
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-        <Input
-          placeholder="Search customers..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-          className="pl-8"
-        />
+      {/* Search + Filter */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search customers..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            className="h-9 pl-9 text-sm"
+          />
+        </div>
+        <Select
+          value={currentStatus}
+          onValueChange={(v) =>
+            navigateWithParams({ status: v === "all" ? "" : v, page: "1" })
+          }
+        >
+          <SelectTrigger className="h-9 w-40 text-sm">
+            <SelectValue placeholder="All statuses" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            <SelectItem value="active">Active Program</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="no_program">No Program</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table — Desktop */}
@@ -130,12 +156,54 @@ export function CustomerList({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
+                  <TableHead>
+                    <button
+                      className="flex items-center gap-1 hover:text-foreground"
+                      onClick={() =>
+                        navigateWithParams({
+                          sort: "first_name",
+                          order: currentSort === "first_name" && currentOrder === "asc" ? "desc" : "asc",
+                          page: "1",
+                        })
+                      }
+                    >
+                      Name
+                      <ArrowUpDown className="size-3" />
+                    </button>
+                  </TableHead>
                   <TableHead>Program</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Start Date</TableHead>
+                  <TableHead>
+                    <button
+                      className="flex items-center gap-1 hover:text-foreground"
+                      onClick={() =>
+                        navigateWithParams({
+                          sort: "converted_at",
+                          order: currentSort === "converted_at" && currentOrder === "desc" ? "asc" : "desc",
+                          page: "1",
+                        })
+                      }
+                    >
+                      Start Date
+                      <ArrowUpDown className="size-3" />
+                    </button>
+                  </TableHead>
                   <TableHead>Sessions</TableHead>
-                  <TableHead className="text-right">Total Paid</TableHead>
+                  <TableHead className="text-right">
+                    <button
+                      className="ml-auto flex items-center gap-1 hover:text-foreground"
+                      onClick={() =>
+                        navigateWithParams({
+                          sort: "totalPaid",
+                          order: currentSort === "totalPaid" && currentOrder === "desc" ? "asc" : "desc",
+                          page: "1",
+                        })
+                      }
+                    >
+                      Total Paid
+                      <ArrowUpDown className="size-3" />
+                    </button>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

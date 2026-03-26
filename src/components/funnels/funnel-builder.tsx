@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { StageCard, COLOR_PALETTE, type StageItem } from "./stage-card";
+import { FunnelPipeline } from "./funnel-pipeline";
 import { FunnelForm } from "./funnel-form";
 
 const SALES_TYPE_LABELS: Record<string, string> = {
@@ -178,6 +179,9 @@ export function FunnelBuilder({
           Edit details
         </Button>
       </div>
+
+      {/* Pipeline visualization */}
+      <FunnelPipeline stages={stages} contactCounts={stageContactCounts} />
 
       <Separator />
 

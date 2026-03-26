@@ -144,9 +144,9 @@ export function StageCard({ stage, contactCount, onUpdate, onDelete }: StageCard
           />
           <span className="flex-1 text-sm font-medium">{stage.name}</span>
           {contactCount !== undefined && contactCount > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <Badge variant="secondary" className="text-[11px] font-normal">
               {contactCount} contact{contactCount !== 1 ? "s" : ""}
-            </span>
+            </Badge>
           )}
           {stage.is_terminal && (
             <Badge variant="outline" className="text-xs">

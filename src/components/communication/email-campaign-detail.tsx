@@ -131,6 +131,7 @@ export function EmailCampaignDetail({
   const [loading, setLoading] = useState(false);
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [editSubject, setEditSubject] = useState("");
+  const [editPreviewText, setEditPreviewText] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editDelayHours, setEditDelayHours] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -140,6 +141,7 @@ export function EmailCampaignDetail({
   function startEditing(step: EmailStep) {
     setEditingStepId(step.id);
     setEditSubject(step.subject);
+    setEditPreviewText(step.preview_text ?? "");
     setEditBody(step.body_html);
     setEditDelayHours(step.delay_hours);
   }
@@ -147,6 +149,7 @@ export function EmailCampaignDetail({
   function cancelEditing() {
     setEditingStepId(null);
     setEditSubject("");
+    setEditPreviewText("");
     setEditBody("");
     setEditDelayHours(0);
   }
@@ -164,6 +167,7 @@ export function EmailCampaignDetail({
             {
               id: editingStepId,
               subject: editSubject,
+              preview_text: editPreviewText || null,
               body_html: editBody,
               delay_hours: editDelayHours,
             },
@@ -394,6 +398,21 @@ export function EmailCampaignDetail({
                         value={editSubject}
                         onChange={(e) => setEditSubject(e.target.value)}
                         placeholder="Email subject"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Label htmlFor="edit-preview">
+                        Preview Text
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
+                          (shown in inbox before opening)
+                        </span>
+                      </Label>
+                      <Input
+                        id="edit-preview"
+                        value={editPreviewText}
+                        onChange={(e) => setEditPreviewText(e.target.value)}
+                        placeholder="Optional preview text..."
+                        maxLength={150}
                       />
                     </div>
                     <div className="flex flex-col gap-2">

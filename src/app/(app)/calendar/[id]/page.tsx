@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { BookingPageBuilder } from "@/components/calendar/booking-page-builder";
 import { SetBreadcrumb } from "@/components/layout/breadcrumb-context";
+import { BookingPreviewCard } from "@/components/calendar/booking-preview-card";
 import type { BookingPageWithCount, TeamMember } from "@/types/bookings";
 
 export default async function BookingPageDetailPage({
@@ -12,7 +13,7 @@ export default async function BookingPageDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [{ data, error }, { data: members }] = await Promise.all([
+  const [{ data, error }, { data: members }, { count: upcomingCount }] = await Promise.all([
     supabase
       .from("booking_pages")
       .select("*, bookings(count)")
@@ -23,6 +24,12 @@ export default async function BookingPageDetailPage({
       .select("id, name")
       .eq("is_active", true)
       .order("name"),
+    supabase
+      .from("bookings")
+      .select("*", { count: "exact", head: true })
+      .eq("booking_page_id", id)
+      .gte("starts_at", new Date().toISOString())
+      .neq("status", "cancelled"),
   ]);
 
   if (error || !data) {
@@ -42,10 +49,17 @@ export default async function BookingPageDetailPage({
           { label: data.title },
         ]}
       />
-      <BookingPageBuilder
-        page={page}
-        teamMembers={(members ?? []) as TeamMember[]}
-      />
+      <div className="page-enter space-y-6">
+        <BookingPreviewCard
+          slug={page.slug}
+          totalBookings={page.booking_count}
+          upcomingBookings={upcomingCount ?? 0}
+        />
+        <BookingPageBuilder
+          page={page}
+          teamMembers={(members ?? []) as TeamMember[]}
+        />
+      </div>
     </>
   );
 }

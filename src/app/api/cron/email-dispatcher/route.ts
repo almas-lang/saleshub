@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendEmail, renderVariables } from "@/lib/email/client";
-import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
+import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const BATCH_LIMIT = 50;
+const CONCURRENCY = 10;
 
 /**
  * Cron: Email Dispatcher
@@ -48,22 +50,22 @@ export async function GET(request: NextRequest) {
   const stepIds = [...new Set(queuedSends.map((s) => s.step_id).filter(Boolean))] as string[];
   const contactIds = [...new Set(queuedSends.map((s) => s.contact_id))];
 
-  // Fetch steps
-  const { data: steps } = await supabaseAdmin
-    .from("email_steps")
-    .select("id, subject, body_html")
-    .in("id", stepIds);
+  // Fetch steps and contacts in parallel
+  const [{ data: steps }, { data: contacts }] = await Promise.all([
+    supabaseAdmin
+      .from("email_steps")
+      .select("id, subject, preview_text, body_html")
+      .in("id", stepIds),
+    supabaseAdmin
+      .from("contacts")
+      .select("id, first_name, last_name, email, company_name")
+      .in("id", contactIds),
+  ]);
 
-  const stepMap = new Map<string, { subject: string; body_html: string }>();
+  const stepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string }>();
   for (const step of steps ?? []) {
-    stepMap.set(step.id, { subject: step.subject, body_html: step.body_html });
+    stepMap.set(step.id, { subject: step.subject, preview_text: step.preview_text, body_html: step.body_html });
   }
-
-  // Fetch contacts
-  const { data: contacts } = await supabaseAdmin
-    .from("contacts")
-    .select("id, first_name, last_name, email, company_name")
-    .in("id", contactIds);
 
   const contactMap = new Map<string, {
     email: string;
@@ -82,24 +84,32 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Pre-render the wrapper HTML once per step (preview text differs per step).
+  // Each step gets its own wrapper with the correct preview text baked in.
+  const wrapperCache = new Map<string, { wrapperHtml: string; placeholder: string }>();
+  for (const [stepId, step] of stepMap) {
+    const result = await renderDripWrapper({ preview: step.preview_text ?? step.subject });
+    wrapperCache.set(stepId, result);
+  }
+
   let sent = 0;
   let failed = 0;
 
-  for (const send of queuedSends) {
+  // Process a single send
+  async function processSend(send: { id: string; campaign_id: string | null; step_id: string | null; contact_id: string }) {
     const step = send.step_id ? stepMap.get(send.step_id) : null;
     const contact = contactMap.get(send.contact_id);
+    const wrapper = send.step_id ? wrapperCache.get(send.step_id) : null;
 
-    if (!step || !contact) {
-      // Mark as failed — missing data
+    if (!step || !contact || !wrapper) {
       await supabaseAdmin
         .from("email_sends")
         .update({ status: "failed" })
         .eq("id", send.id);
-      failed++;
-      continue;
+      return false;
     }
 
-    // Render variables
+    // Render variables in subject and body
     const vars: Record<string, string> = {
       first_name: contact.first_name ?? "",
       last_name: contact.last_name ?? "",
@@ -108,13 +118,11 @@ export async function GET(request: NextRequest) {
       company_name: contact.company_name ?? "",
     };
 
-    const rawSubject = renderVariables(step.subject, vars);
-    const rawHtml = renderVariables(step.body_html, vars);
+    const subject = renderVariables(step.subject, vars);
+    const bodyHtml = renderVariables(step.body_html, vars);
 
-    const { subject, html } = await renderDripEmail({
-      subject: rawSubject,
-      bodyHtml: rawHtml,
-    });
+    // Swap placeholder with the contact's rendered body (no React render needed)
+    const html = wrapper.wrapperHtml.replace(wrapper.placeholder, bodyHtml);
 
     const result = await sendEmail({
       to: contact.email,
@@ -127,30 +135,39 @@ export async function GET(request: NextRequest) {
     });
 
     if (result.success) {
-      await supabaseAdmin
-        .from("email_sends")
-        .update({
-          status: "sent",
-          sent_at: new Date().toISOString(),
-          resend_message_id: result.messageId ?? null,
-        })
-        .eq("id", send.id);
-
-      // Log activity
-      await supabaseAdmin.from("activities").insert({
-        contact_id: send.contact_id,
-        type: "email_sent",
-        title: `Campaign email sent: ${subject}`,
-      });
-
-      sent++;
+      await Promise.all([
+        supabaseAdmin
+          .from("email_sends")
+          .update({
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            resend_message_id: result.messageId ?? null,
+          })
+          .eq("id", send.id),
+        supabaseAdmin.from("activities").insert({
+          contact_id: send.contact_id,
+          type: "email_sent",
+          title: `Campaign email sent: ${subject}`,
+        }),
+      ]);
+      return true;
     } else {
       await supabaseAdmin
         .from("email_sends")
         .update({ status: "failed" })
         .eq("id", send.id);
-      failed++;
       console.error(`[Email Dispatcher] Failed send ${send.id}:`, result.error);
+      return false;
+    }
+  }
+
+  // Process in parallel chunks of CONCURRENCY
+  for (let i = 0; i < queuedSends.length; i += CONCURRENCY) {
+    const chunk = queuedSends.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(chunk.map(processSend));
+    for (const ok of results) {
+      if (ok) sent++;
+      else failed++;
     }
   }
 

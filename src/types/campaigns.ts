@@ -129,6 +129,7 @@ export type EmailSendStatus = Enums<"email_send_status">;
 // Draft step shape used in the email campaign wizard
 export interface EmailStepDraft {
   subject: string;
+  preview_text?: string;
   body_html: string;
   delay_hours: number;
   condition?: { check: string; value?: string };

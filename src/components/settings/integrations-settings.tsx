@@ -185,6 +185,11 @@ export function IntegrationsSettings({
               <p className="text-sm text-muted-foreground">
                 Payment links for Indian payments (UPI, Cards)
               </p>
+              {!cashfreeConfigured && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Set CASHFREE_APP_ID and CASHFREE_SECRET_KEY in your environment variables.
+                </p>
+              )}
             </div>
           </div>
           <Badge variant="secondary" className={cashfreeConfigured ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}>
@@ -205,6 +210,11 @@ export function IntegrationsSettings({
               <p className="text-sm text-muted-foreground">
                 International payment processing
               </p>
+              {!stripeConfigured && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET in your environment variables.
+                </p>
+              )}
             </div>
           </div>
           <Badge variant="secondary" className={stripeConfigured ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}>
@@ -225,6 +235,11 @@ export function IntegrationsSettings({
               <p className="text-sm text-muted-foreground">
                 Import ad spend data from Facebook/Instagram
               </p>
+              {!metaAdsConfigured && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Set META_ACCESS_TOKEN and META_AD_ACCOUNT_ID in your environment variables.
+                </p>
+              )}
             </div>
           </div>
           <Badge variant="secondary" className={metaAdsConfigured ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"}>
