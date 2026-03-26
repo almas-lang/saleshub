@@ -1,7 +1,7 @@
 import { Text } from "@react-email/components";
 import { render } from "@react-email/components";
 import * as React from "react";
-import { BaseLayout, brand, styles } from "./base-layout";
+import { BaseLayout, styles } from "./base-layout";
 
 // ── Props ───────────────────────────────────────────
 interface BookingConfirmationProps {

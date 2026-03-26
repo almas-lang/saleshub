@@ -154,6 +154,7 @@ export function verifyCashfreeSignature(
   signature: string
 ): boolean {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const crypto = require("crypto");
     const hmac = crypto
       .createHmac("sha256", CASHFREE_SECRET_KEY)

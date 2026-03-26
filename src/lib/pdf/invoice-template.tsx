@@ -243,6 +243,7 @@ export function InvoicePDF({
           </View>
           {qrCodeDataUrl && (
             <View style={{ alignItems: "center" }}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
               <Image style={styles.qrCode} src={qrCodeDataUrl} />
               <Text style={styles.qrLabel}>Scan to Pay (UPI)</Text>
             </View>

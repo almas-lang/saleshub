@@ -81,6 +81,7 @@ export function constructStripeEvent(
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!secret) return null;
 
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const crypto = require("crypto");
     const parts = signature.split(",").reduce(
       (acc: Record<string, string>, part: string) => {

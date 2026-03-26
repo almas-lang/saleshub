@@ -2,7 +2,6 @@ import {
   Body,
   Container,
   Head,
-  Hr,
   Html,
   Link,
   Preview,

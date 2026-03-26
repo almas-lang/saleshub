@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { format, eachDayOfInterval, parseISO, subDays } from "date-fns";
+import { format, eachDayOfInterval, parseISO } from "date-fns";
 import type {
   AnalyticsOverview,
   LeadAnalytics,
