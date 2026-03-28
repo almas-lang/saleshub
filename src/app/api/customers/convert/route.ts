@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { convertToCustomerSchema } from "@/lib/validations";
 import { getNextInvoiceNumber } from "@/lib/invoices/utils";
 
@@ -27,13 +28,37 @@ export async function POST(request: Request) {
     create_invoice,
   } = parsed.data;
 
-  // 1. Update contact type to "customer" and set converted_at
+  // 1. Update contact type to "customer", set converted_at, move to terminal stage
+  // Find the contact's current funnel to look for a terminal/won stage
+  const { data: currentContact } = await supabase
+    .from("contacts")
+    .select("funnel_id")
+    .eq("id", contact_id)
+    .single();
+
+  let terminalStageId: string | null = null;
+  if (currentContact?.funnel_id) {
+    const { data: wonStage } = await supabase
+      .from("funnel_stages")
+      .select("id")
+      .eq("funnel_id", currentContact.funnel_id)
+      .eq("is_terminal", true)
+      .limit(1)
+      .maybeSingle();
+    terminalStageId = wonStage?.id ?? null;
+  }
+
+  const contactUpdate: Record<string, unknown> = {
+    type: "customer",
+    converted_at: new Date().toISOString(),
+  };
+  if (terminalStageId) {
+    contactUpdate.current_stage_id = terminalStageId;
+  }
+
   const { error: updateError } = await supabase
     .from("contacts")
-    .update({
-      type: "customer",
-      converted_at: new Date().toISOString(),
-    })
+    .update(contactUpdate)
     .eq("id", contact_id);
 
   if (updateError) {
@@ -61,7 +86,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: programError.message }, { status: 500 });
   }
 
-  // 3. Log activity
+  // 3. Stop all active drip enrollments (prospect nurture no longer relevant)
+  await supabaseAdmin
+    .from("drip_enrollments")
+    .update({ status: "stopped", stopped_reason: "converted_to_customer" })
+    .eq("contact_id", contact_id)
+    .in("status", ["active", "paused"]);
+
+  // 4. Log activity
   await supabase.from("activities").insert({
     contact_id,
     type: "stage_change",

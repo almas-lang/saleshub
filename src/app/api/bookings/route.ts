@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createEvent } from "@/lib/google/calendar";
 import { sendEmail } from "@/lib/email/client";
+import { renderWelcomeEmail } from "@/lib/email/templates/welcome";
+import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
 import type { AvailabilityRules } from "@/types/bookings";
 
 /**
@@ -182,6 +184,7 @@ export async function POST(request: Request) {
 
   let contactId: string;
   let contactFunnelId: string | null;
+  let isNewContact = false;
 
   if (existingContact) {
     contactId = existingContact.id;
@@ -234,6 +237,7 @@ export async function POST(request: Request) {
 
     contactId = newContact.id;
     contactFunnelId = funnelId;
+    isNewContact = true;
   }
 
   // ── Step 3: Move to "121 Booked" stage ─────────
@@ -498,6 +502,40 @@ export async function POST(request: Request) {
       }
     } catch (err) {
       console.error("[Booking] Email error:", err);
+    }
+  }
+
+  // ── Step 7b: Welcome email + drip enrollment (new contacts only) ──
+  if (isNewContact) {
+    try {
+      const { subject, html } = await renderWelcomeEmail({ firstName });
+      const welcomeResult = await sendEmail({ to: email, subject, html });
+      if (welcomeResult.success) {
+        await Promise.all([
+          supabaseAdmin.from("activities").insert({
+            contact_id: contactId,
+            type: "email_sent",
+            title: "Welcome email sent",
+            metadata: { template: "welcome" },
+          }),
+          supabaseAdmin.from("email_sends").insert({
+            contact_id: contactId,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            resend_message_id: welcomeResult.messageId ?? null,
+          }),
+        ]);
+      } else {
+        console.error("[Booking] Welcome email failed:", welcomeResult.error);
+      }
+    } catch (emailErr) {
+      console.error("[Booking] Welcome email failed:", emailErr);
+    }
+
+    try {
+      await autoEnrollIntoDrips(contactId);
+    } catch (err) {
+      console.error("[Booking] Drip auto-enroll error:", err);
     }
   }
 

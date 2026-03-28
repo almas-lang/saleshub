@@ -2,8 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   startOfWeek,
   subWeeks,
-  startOfMonth,
-  subMonths,
+  subDays,
   startOfDay,
   addDays,
   format,
@@ -27,6 +26,7 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { TeamSummary } from "@/components/dashboard/team-summary";
 import { CommunicationPulseCard } from "@/components/dashboard/communication-pulse";
+import { RevenueTrend } from "@/components/dashboard/revenue-trend";
 
 function getGreeting(): string {
   const istHour = parseInt(
@@ -69,6 +69,7 @@ export default async function DashboardPage() {
 
   // Run all queries in parallel
   const sevenDaysOut = addDays(startOfDay(now), 7).toISOString();
+  const thirtyDaysAgo = subDays(now, 30).toISOString();
 
   const [
     newLeadsThisWeek,
@@ -96,7 +97,7 @@ export default async function DashboardPage() {
     funnelsQuery,
     activitiesQuery,
     teamMembersQuery,
-    // Phase 4 additions
+    // Revenue sparkline (KPI card — 7 days)
     revenueSparklineQuery,
     teamTasksQuery,
     teamLeadsQuery,
@@ -107,6 +108,16 @@ export default async function DashboardPage() {
     // Paid installments this/last month for revenue KPI
     paidInstallmentsThisMonth,
     paidInstallmentsLastMonth,
+    // Conversion rate: converted this month
+    convertedThisMonth,
+    // Conversion rate: total prospects created this month
+    prospectsCreatedThisMonth,
+    // Conversion rate: converted last month
+    convertedLastMonth,
+    // Conversion rate: total prospects created last month
+    prospectsCreatedLastMonth,
+    // Revenue trend: 30-day paid invoices
+    revenueTrend30dQuery,
   ] = await Promise.all([
     // New leads this week
     supabase
@@ -325,6 +336,48 @@ export default async function DashboardPage() {
       .eq("status", "paid")
       .gte("paid_at", lastMonthStart)
       .lt("paid_at", thisMonthStart),
+
+    // Converted contacts this month
+    supabase
+      .from("contacts")
+      .select("*", { count: "exact", head: true })
+      .eq("type", "customer")
+      .gte("updated_at", thisMonthStart)
+      .is("deleted_at", null),
+
+    // Total prospects created this month (for conversion denominator)
+    supabase
+      .from("contacts")
+      .select("*", { count: "exact", head: true })
+      .in("type", ["prospect", "customer"])
+      .gte("created_at", thisMonthStart)
+      .is("deleted_at", null),
+
+    // Converted contacts last month
+    supabase
+      .from("contacts")
+      .select("*", { count: "exact", head: true })
+      .eq("type", "customer")
+      .gte("updated_at", lastMonthStart)
+      .lt("updated_at", thisMonthStart)
+      .is("deleted_at", null),
+
+    // Total prospects created last month
+    supabase
+      .from("contacts")
+      .select("*", { count: "exact", head: true })
+      .in("type", ["prospect", "customer"])
+      .gte("created_at", lastMonthStart)
+      .lt("created_at", thisMonthStart)
+      .is("deleted_at", null),
+
+    // Revenue trend: 30-day paid invoices for area chart
+    supabase
+      .from("invoices")
+      .select("total, paid_at")
+      .eq("status", "paid")
+      .gte("paid_at", thirtyDaysAgo)
+      .order("paid_at", { ascending: true }),
   ]);
 
   // Build KPI data — revenue = fully-paid invoices + paid installments
@@ -348,7 +401,7 @@ export default async function DashboardPage() {
   );
   const revenueLastMonthTotal = invoiceRevenueLastMonth + installmentRevenueLastMonth;
 
-  // Build revenue sparkline from last 7 days
+  // Build revenue sparkline from last 7 days (for KPI card)
   const revenueSparkline: SparklinePoint[] = [];
   const sparkDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now);
@@ -365,6 +418,32 @@ export default async function DashboardPage() {
     revenueSparkline.push({ date: day, value: sparkMap.get(day) ?? 0 });
   }
 
+  // Build 30-day revenue trend for area chart
+  const revenueTrend30d: SparklinePoint[] = [];
+  const trendDays = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - (29 - i));
+    return format(d, "yyyy-MM-dd");
+  });
+  const trendMap = new Map<string, number>();
+  for (const inv of revenueTrend30dQuery.data ?? []) {
+    if (!inv.paid_at) continue;
+    const d = format(new Date(inv.paid_at), "yyyy-MM-dd");
+    trendMap.set(d, (trendMap.get(d) ?? 0) + (inv.total ?? 0));
+  }
+  for (const day of trendDays) {
+    revenueTrend30d.push({ date: day, value: trendMap.get(day) ?? 0 });
+  }
+
+  // Compute conversion rate
+  const convertedCount = convertedThisMonth.count ?? 0;
+  const prospectsCount = prospectsCreatedThisMonth.count ?? 0;
+  const conversionRate = prospectsCount > 0 ? Math.round((convertedCount / prospectsCount) * 100) : 0;
+
+  const convertedCountLast = convertedLastMonth.count ?? 0;
+  const prospectsCountLast = prospectsCreatedLastMonth.count ?? 0;
+  const conversionRateLast = prospectsCountLast > 0 ? Math.round((convertedCountLast / prospectsCountLast) * 100) : 0;
+
   const kpiData: KpiData = {
     newLeads: newLeadsThisWeek.count ?? 0,
     newLeadsLastWeek: newLeadsLastWeek.count ?? 0,
@@ -374,6 +453,8 @@ export default async function DashboardPage() {
     revenueLastMonth: revenueLastMonthTotal,
     overdueTasks: overdueTasksNow.count ?? 0,
     overdueTasksLastWeek: overdueTasksLastWeek.count ?? 0,
+    conversionRate,
+    conversionRateLastMonth: conversionRateLast,
     revenueSparkline,
   };
 
@@ -689,7 +770,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="page-enter space-y-6">
-      {/* Greeting */}
+      {/* Header — Greeting + Quick Actions */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight">
@@ -713,23 +794,41 @@ export default async function DashboardPage() {
         />
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — 5 clickable cards */}
       <KpiCards data={kpiData} />
 
-      {/* Today's Focus */}
-      <TodaysFocus items={todaysFocus} />
+      {/* Revenue Trend — full-width area chart (main visual) */}
+      <RevenueTrend data={revenueTrend30d} />
 
-      {/* Team Summary + Communication Pulse */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TeamSummary members={teamSummary} />
-        <CommunicationPulseCard data={commPulse} />
-      </div>
+      {/* ── Sales & Pipeline ── */}
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Sales & Pipeline
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-[55fr_45fr]">
+          <PipelineOverview stages={pipelineStages} funnels={pipelineFunnels} />
+          <ActivityFeed activities={activities} />
+        </div>
+      </section>
 
-      {/* Bottom Grid — Pipeline + Activity Feed */}
-      <div className="grid gap-6 lg:grid-cols-[55fr_45fr]">
-        <PipelineOverview stages={pipelineStages} funnels={pipelineFunnels} />
-        <ActivityFeed activities={activities} />
-      </div>
+      {/* ── Operations ── */}
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Operations
+        </h2>
+        <TodaysFocus items={todaysFocus} />
+      </section>
+
+      {/* ── Communication & Team ── */}
+      <section className="space-y-4">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Communication & Team
+        </h2>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CommunicationPulseCard data={commPulse} />
+          <TeamSummary members={teamSummary} />
+        </div>
+      </section>
     </div>
   );
 }

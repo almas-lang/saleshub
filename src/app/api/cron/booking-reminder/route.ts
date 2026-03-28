@@ -45,13 +45,14 @@ export async function GET(request: Request) {
     let emailsSent = 0;
 
     for (const booking of bookings) {
-      // Check if reminder was already sent for this booking
+      // Check if reminder was already sent for this specific booking
       const { count } = await supabaseAdmin
         .from("activities")
         .select("id", { count: "exact", head: true })
         .eq("contact_id", booking.contact_id)
         .eq("type", "email_sent")
-        .eq("metadata->>template", "booking-reminder");
+        .eq("metadata->>template", "booking-reminder")
+        .eq("metadata->>booking_id", booking.id);
 
       if ((count ?? 0) > 0) continue;
 

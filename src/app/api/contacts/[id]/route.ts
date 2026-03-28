@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { contactSchema } from "@/lib/validations";
 
 export async function GET(
@@ -159,6 +160,13 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Stop all active drip enrollments for this contact
+  await supabaseAdmin
+    .from("drip_enrollments")
+    .update({ status: "stopped", stopped_reason: "contact_deleted" })
+    .eq("contact_id", id)
+    .in("status", ["active", "paused"]);
 
   return NextResponse.json({ success: true });
 }

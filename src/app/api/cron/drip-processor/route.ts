@@ -145,11 +145,19 @@ export async function GET(request: Request) {
           // Fetch contact (need email)
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("id, email, first_name, last_name, company_name")
+            .select("id, email, first_name, last_name, company_name, deleted_at")
             .eq("id", enrollment.contact_id)
             .single();
 
-          if (!contact?.email) {
+          if (!contact || contact.deleted_at) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: contact?.deleted_at ? "contact_deleted" : "contact_not_found" })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          if (!contact.email) {
             await supabaseAdmin.from("drip_enrollments")
               .update({ status: "stopped", stopped_reason: "no_email" })
               .eq("id", enrollment.id);
@@ -197,7 +205,12 @@ export async function GET(request: Request) {
             sent_at: result.success ? now : null,
           });
 
-          // Log activity
+          if (!result.success) {
+            failed++;
+            continue;
+          }
+
+          // Log activity only on success
           await supabaseAdmin.from("activities").insert({
             contact_id: contact.id,
             type: "email_sent",
@@ -208,11 +221,6 @@ export async function GET(request: Request) {
               subject: currentStep.subject,
             },
           });
-
-          if (!result.success) {
-            failed++;
-            continue;
-          }
 
           sent++;
 
@@ -311,11 +319,19 @@ export async function GET(request: Request) {
 
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("id, phone, first_name, company_name")
+            .select("id, phone, first_name, company_name, deleted_at")
             .eq("id", enrollment.contact_id)
             .single();
 
-          if (!contact?.phone) {
+          if (!contact || contact.deleted_at) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: contact?.deleted_at ? "contact_deleted" : "contact_not_found" })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          if (!contact.phone) {
             await supabaseAdmin.from("drip_enrollments")
               .update({ status: "stopped", stopped_reason: "no_phone" })
               .eq("id", enrollment.id);

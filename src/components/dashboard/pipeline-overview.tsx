@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GitBranch } from "lucide-react";
+import Link from "next/link";
+import { GitBranch, ArrowRight } from "lucide-react";
 import type { PipelineStageData, PipelineFunnel } from "@/types/dashboard";
 import {
   Card,
@@ -143,8 +144,8 @@ export function PipelineOverview({
           </div>
         </TooltipProvider>
 
-        {/* Conversion stats */}
-        <div className="mt-4 flex items-center gap-4 border-t pt-4 text-xs text-muted-foreground">
+        {/* Conversion stats + View all */}
+        <div className="mt-4 flex items-center justify-between border-t pt-4 text-xs text-muted-foreground">
           <span>
             Conversion: {firstStageCount} &rarr; {lastStageCount} (
             <span
@@ -160,6 +161,13 @@ export function PipelineOverview({
             </span>
             )
           </span>
+          <Link
+            href="/funnels"
+            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          >
+            View all funnels
+            <ArrowRight className="size-3" />
+          </Link>
         </div>
       </CardContent>
     </Card>

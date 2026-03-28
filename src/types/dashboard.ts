@@ -12,6 +12,8 @@ export interface KpiData {
   revenueLastMonth: number;
   overdueTasks: number;
   overdueTasksLastWeek: number;
+  conversionRate: number;
+  conversionRateLastMonth: number;
   revenueSparkline?: SparklinePoint[];
 }
 

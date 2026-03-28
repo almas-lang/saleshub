@@ -4,6 +4,7 @@ import { leadCaptureSchema } from "@/lib/validations";
 import { formatPhone } from "@/lib/utils";
 import { sendEmail } from "@/lib/email/client";
 import { renderWelcomeEmail } from "@/lib/email/templates/welcome";
+import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
 
 /** Map variant field names (PascalCase, Title Case, etc.) to snake_case schema keys */
 const FIELD_ALIASES: Record<string, string> = {
@@ -223,19 +224,23 @@ export async function POST(request: NextRequest) {
         firstName: first_name,
       });
       const welcomeResult = await sendEmail({ to: email, subject, html });
-      await supabaseAdmin.from("activities").insert({
-        contact_id: contactId,
-        type: "email_sent",
-        title: "Welcome email sent",
-        metadata: { template: "welcome" },
-      });
       if (welcomeResult.success) {
-        await supabaseAdmin.from("email_sends").insert({
-          contact_id: contactId,
-          status: "sent",
-          sent_at: new Date().toISOString(),
-          resend_message_id: welcomeResult.messageId ?? null,
-        });
+        await Promise.all([
+          supabaseAdmin.from("activities").insert({
+            contact_id: contactId,
+            type: "email_sent",
+            title: "Welcome email sent",
+            metadata: { template: "welcome" },
+          }),
+          supabaseAdmin.from("email_sends").insert({
+            contact_id: contactId,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            resend_message_id: welcomeResult.messageId ?? null,
+          }),
+        ]);
+      } else {
+        console.error("[Lead Capture] Welcome email failed:", welcomeResult.error);
       }
     } catch (emailErr) {
       console.error("[Lead Capture] Welcome email failed:", emailErr);
@@ -343,108 +348,3 @@ export async function POST(request: NextRequest) {
   );
 }
 
-// ── Auto-enroll into active drip campaigns ────────────
-
-async function autoEnrollIntoDrips(contactId: string) {
-  const now = new Date().toISOString();
-
-  // Find active WhatsApp drip campaigns with lead_created trigger
-  const { data: waCampaigns } = await supabaseAdmin
-    .from("wa_campaigns")
-    .select("id, flow_data")
-    .eq("type", "drip")
-    .eq("status", "active");
-
-  const waToEnroll: string[] = [];
-  for (const c of waCampaigns ?? []) {
-    const flow = c.flow_data as { nodes?: { data?: { event?: string; nodeType?: string } }[] } | null;
-    const hasTrigger = flow?.nodes?.some(
-      (n) => n.data?.nodeType === "trigger" && n.data?.event === "lead_created"
-    );
-    if (hasTrigger) waToEnroll.push(c.id);
-  }
-
-  // Find active email drip campaigns with lead_created trigger
-  const { data: emailCampaigns } = await supabaseAdmin
-    .from("email_campaigns")
-    .select("id")
-    .eq("type", "drip")
-    .eq("status", "active")
-    .eq("trigger_event", "lead_created");
-
-  const emailToEnroll: string[] = (emailCampaigns ?? []).map((c) => c.id);
-
-  if (!waToEnroll.length && !emailToEnroll.length) return;
-
-  // Check existing enrollments to avoid duplicates
-  const allCampaignIds = [...waToEnroll, ...emailToEnroll];
-  const { data: existing } = await supabaseAdmin
-    .from("drip_enrollments")
-    .select("campaign_id")
-    .eq("contact_id", contactId)
-    .in("campaign_id", allCampaignIds)
-    .in("status", ["active", "paused"]);
-
-  const alreadyEnrolled = new Set((existing ?? []).map((e) => e.campaign_id));
-
-  const rows: {
-    contact_id: string;
-    campaign_id: string;
-    campaign_type: "whatsapp" | "email";
-    current_step_order: number;
-    status: "active";
-    next_send_at: string;
-  }[] = [];
-
-  // Build WA enrollment rows
-  for (const campaignId of waToEnroll) {
-    if (alreadyEnrolled.has(campaignId)) continue;
-    const { data: firstStep } = await supabaseAdmin
-      .from("wa_steps")
-      .select("order")
-      .eq("campaign_id", campaignId)
-      .order("order", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    rows.push({
-      contact_id: contactId,
-      campaign_id: campaignId,
-      campaign_type: "whatsapp",
-      current_step_order: firstStep?.order ?? 1,
-      status: "active",
-      next_send_at: now,
-    });
-  }
-
-  // Build email enrollment rows
-  for (const campaignId of emailToEnroll) {
-    if (alreadyEnrolled.has(campaignId)) continue;
-    const { data: firstStep } = await supabaseAdmin
-      .from("email_steps")
-      .select("order")
-      .eq("campaign_id", campaignId)
-      .order("order", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    rows.push({
-      contact_id: contactId,
-      campaign_id: campaignId,
-      campaign_type: "email",
-      current_step_order: firstStep?.order ?? 1,
-      status: "active",
-      next_send_at: now,
-    });
-  }
-
-  if (!rows.length) return;
-
-  const { error } = await supabaseAdmin.from("drip_enrollments").insert(rows);
-  if (error) {
-    console.error("[Lead Capture] Drip enrollment insert error:", error.message);
-    return;
-  }
-
-  console.log(`[Lead Capture] Auto-enrolled contact ${contactId} into ${rows.length} drip(s)`);
-}

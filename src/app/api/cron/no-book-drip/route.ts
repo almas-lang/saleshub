@@ -50,29 +50,50 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, processed: 0 });
     }
 
-    // Filter out contacts who have booked (metadata->call_booked is set)
-    const { data: bookedContacts } = await supabaseAdmin
-      .from("contacts")
-      .select("id, metadata")
-      .in(
-        "id",
-        contacts.map((c) => c.id)
-      );
+    // Filter out contacts who have booked (via metadata OR bookings table)
+    const contactIds = contacts.map((c) => c.id);
 
-    const bookedIds = new Set(
-      (bookedContacts ?? [])
+    const [{ data: bookedByMeta }, { data: bookedByTable }] = await Promise.all([
+      supabaseAdmin
+        .from("contacts")
+        .select("id, metadata")
+        .in("id", contactIds),
+      supabaseAdmin
+        .from("bookings")
+        .select("contact_id")
+        .in("contact_id", contactIds),
+    ]);
+
+    const bookedIds = new Set([
+      ...(bookedByMeta ?? [])
         .filter((c) => {
           const meta = c.metadata as Record<string, unknown> | null;
           return meta?.call_booked != null;
         })
-        .map((c) => c.id)
-    );
+        .map((c) => c.id),
+      ...(bookedByTable ?? []).map((b) => b.contact_id),
+    ]);
 
     const unbookedContacts = contacts.filter((c) => !bookedIds.has(c.id));
 
+    // Filter out contacts already enrolled in an active email drip campaign
+    // to avoid double-emailing them
+    const unbookedIds = unbookedContacts.map((c) => c.id);
+    const { data: dripEnrolled } = unbookedIds.length > 0
+      ? await supabaseAdmin
+          .from("drip_enrollments")
+          .select("contact_id")
+          .in("contact_id", unbookedIds)
+          .eq("campaign_type", "email")
+          .eq("status", "active")
+      : { data: [] };
+
+    const dripEnrolledIds = new Set((dripEnrolled ?? []).map((e) => e.contact_id));
+    const eligibleContacts = unbookedContacts.filter((c) => !dripEnrolledIds.has(c.id));
+
     let emailsSent = 0;
 
-    for (const contact of unbookedContacts) {
+    for (const contact of eligibleContacts) {
       const elapsed = now - new Date(contact.created_at).getTime();
 
       // Determine which template to send
@@ -142,7 +163,7 @@ export async function GET(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true, processed: unbookedContacts.length, emailsSent });
+    return NextResponse.json({ success: true, processed: eligibleContacts.length, emailsSent });
   } catch (error) {
     console.error("[No-Book Drip] Cron error:", error);
     return NextResponse.json(

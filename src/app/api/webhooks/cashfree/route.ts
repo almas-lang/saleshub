@@ -222,7 +222,7 @@ async function handleInstallmentPaid(installmentId: string, paymentId: string) {
     .select("id, status")
     .eq("invoice_id", invoice.id);
 
-  const allPaid = allInstallments?.every((i) => i.status === "paid" || i.id === installment.id);
+  const allPaid = allInstallments?.every((i) => i.status === "paid");
 
   if (allPaid) {
     // Mark parent invoice as paid
