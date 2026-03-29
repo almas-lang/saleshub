@@ -285,6 +285,7 @@ export function CampaignWizard({
             teamMembers={teamMembers}
             audienceCount={audienceCount}
             countLoading={countLoading}
+            campaignType={type}
           />
         )}
 

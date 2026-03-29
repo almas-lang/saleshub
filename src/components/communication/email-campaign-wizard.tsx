@@ -270,6 +270,7 @@ export function EmailCampaignWizard({
             audienceCount={audienceCount}
             countLoading={countLoading}
             channel="email"
+            campaignType={type}
           />
         )}
 

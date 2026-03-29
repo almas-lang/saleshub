@@ -228,9 +228,12 @@ export async function POST(request: Request) {
       .eq("id", campaign.id);
 
     // For one-time/newsletter: queue email_sends for all audience contacts
-    // For drip: enroll contacts into drip sequence
+    // For drip: only enroll extra_emails (if any) — new leads are auto-enrolled via auto-enroll.ts
     if (type === "drip") {
-      await enrollEmailAudience(campaign.id, audience_filter ?? null);
+      if (audience_filter?.extra_emails?.length) {
+        const extraOnly: AudienceFilter = { source: "__custom_only__", extra_emails: audience_filter.extra_emails };
+        await enrollEmailAudience(campaign.id, extraOnly);
+      }
     } else {
       // Get first step to link sends
       const { data: firstStep } = await supabase
@@ -372,7 +375,12 @@ export async function PATCH(request: NextRequest) {
     const filter = existing.audience_filter as AudienceFilter | null;
 
     if (existing.type === "drip") {
-      const enrolled = await enrollEmailAudience(id, filter);
+      // Only enroll extra_emails on reactivation — new leads are auto-enrolled
+      let enrolled = 0;
+      if (filter?.extra_emails?.length) {
+        const extraOnly: AudienceFilter = { source: "__custom_only__", extra_emails: filter.extra_emails };
+        enrolled = await enrollEmailAudience(id, extraOnly);
+      }
       return NextResponse.json({ ...data, enrolled });
     } else {
       // One-time / newsletter: queue email_sends

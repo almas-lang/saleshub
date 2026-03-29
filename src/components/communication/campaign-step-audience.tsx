@@ -35,6 +35,8 @@ interface CampaignStepAudienceProps {
   countLoading: boolean;
   /** Channel hint for the info banner. Defaults to "whatsapp". */
   channel?: "whatsapp" | "email";
+  /** Campaign type — drip campaigns only enroll new leads. */
+  campaignType?: "drip" | "one_time" | "newsletter";
 }
 
 export function CampaignStepAudience({
@@ -47,6 +49,7 @@ export function CampaignStepAudience({
   audienceCount,
   countLoading,
   channel = "whatsapp",
+  campaignType,
 }: CampaignStepAudienceProps) {
   const filteredStages = filter.funnel_id
     ? stages.filter((s) => s.funnel_id === filter.funnel_id)
@@ -215,6 +218,11 @@ export function CampaignStepAudience({
               {audienceCount + (filter.extra_emails?.length ?? 0)}
             </span>{" "}
             matching contact{(audienceCount + (filter.extra_emails?.length ?? 0)) !== 1 ? "s" : ""}
+            {campaignType === "drip" && (
+              <span className="text-muted-foreground font-normal">
+                {" "}&mdash; only new leads will be enrolled
+              </span>
+            )}
             {(filter.extra_emails?.length ?? 0) > 0 && (
               <span className="text-muted-foreground font-normal">
                 {" "}({audienceCount} from filters + {filter.extra_emails!.length} additional)
