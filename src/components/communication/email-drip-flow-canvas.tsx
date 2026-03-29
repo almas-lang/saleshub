@@ -23,6 +23,8 @@ import type {
   FlowData,
   FlowNodeData,
   EmailStepDraft,
+  EmailStepDraftWithBranching,
+  BranchingEdge,
   EmailSendNodeData,
   DelayNodeData,
   ConditionNodeData,
@@ -100,7 +102,7 @@ export function validateEmailFlow(flow: FlowData): boolean {
   return visited.size === flow.nodes.length;
 }
 
-// ── flowToEmailSteps: walk graph to derive linear EmailStepDraft[] ──
+// ── flowToEmailSteps: walk graph to derive linear EmailStepDraft[] (legacy) ──
 
 export function flowToEmailSteps(flow: FlowData): EmailStepDraft[] {
   const steps: EmailStepDraft[] = [];
@@ -156,6 +158,124 @@ export function flowToEmailSteps(flow: FlowData): EmailStepDraft[] {
   if (steps.length > 0) steps[0].delay_hours = 0;
 
   return steps;
+}
+
+// ── flowToEmailStepsWithBranching: walk ALL branches and preserve graph ──
+
+export function flowToEmailStepsWithBranching(flow: FlowData): {
+  steps: EmailStepDraftWithBranching[];
+  edges: BranchingEdge[];
+} {
+  const steps: EmailStepDraftWithBranching[] = [];
+  const branchingEdges: BranchingEdge[] = [];
+  const triggerNode = flow.nodes.find((n) => n.type === "trigger");
+  if (!triggerNode) return { steps, edges: branchingEdges };
+
+  type EdgeInfo = { target: string; sourceHandle: string | null };
+  const outgoing = new Map<string, EdgeInfo[]>();
+  for (const e of flow.edges) {
+    if (!outgoing.has(e.source)) outgoing.set(e.source, []);
+    outgoing.get(e.source)!.push({ target: e.target, sourceHandle: e.sourceHandle ?? null });
+  }
+
+  const nodeMap = new Map(flow.nodes.map((n) => [n.id, n]));
+  const visited = new Set<string>();
+
+  // BFS/DFS through all branches
+  // Each queue entry: [nodeId, accumulatedDelay, lastStepNodeId]
+  const queue: [string, number, string | null][] = [];
+
+  // Find first node after trigger
+  const triggerEdges = outgoing.get(triggerNode.id) ?? [];
+  for (const edge of triggerEdges) {
+    queue.push([edge.target, 0, null]);
+  }
+
+  while (queue.length > 0) {
+    const [currentId, incomingDelay, parentNodeId] = queue.shift()!;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+
+    const node = nodeMap.get(currentId);
+    if (!node) continue;
+
+    if (node.type === "email_send") {
+      const d = node.data as unknown as EmailSendNodeData;
+      steps.push({
+        node_id: node.id,
+        step_type: "send",
+        subject: d.subject ?? "",
+        body_html: d.bodyHtml ?? "",
+        delay_hours: incomingDelay,
+      });
+
+      // Connect from parent
+      if (parentNodeId) {
+        const parentNode = nodeMap.get(parentNodeId);
+        if (parentNode?.type === "condition") {
+          // Determine which branch leads here
+          const parentEdges = outgoing.get(parentNodeId) ?? [];
+          const yesEdge = parentEdges.find((e) => e.sourceHandle === "yes");
+          const branch = yesEdge?.target === currentId ? "yes" as const : "no" as const;
+          branchingEdges.push({ source_node_id: parentNodeId, target_node_id: node.id, branch });
+        } else {
+          branchingEdges.push({ source_node_id: parentNodeId, target_node_id: node.id, branch: "no" });
+        }
+      }
+
+      // Continue to next nodes
+      const nodeEdges = outgoing.get(currentId) ?? [];
+      for (const edge of nodeEdges) {
+        queue.push([edge.target, 0, node.id]);
+      }
+    } else if (node.type === "delay") {
+      const d = node.data as unknown as DelayNodeData;
+      const totalDelay = incomingDelay + (d.hours ?? 0);
+      const nodeEdges = outgoing.get(currentId) ?? [];
+      for (const edge of nodeEdges) {
+        queue.push([edge.target, totalDelay, parentNodeId]);
+      }
+      // Don't mark delay as visited so multiple paths can pass through delays
+      // Actually we already marked it, which is fine — delays are typically unique per path
+    } else if (node.type === "condition") {
+      const d = node.data as unknown as ConditionNodeData;
+      steps.push({
+        node_id: node.id,
+        step_type: "condition",
+        subject: "",
+        body_html: "",
+        delay_hours: incomingDelay,
+        condition: { check: d.check },
+      });
+
+      // Connect from parent
+      if (parentNodeId) {
+        const parentNode = nodeMap.get(parentNodeId);
+        if (parentNode?.type === "condition") {
+          const parentEdges = outgoing.get(parentNodeId) ?? [];
+          const yesEdge = parentEdges.find((e) => e.sourceHandle === "yes");
+          const branch = yesEdge?.target === currentId ? "yes" as const : "no" as const;
+          branchingEdges.push({ source_node_id: parentNodeId, target_node_id: node.id, branch });
+        } else {
+          branchingEdges.push({ source_node_id: parentNodeId, target_node_id: node.id, branch: "no" });
+        }
+      }
+
+      // Queue both branches
+      const nodeEdges = outgoing.get(currentId) ?? [];
+      for (const edge of nodeEdges) {
+        queue.push([edge.target, 0, node.id]);
+      }
+    } else if (node.type === "stop") {
+      // Terminal — nothing to queue
+    }
+  }
+
+  // First send step should have delay 0
+  const firstSend = steps.find((s) => s.step_type === "send");
+  if (firstSend) firstSend.delay_hours = 0;
+
+  return { steps, edges: branchingEdges };
 }
 
 // ── Connection validation ──

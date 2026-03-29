@@ -23,6 +23,26 @@
     {
       "path": "/api/cron/cleanup-deleted-contacts",
       "schedule": "0 2 * * 0"
+    },
+    {
+      "path": "/api/cron/drip-processor",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/booking-reminder",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/calendar-health",
+      "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/daily-digest",
+      "schedule": "30 8 * * *"
+    },
+    {
+      "path": "/api/cron/overdue-tasks",
+      "schedule": "30 7 * * *"
     }
   ]
 }

@@ -16,7 +16,7 @@ import { CampaignStepDetails } from "./campaign-step-details";
 import { CampaignStepAudience } from "./campaign-step-audience";
 import { EmailCampaignStepMessages } from "./email-campaign-step-messages";
 import { EmailCampaignStepReview } from "./email-campaign-step-review";
-import { EmailDripFlowCanvas, validateEmailFlow, flowToEmailSteps } from "./email-drip-flow-canvas";
+import { EmailDripFlowCanvas, validateEmailFlow, flowToEmailSteps, flowToEmailStepsWithBranching } from "./email-drip-flow-canvas";
 
 interface FilterOption {
   id: string;
@@ -133,23 +133,54 @@ export function EmailCampaignWizard({
       setSaving(true);
 
       const isDrip = type === "drip";
-      const resolvedSteps = isDrip && flowData
-        ? flowToEmailSteps(flowData)
-        : campaignSteps;
 
-      const payload = {
-        name: name.trim(),
-        type,
-        audience_filter: audienceFilter,
-        steps: resolvedSteps.map((s, i) => ({
-          order: i + 1,
-          subject: s.subject,
-          body_html: s.body_html,
-          delay_hours: i === 0 ? 0 : s.delay_hours,
-          ...(s.condition ? { condition: s.condition } : {}),
-        })),
-        activate,
-      };
+      // Extract trigger event from flow data
+      let triggerEvent: string | undefined;
+      if (isDrip && flowData) {
+        const triggerNode = flowData.nodes.find((n) => n.type === "trigger");
+        if (triggerNode) {
+          const d = triggerNode.data as { event?: string };
+          triggerEvent = d.event;
+        }
+      }
+
+      // Use branching-aware conversion for drip, linear for others
+      let payload;
+      if (isDrip && flowData) {
+        const { steps: branchingSteps, edges: branchingEdges } = flowToEmailStepsWithBranching(flowData);
+        payload = {
+          name: name.trim(),
+          type,
+          trigger_event: triggerEvent,
+          audience_filter: audienceFilter,
+          flow_data: flowData,
+          steps: branchingSteps.map((s, i) => ({
+            node_id: s.node_id,
+            order: i + 1,
+            step_type: s.step_type,
+            subject: s.subject,
+            body_html: s.body_html,
+            delay_hours: s.delay_hours,
+            ...(s.condition ? { condition: s.condition } : {}),
+          })),
+          branching_edges: branchingEdges,
+          activate,
+        };
+      } else {
+        payload = {
+          name: name.trim(),
+          type,
+          audience_filter: audienceFilter,
+          steps: campaignSteps.map((s, i) => ({
+            order: i + 1,
+            subject: s.subject,
+            body_html: s.body_html,
+            delay_hours: i === 0 ? 0 : s.delay_hours,
+            ...(s.condition ? { condition: s.condition } : {}),
+          })),
+          activate,
+        };
+      }
 
       const result = await safeFetch("/api/campaigns/email", {
         method: "POST",

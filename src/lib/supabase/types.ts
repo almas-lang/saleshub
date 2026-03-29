@@ -589,6 +589,7 @@ export type Database = {
           completed_at: string | null
           contact_id: string | null
           created_at: string | null
+          current_step_id: string | null
           current_step_order: number | null
           enrolled_at: string | null
           id: string
@@ -602,6 +603,7 @@ export type Database = {
           completed_at?: string | null
           contact_id?: string | null
           created_at?: string | null
+          current_step_id?: string | null
           current_step_order?: number | null
           enrolled_at?: string | null
           id?: string
@@ -615,6 +617,7 @@ export type Database = {
           completed_at?: string | null
           contact_id?: string | null
           created_at?: string | null
+          current_step_id?: string | null
           current_step_order?: number | null
           enrolled_at?: string | null
           id?: string
@@ -636,6 +639,7 @@ export type Database = {
         Row: {
           audience_filter: Json | null
           created_at: string
+          flow_data: Json | null
           id: string
           name: string
           status: Database["public"]["Enums"]["campaign_status"]
@@ -647,6 +651,7 @@ export type Database = {
         Insert: {
           audience_filter?: Json | null
           created_at?: string
+          flow_data?: Json | null
           id?: string
           name: string
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -658,6 +663,7 @@ export type Database = {
         Update: {
           audience_filter?: Json | null
           created_at?: string
+          flow_data?: Json | null
           id?: string
           name?: string
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -737,8 +743,11 @@ export type Database = {
           created_at: string
           delay_hours: number
           id: string
+          next_step_id_no: string | null
+          next_step_id_yes: string | null
           order: number
           preview_text: string | null
+          step_type: string
           subject: string
           template_id: string | null
         }
@@ -749,8 +758,11 @@ export type Database = {
           created_at?: string
           delay_hours?: number
           id?: string
+          next_step_id_no?: string | null
+          next_step_id_yes?: string | null
           order: number
           preview_text?: string | null
+          step_type?: string
           subject: string
           template_id?: string | null
         }
@@ -761,8 +773,11 @@ export type Database = {
           created_at?: string
           delay_hours?: number
           id?: string
+          next_step_id_no?: string | null
+          next_step_id_yes?: string | null
           order?: number
           preview_text?: string | null
+          step_type?: string
           subject?: string
           template_id?: string | null
         }

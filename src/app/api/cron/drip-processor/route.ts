@@ -3,10 +3,12 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendTemplate } from "@/lib/whatsapp/client";
 import { sendEmail, renderVariables } from "@/lib/email/client";
 import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
+import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
+import { evaluateCondition } from "@/lib/campaigns/condition-evaluators";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
+export const maxDuration = 60;
 
 const BATCH_LIMIT = 50;
 
@@ -16,6 +18,7 @@ interface Enrollment {
   campaign_id: string;
   campaign_type: string;
   current_step_order: number;
+  current_step_id: string | null;
   status: string;
   next_send_at: string;
 }
@@ -34,11 +37,14 @@ interface EmailStepRow {
   id: string;
   campaign_id: string;
   order: number;
+  step_type: string;
   subject: string;
   preview_text: string | null;
   body_html: string;
   delay_hours: number;
   condition: { check: string; value?: string } | null;
+  next_step_id_yes: string | null;
+  next_step_id_no: string | null;
 }
 
 export async function GET(request: Request) {
@@ -98,7 +104,7 @@ export async function GET(request: Request) {
 
           const { data: emailSteps } = await supabaseAdmin
             .from("email_steps")
-            .select("id, campaign_id, order, subject, preview_text, body_html, delay_hours, condition")
+            .select("id, campaign_id, order, step_type, subject, preview_text, body_html, delay_hours, condition, next_step_id_yes, next_step_id_no")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
@@ -110,9 +116,17 @@ export async function GET(request: Request) {
             continue;
           }
 
-          const currentStep = emailSteps.find(
-            (s) => s.order === enrollment.current_step_order
-          ) as EmailStepRow | undefined;
+          const steps = emailSteps as EmailStepRow[];
+          const stepMap = new Map(steps.map((s) => [s.id, s]));
+
+          // Resolve current step: prefer step ID, fallback to order
+          let currentStep: EmailStepRow | undefined;
+          if (enrollment.current_step_id) {
+            currentStep = stepMap.get(enrollment.current_step_id);
+          }
+          if (!currentStep) {
+            currentStep = steps.find((s) => s.order === enrollment.current_step_order);
+          }
 
           if (!currentStep) {
             await supabaseAdmin.from("drip_enrollments")
@@ -122,27 +136,110 @@ export async function GET(request: Request) {
             continue;
           }
 
-          // Condition check
-          const condition = currentStep.condition as { check: string } | null;
-          if (condition) {
-            let conditionMet = false;
-            if (condition.check === "booking_created") {
-              const { count } = await supabaseAdmin
-                .from("bookings")
-                .select("id", { count: "exact", head: true })
-                .eq("contact_id", enrollment.contact_id);
-              conditionMet = (count ?? 0) > 0;
-            }
-            if (conditionMet) {
+          // ── Handle condition-only steps (step_type === 'condition') ──
+          // These don't send emails; they just branch. Resolve immediately.
+          const visitedSteps = new Set<string>();
+          while (currentStep.step_type === "condition" && currentStep.condition) {
+            // Loop protection
+            if (visitedSteps.has(currentStep.id)) {
               await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "stopped", stopped_reason: condition.check, completed_at: now })
+                .update({ status: "stopped", stopped_reason: "loop_detected", completed_at: now })
                 .eq("id", enrollment.id);
+              break;
+            }
+            visitedSteps.add(currentStep.id);
+
+            const conditionMet = await evaluateCondition(
+              currentStep.condition.check,
+              enrollment.contact_id,
+              enrollment.campaign_id
+            );
+
+            const nextStepId = conditionMet
+              ? currentStep.next_step_id_yes
+              : currentStep.next_step_id_no;
+
+            if (!nextStepId) {
+              // Branch leads nowhere → complete
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "completed", completed_at: now })
+                .eq("id", enrollment.id);
+              break;
+            }
+
+            const nextStep = stepMap.get(nextStepId);
+            if (!nextStep) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "completed", completed_at: now })
+                .eq("id", enrollment.id);
+              break;
+            }
+
+            // If next step has a delay, schedule it and stop processing this tick
+            if (nextStep.delay_hours > 0) {
+              const nextSendAt = new Date(
+                Date.now() + nextStep.delay_hours * 60 * 60 * 1000
+              ).toISOString();
+              await supabaseAdmin.from("drip_enrollments")
+                .update({
+                  current_step_id: nextStep.id,
+                  current_step_order: nextStep.order,
+                  next_send_at: nextSendAt,
+                })
+                .eq("id", enrollment.id);
+              currentStep = undefined as unknown as EmailStepRow; // signal we're done
+              break;
+            }
+
+            // No delay — continue resolving
+            currentStep = nextStep;
+          }
+
+          // If we broke out due to completion/scheduling, skip to next enrollment
+          if (!currentStep || visitedSteps.has(currentStep.id) && currentStep.step_type === "condition") {
+            continue;
+          }
+
+          // ── Condition check on send steps (legacy + branching) ──
+          if (currentStep.condition && currentStep.step_type === "send") {
+            const conditionMet = await evaluateCondition(
+              currentStep.condition.check,
+              enrollment.contact_id,
+              enrollment.campaign_id
+            );
+
+            if (conditionMet) {
+              // Branching: follow yes path if available
+              if (currentStep.next_step_id_yes) {
+                const yesStep = stepMap.get(currentStep.next_step_id_yes);
+                if (yesStep) {
+                  const nextSendAt = yesStep.delay_hours > 0
+                    ? new Date(Date.now() + yesStep.delay_hours * 60 * 60 * 1000).toISOString()
+                    : now;
+                  await supabaseAdmin.from("drip_enrollments")
+                    .update({
+                      current_step_id: yesStep.id,
+                      current_step_order: yesStep.order,
+                      next_send_at: nextSendAt,
+                    })
+                    .eq("id", enrollment.id);
+                } else {
+                  await supabaseAdmin.from("drip_enrollments")
+                    .update({ status: "completed", completed_at: now })
+                    .eq("id", enrollment.id);
+                }
+              } else {
+                // Legacy: no branching pointers → stop enrollment
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "stopped", stopped_reason: currentStep.condition.check, completed_at: now })
+                  .eq("id", enrollment.id);
+              }
               stopped++;
               continue;
             }
           }
 
-          // Fetch contact (need email)
+          // Fetch contact
           const { data: contact } = await supabaseAdmin
             .from("contacts")
             .select("id, email, first_name, last_name, company_name, deleted_at")
@@ -210,7 +307,7 @@ export async function GET(request: Request) {
             continue;
           }
 
-          // Log activity only on success
+          // Log activity
           await supabaseAdmin.from("activities").insert({
             contact_id: contact.id,
             type: "email_sent",
@@ -224,17 +321,27 @@ export async function GET(request: Request) {
 
           sent++;
 
-          // Advance to next step
-          const nextEmailStep = (emailSteps as EmailStepRow[]).find(
-            (s) => s.order > currentStep.order
-          );
+          // ── Advance to next step ──
+          let nextStep: EmailStepRow | undefined;
 
-          if (nextEmailStep) {
+          if (currentStep.next_step_id_no) {
+            // Branching campaign: follow the "no" (default/next) pointer
+            nextStep = stepMap.get(currentStep.next_step_id_no);
+          } else {
+            // Legacy linear: find next by order
+            nextStep = steps.find((s) => s.order > currentStep!.order);
+          }
+
+          if (nextStep) {
             const nextSendAt = new Date(
-              Date.now() + nextEmailStep.delay_hours * 60 * 60 * 1000
+              Date.now() + nextStep.delay_hours * 60 * 60 * 1000
             ).toISOString();
             await supabaseAdmin.from("drip_enrollments")
-              .update({ current_step_order: nextEmailStep.order, next_send_at: nextSendAt })
+              .update({
+                current_step_id: nextStep.id,
+                current_step_order: nextStep.order,
+                next_send_at: nextSendAt,
+              })
               .eq("id", enrollment.id);
           } else {
             await supabaseAdmin.from("drip_enrollments")
@@ -242,7 +349,7 @@ export async function GET(request: Request) {
               .eq("id", enrollment.id);
           }
         } else {
-          // ── WHATSAPP DRIP BRANCH (original) ──
+          // ── WHATSAPP DRIP BRANCH ──
           const { data: campaign } = await supabaseAdmin
             .from("wa_campaigns")
             .select("id, status, type")
@@ -286,23 +393,11 @@ export async function GET(request: Request) {
           // Stop condition check
           const condition = currentStep.condition as { check: string } | null;
           if (condition) {
-            let conditionMet = false;
-
-            if (condition.check === "booking_created") {
-              const { count } = await supabaseAdmin
-                .from("bookings")
-                .select("id", { count: "exact", head: true })
-                .eq("contact_id", enrollment.contact_id);
-              conditionMet = (count ?? 0) > 0;
-            } else if (condition.check === "replied") {
-              const { count } = await supabaseAdmin
-                .from("wa_sends")
-                .select("id", { count: "exact", head: true })
-                .eq("contact_id", enrollment.contact_id)
-                .eq("campaign_id", enrollment.campaign_id)
-                .eq("replied", true);
-              conditionMet = (count ?? 0) > 0;
-            }
+            const conditionMet = await evaluateCondition(
+              condition.check,
+              enrollment.contact_id,
+              enrollment.campaign_id
+            );
 
             if (conditionMet) {
               await supabaseAdmin.from("drip_enrollments")
@@ -409,12 +504,130 @@ export async function GET(request: Request) {
       }
     }
 
+    // ── ONE-TIME / NEWSLETTER DISPATCH ──
+    // Process queued email_sends (ported from email-dispatcher)
+    let oneTimeSent = 0;
+    let oneTimeFailed = 0;
+
+    const { data: queuedSends } = await supabaseAdmin
+      .from("email_sends")
+      .select("id, campaign_id, step_id, contact_id")
+      .eq("status", "queued")
+      .order("created_at", { ascending: true })
+      .limit(BATCH_LIMIT);
+
+    if (queuedSends?.length) {
+      const stepIds = [...new Set(queuedSends.map((s) => s.step_id).filter(Boolean))] as string[];
+      const contactIds = [...new Set(queuedSends.map((s) => s.contact_id))];
+
+      const [{ data: qSteps }, { data: qContacts }] = await Promise.all([
+        supabaseAdmin.from("email_steps").select("id, subject, preview_text, body_html").in("id", stepIds),
+        supabaseAdmin.from("contacts").select("id, first_name, last_name, email, company_name").in("id", contactIds),
+      ]);
+
+      const qStepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string }>();
+      for (const s of qSteps ?? []) qStepMap.set(s.id, s);
+
+      const qContactMap = new Map<string, { email: string; first_name: string | null; last_name: string | null; company_name: string | null }>();
+      for (const c of qContacts ?? []) {
+        if (c.email) qContactMap.set(c.id, { email: c.email, first_name: c.first_name, last_name: c.last_name, company_name: c.company_name });
+      }
+
+      // Pre-render wrappers per step
+      const wrapperCache = new Map<string, { wrapperHtml: string; placeholder: string }>();
+      for (const [stepId, step] of qStepMap) {
+        const result = await renderDripWrapper({ preview: step.preview_text ?? step.subject });
+        wrapperCache.set(stepId, result);
+      }
+
+      const CONCURRENCY = 10;
+      async function processQueuedSend(send: { id: string; campaign_id: string | null; step_id: string | null; contact_id: string }) {
+        const step = send.step_id ? qStepMap.get(send.step_id) : null;
+        const contact = qContactMap.get(send.contact_id);
+        const wrapper = send.step_id ? wrapperCache.get(send.step_id) : null;
+
+        if (!step || !contact || !wrapper) {
+          await supabaseAdmin.from("email_sends").update({ status: "failed" }).eq("id", send.id);
+          return false;
+        }
+
+        const vars: Record<string, string> = {
+          first_name: contact.first_name ?? "",
+          last_name: contact.last_name ?? "",
+          full_name: [contact.first_name, contact.last_name].filter(Boolean).join(" "),
+          email: contact.email,
+          company_name: contact.company_name ?? "",
+        };
+
+        const subject = renderVariables(step.subject, vars);
+        const bodyHtml = renderVariables(step.body_html, vars);
+        const html = wrapper.wrapperHtml.replace(wrapper.placeholder, bodyHtml);
+
+        const result = await sendEmail({
+          to: contact.email,
+          subject,
+          html,
+          tags: [
+            { name: "campaign_id", value: send.campaign_id ?? "unknown" },
+            { name: "send_id", value: send.id },
+          ],
+        });
+
+        if (result.success) {
+          await Promise.all([
+            supabaseAdmin.from("email_sends").update({
+              status: "sent",
+              sent_at: new Date().toISOString(),
+              resend_message_id: result.messageId ?? null,
+            }).eq("id", send.id),
+            supabaseAdmin.from("activities").insert({
+              contact_id: send.contact_id,
+              type: "email_sent",
+              title: `Campaign email sent: ${subject}`,
+            }),
+          ]);
+          return true;
+        } else {
+          await supabaseAdmin.from("email_sends").update({ status: "failed" }).eq("id", send.id);
+          return false;
+        }
+      }
+
+      for (let i = 0; i < queuedSends.length; i += CONCURRENCY) {
+        const chunk = queuedSends.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(chunk.map(processQueuedSend));
+        for (const ok of results) {
+          if (ok) oneTimeSent++;
+          else oneTimeFailed++;
+        }
+      }
+
+      // Mark campaigns as completed if all sends are done
+      const campaignIds = [...new Set(queuedSends.map((s) => s.campaign_id).filter(Boolean))];
+      for (const campaignId of campaignIds) {
+        const { count } = await supabaseAdmin
+          .from("email_sends")
+          .select("id", { count: "exact", head: true })
+          .eq("campaign_id", campaignId!)
+          .eq("status", "queued");
+        if (count === 0) {
+          await supabaseAdmin
+            .from("email_campaigns")
+            .update({ status: "completed" })
+            .eq("id", campaignId!)
+            .in("type", ["one_time", "newsletter"]);
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       processed: enrollments.length,
       sent,
       stopped,
       failed,
+      one_time_sent: oneTimeSent,
+      one_time_failed: oneTimeFailed,
     });
   } catch (error) {
     console.error("[Drip Processor] Cron error:", error);

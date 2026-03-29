@@ -126,13 +126,31 @@ export type EmailStepUpdate = TablesUpdate<"email_steps">;
 // Enum alias
 export type EmailSendStatus = Enums<"email_send_status">;
 
-// Draft step shape used in the email campaign wizard
+// Draft step shape used in the email campaign wizard (linear)
 export interface EmailStepDraft {
   subject: string;
   preview_text?: string;
   body_html: string;
   delay_hours: number;
   condition?: { check: string; value?: string };
+}
+
+// Branching-aware step draft (includes node mapping for graph persistence)
+export interface EmailStepDraftWithBranching {
+  node_id: string;
+  step_type: "send" | "condition";
+  subject: string;
+  preview_text?: string;
+  body_html: string;
+  delay_hours: number;
+  condition?: { check: string; value?: string };
+}
+
+// Edge info for mapping branching pointers after step insertion
+export interface BranchingEdge {
+  source_node_id: string;
+  target_node_id: string;
+  branch: "yes" | "no" | null;
 }
 
 // Email-specific flow node data

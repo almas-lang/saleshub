@@ -242,6 +242,7 @@ export type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
 export const createEmailCampaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required").max(100),
   type: z.enum(["drip", "one_time", "newsletter"]),
+  trigger_event: z.string().optional(),
   audience_filter: z.object({
     source: z.string().optional(),
     funnel_id: z.string().optional(),
@@ -251,17 +252,25 @@ export const createEmailCampaignSchema = z.object({
     extra_emails: z.array(z.string().email()).optional(),
     include_archived: z.boolean().optional(),
   }).optional(),
+  flow_data: z.any().optional(),
   steps: z.array(z.object({
+    node_id: z.string().optional(),
     order: z.number().int().min(1),
-    subject: z.string().min(1, "Subject is required"),
+    step_type: z.enum(["send", "condition"]).default("send"),
+    subject: z.string(),
     preview_text: z.string().max(150).optional(),
-    body_html: z.string().min(1, "Body is required"),
-    delay_hours: z.number().int().min(0),
+    body_html: z.string(),
+    delay_hours: z.number().min(0),
     condition: z.object({
       check: z.string(),
       value: z.string().optional(),
     }).optional(),
   })).min(1, "At least one step is required"),
+  branching_edges: z.array(z.object({
+    source_node_id: z.string(),
+    target_node_id: z.string(),
+    branch: z.enum(["yes", "no"]).nullable(),
+  })).optional(),
   activate: z.boolean().optional(),
 });
 
