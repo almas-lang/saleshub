@@ -27,10 +27,13 @@ interface WAStep {
   id: string;
   campaign_id: string;
   order: number;
+  step_type: string;
   wa_template_name: string;
   wa_template_params: string[] | null;
   delay_hours: number;
   condition: { check: string; value?: string } | null;
+  next_step_id_yes: string | null;
+  next_step_id_no: string | null;
 }
 
 interface EmailStepRow {
@@ -349,7 +352,7 @@ export async function GET(request: Request) {
               .eq("id", enrollment.id);
           }
         } else {
-          // ── WHATSAPP DRIP BRANCH ──
+          // ── WHATSAPP DRIP BRANCH (with branching support) ──
           const { data: campaign } = await supabaseAdmin
             .from("wa_campaigns")
             .select("id, status, type")
@@ -364,13 +367,13 @@ export async function GET(request: Request) {
             continue;
           }
 
-          const { data: steps } = await supabaseAdmin
+          const { data: waSteps } = await supabaseAdmin
             .from("wa_steps")
-            .select("id, campaign_id, order, wa_template_name, wa_template_params, delay_hours, condition")
+            .select("id, campaign_id, order, step_type, wa_template_name, wa_template_params, delay_hours, condition, next_step_id_yes, next_step_id_no")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
-          if (!steps?.length) {
+          if (!waSteps?.length) {
             await supabaseAdmin.from("drip_enrollments")
               .update({ status: "completed", completed_at: now })
               .eq("id", enrollment.id);
@@ -378,9 +381,17 @@ export async function GET(request: Request) {
             continue;
           }
 
-          const currentStep = steps.find(
-            (s) => s.order === enrollment.current_step_order
-          ) as WAStep | undefined;
+          const steps = waSteps as unknown as WAStep[];
+          const stepMap = new Map(steps.map((s) => [s.id, s]));
+
+          // Resolve current step: prefer step ID, fallback to order
+          let currentStep: WAStep | undefined;
+          if (enrollment.current_step_id) {
+            currentStep = stepMap.get(enrollment.current_step_id);
+          }
+          if (!currentStep) {
+            currentStep = steps.find((s) => s.order === enrollment.current_step_order);
+          }
 
           if (!currentStep) {
             await supabaseAdmin.from("drip_enrollments")
@@ -390,28 +401,104 @@ export async function GET(request: Request) {
             continue;
           }
 
-          // Stop condition check
-          const condition = currentStep.condition as { check: string } | null;
-          if (condition) {
+          // ── Handle condition-only steps (step_type === 'condition') ──
+          const visitedSteps = new Set<string>();
+          while (currentStep.step_type === "condition" && currentStep.condition) {
+            if (visitedSteps.has(currentStep.id)) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "loop_detected", completed_at: now })
+                .eq("id", enrollment.id);
+              break;
+            }
+            visitedSteps.add(currentStep.id);
+
             const conditionMet = await evaluateCondition(
-              condition.check,
+              currentStep.condition.check,
+              enrollment.contact_id,
+              enrollment.campaign_id
+            );
+
+            const nextStepId = conditionMet
+              ? currentStep.next_step_id_yes
+              : currentStep.next_step_id_no;
+
+            if (!nextStepId) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "completed", completed_at: now })
+                .eq("id", enrollment.id);
+              break;
+            }
+
+            const nextStep = stepMap.get(nextStepId);
+            if (!nextStep) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "completed", completed_at: now })
+                .eq("id", enrollment.id);
+              break;
+            }
+
+            if (nextStep.delay_hours > 0) {
+              const nextSendAt = new Date(
+                Date.now() + nextStep.delay_hours * 60 * 60 * 1000
+              ).toISOString();
+              await supabaseAdmin.from("drip_enrollments")
+                .update({
+                  current_step_id: nextStep.id,
+                  current_step_order: nextStep.order,
+                  next_send_at: nextSendAt,
+                })
+                .eq("id", enrollment.id);
+              currentStep = undefined as unknown as WAStep;
+              break;
+            }
+
+            currentStep = nextStep;
+          }
+
+          // If we broke out due to completion/scheduling, skip to next enrollment
+          if (!currentStep || (visitedSteps.has(currentStep.id) && currentStep.step_type === "condition")) {
+            continue;
+          }
+
+          // ── Condition check on send steps (legacy + branching) ──
+          if (currentStep.condition && currentStep.step_type === "send") {
+            const conditionMet = await evaluateCondition(
+              currentStep.condition.check,
               enrollment.contact_id,
               enrollment.campaign_id
             );
 
             if (conditionMet) {
-              await supabaseAdmin.from("drip_enrollments")
-                .update({
-                  status: "stopped",
-                  stopped_reason: condition.check,
-                  completed_at: now,
-                })
-                .eq("id", enrollment.id);
+              if (currentStep.next_step_id_yes) {
+                const yesStep = stepMap.get(currentStep.next_step_id_yes);
+                if (yesStep) {
+                  const nextSendAt = yesStep.delay_hours > 0
+                    ? new Date(Date.now() + yesStep.delay_hours * 60 * 60 * 1000).toISOString()
+                    : now;
+                  await supabaseAdmin.from("drip_enrollments")
+                    .update({
+                      current_step_id: yesStep.id,
+                      current_step_order: yesStep.order,
+                      next_send_at: nextSendAt,
+                    })
+                    .eq("id", enrollment.id);
+                } else {
+                  await supabaseAdmin.from("drip_enrollments")
+                    .update({ status: "completed", completed_at: now })
+                    .eq("id", enrollment.id);
+                }
+              } else {
+                // Legacy: no branching pointers → stop enrollment
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "stopped", stopped_reason: currentStep.condition.check, completed_at: now })
+                  .eq("id", enrollment.id);
+              }
               stopped++;
               continue;
             }
           }
 
+          // ── Fetch contact ──
           const { data: contact } = await supabaseAdmin
             .from("contacts")
             .select("id, phone, first_name, company_name, deleted_at")
@@ -434,6 +521,7 @@ export async function GET(request: Request) {
             continue;
           }
 
+          // ── Send WhatsApp template ──
           const rawParams = (currentStep.wa_template_params ?? []) as string[];
           const resolvedParams = rawParams.map((p) =>
             p
@@ -474,9 +562,16 @@ export async function GET(request: Request) {
 
           sent++;
 
-          const nextStep = (steps as WAStep[]).find(
-            (s) => s.order > currentStep.order
-          );
+          // ── Advance to next step ──
+          let nextStep: WAStep | undefined;
+
+          if (currentStep.next_step_id_no) {
+            // Branching campaign: follow the "no" (default/next) pointer
+            nextStep = stepMap.get(currentStep.next_step_id_no);
+          } else {
+            // Legacy linear: find next by order
+            nextStep = steps.find((s) => s.order > currentStep!.order);
+          }
 
           if (nextStep) {
             const nextSendAt = new Date(
@@ -485,6 +580,7 @@ export async function GET(request: Request) {
 
             await supabaseAdmin.from("drip_enrollments")
               .update({
+                current_step_id: nextStep.id,
                 current_step_order: nextStep.order,
                 next_send_at: nextSendAt,
               })

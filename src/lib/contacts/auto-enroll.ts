@@ -105,7 +105,7 @@ export async function autoEnrollIntoDrips(contactId: string) {
     if (alreadyEnrolled.has(campaignId)) continue;
     const { data: firstStep } = await supabaseAdmin
       .from("wa_steps")
-      .select("order")
+      .select("id, order")
       .eq("campaign_id", campaignId)
       .order("order", { ascending: true })
       .limit(1)
@@ -116,7 +116,7 @@ export async function autoEnrollIntoDrips(contactId: string) {
       campaign_id: campaignId,
       campaign_type: "whatsapp",
       current_step_order: firstStep?.order ?? 1,
-      current_step_id: null,
+      current_step_id: firstStep?.id ?? null,
       status: "active",
       next_send_at: now,
     });

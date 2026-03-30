@@ -205,8 +205,10 @@ export const createCampaignSchema = z.object({
     include_archived: z.boolean().optional(),
   }).optional(),
   steps: z.array(z.object({
+    node_id: z.string().optional(),
     order: z.number().int().min(1),
-    wa_template_name: z.string().min(1, "Template name is required"),
+    step_type: z.enum(["send", "condition"]).default("send"),
+    wa_template_name: z.string(),
     template_id: z.string().optional().or(z.literal("")),
     delay_hours: z.number().int().min(0),
     wa_template_params: z.array(z.string()),
@@ -215,6 +217,11 @@ export const createCampaignSchema = z.object({
       value: z.string().optional(),
     }).optional(),
   })).min(1, "At least one step is required"),
+  branching_edges: z.array(z.object({
+    source_node_id: z.string(),
+    target_node_id: z.string(),
+    branch: z.enum(["yes", "no"]).nullable(),
+  })).optional(),
   activate: z.boolean().optional(),
   flow_data: z.object({
     nodes: z.array(z.object({

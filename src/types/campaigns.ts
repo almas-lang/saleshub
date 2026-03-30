@@ -41,6 +41,17 @@ export interface CampaignStepDraft {
   condition?: { check: string; value?: string };
 }
 
+// Branching-aware WA step draft (includes node mapping for graph persistence)
+export interface WAStepDraftWithBranching {
+  node_id: string;
+  step_type: "send" | "condition";
+  template_id: string;
+  wa_template_name: string;
+  delay_hours: number;
+  wa_template_params: string[];
+  condition?: { check: string; value?: string };
+}
+
 // ── Flow builder node data types ──
 
 export interface TriggerNodeData {

@@ -23,6 +23,8 @@ import type {
   FlowData,
   FlowNodeData,
   CampaignStepDraft,
+  WAStepDraftWithBranching,
+  BranchingEdge,
   SendNodeData,
   DelayNodeData,
   ConditionNodeData,
@@ -162,6 +164,164 @@ export function flowToSteps(flow: FlowData): CampaignStepDraft[] {
   if (steps.length > 0) steps[0].delay_hours = 0;
 
   return steps;
+}
+
+// ── flowToWaStepsWithBranching: BFS walk preserving all branches ──
+
+export function flowToWaStepsWithBranching(
+  flow: FlowData
+): { steps: WAStepDraftWithBranching[]; edges: BranchingEdge[] } {
+  const steps: WAStepDraftWithBranching[] = [];
+  const edges: BranchingEdge[] = [];
+
+  const triggerNode = flow.nodes.find((n) => n.type === "trigger");
+  if (!triggerNode) return { steps, edges };
+
+  // Build adjacency: source -> [{ target, sourceHandle }]
+  const outgoing = new Map<string, { target: string; sourceHandle: string | null }[]>();
+  for (const e of flow.edges) {
+    if (!outgoing.has(e.source)) outgoing.set(e.source, []);
+    outgoing.get(e.source)!.push({ target: e.target, sourceHandle: e.sourceHandle ?? null });
+  }
+
+  const nodeMap = new Map(flow.nodes.map((n) => [n.id, n]));
+
+  // BFS to visit all reachable nodes in order
+  const visited = new Set<string>();
+  const queue: string[] = [];
+
+  // Seed with trigger's children
+  for (const edge of outgoing.get(triggerNode.id) ?? []) {
+    queue.push(edge.target);
+  }
+  visited.add(triggerNode.id);
+
+  // Track delay accumulated before each node
+  const delayBefore = new Map<string, number>();
+
+  // First pass: compute delays by walking linearly from trigger
+  // For branching we assign delays at the step level
+  function walkDelays(nodeId: string, accumulated: number, seen: Set<string>) {
+    if (seen.has(nodeId)) return;
+    seen.add(nodeId);
+    const node = nodeMap.get(nodeId);
+    if (!node) return;
+
+    if (node.type === "delay") {
+      const d = node.data as unknown as DelayNodeData;
+      const newAcc = accumulated + (d.hours ?? 0);
+      for (const edge of outgoing.get(nodeId) ?? []) {
+        walkDelays(edge.target, newAcc, seen);
+      }
+    } else if (node.type === "send" || node.type === "condition") {
+      delayBefore.set(nodeId, accumulated);
+      for (const edge of outgoing.get(nodeId) ?? []) {
+        walkDelays(edge.target, 0, seen);
+      }
+    } else if (node.type === "stop") {
+      // terminal
+    } else {
+      for (const edge of outgoing.get(nodeId) ?? []) {
+        walkDelays(edge.target, accumulated, seen);
+      }
+    }
+  }
+
+  for (const edge of outgoing.get(triggerNode.id) ?? []) {
+    walkDelays(edge.target, 0, new Set([triggerNode.id]));
+  }
+
+  // BFS to emit steps and edges
+  const emitted = new Set<string>();
+  const bfsQueue = [...(outgoing.get(triggerNode.id) ?? []).map((e) => e.target)];
+
+  while (bfsQueue.length > 0) {
+    const nodeId = bfsQueue.shift()!;
+    if (emitted.has(nodeId)) continue;
+    emitted.add(nodeId);
+
+    const node = nodeMap.get(nodeId);
+    if (!node) continue;
+
+    if (node.type === "send") {
+      const d = node.data as unknown as SendNodeData;
+      steps.push({
+        node_id: node.id,
+        step_type: "send",
+        template_id: d.templateId ?? "",
+        wa_template_name: d.templateName ?? "",
+        delay_hours: delayBefore.get(nodeId) ?? 0,
+        wa_template_params: d.templateParams ?? [],
+      });
+
+      // Find the next non-delay actionable node for edges
+      for (const edge of outgoing.get(nodeId) ?? []) {
+        const target = resolveTarget(edge.target);
+        if (target) {
+          edges.push({
+            source_node_id: nodeId,
+            target_node_id: target,
+            branch: null,
+          });
+        }
+        bfsQueue.push(edge.target);
+      }
+    } else if (node.type === "condition") {
+      const d = node.data as unknown as ConditionNodeData;
+      steps.push({
+        node_id: node.id,
+        step_type: "condition",
+        template_id: "",
+        wa_template_name: "",
+        delay_hours: delayBefore.get(nodeId) ?? 0,
+        wa_template_params: [],
+        condition: { check: d.check },
+      });
+
+      // Follow yes and no branches
+      for (const edge of outgoing.get(nodeId) ?? []) {
+        const branch = edge.sourceHandle === "yes" ? "yes" : "no";
+        const target = resolveTarget(edge.target);
+        if (target) {
+          edges.push({
+            source_node_id: nodeId,
+            target_node_id: target,
+            branch: branch as "yes" | "no",
+          });
+        }
+        bfsQueue.push(edge.target);
+      }
+    } else if (node.type === "delay") {
+      // Skip delay nodes — their time is folded into the next step
+      for (const edge of outgoing.get(nodeId) ?? []) {
+        bfsQueue.push(edge.target);
+      }
+    }
+    // stop nodes are terminal — nothing to emit
+  }
+
+  // Ensure first step has delay 0
+  if (steps.length > 0) steps[0].delay_hours = 0;
+
+  return { steps, edges };
+
+  // Helper: resolve through delay nodes to find the actionable target
+  function resolveTarget(nodeId: string): string | null {
+    const seen = new Set<string>();
+    let current = nodeId;
+    while (current && !seen.has(current)) {
+      seen.add(current);
+      const n = nodeMap.get(current);
+      if (!n) return null;
+      if (n.type === "send" || n.type === "condition") return current;
+      if (n.type === "stop") return null;
+      // Traverse through delay nodes
+      const next = outgoing.get(current)?.[0]?.target;
+      if (!next) return null;
+      current = next;
+    }
+    return null;
+  }
 }
 
 // ── Connection validation ──

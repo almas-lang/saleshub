@@ -152,7 +152,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, type, audience_filter, steps, activate, flow_data } = parsed.data;
+  const { name, type, audience_filter, steps, activate, flow_data, branching_edges } = parsed.data;
 
   // 1. Insert campaign as draft
   const { data: campaign, error: campaignError } = await supabase
@@ -171,10 +171,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: campaignError.message }, { status: 500 });
   }
 
-  // 2. Bulk-insert steps
+  // 2. Pass 1: Insert all step rows (without branching pointers)
   const stepRows = steps.map((s) => ({
     campaign_id: campaign.id,
     order: s.order,
+    step_type: s.step_type ?? "send",
     wa_template_name: s.wa_template_name,
     template_id: null, // wa_templates mirror not synced yet; store name only
     delay_hours: s.delay_hours,
@@ -182,17 +183,44 @@ export async function POST(request: Request) {
     condition: s.condition ?? null,
   }));
 
-  const { error: stepsError } = await supabase
+  const { data: insertedSteps, error: stepsError } = await supabase
     .from("wa_steps")
-    .insert(stepRows);
+    .insert(stepRows)
+    .select("id, order");
 
-  if (stepsError) {
+  if (stepsError || !insertedSteps) {
     // Compensating cleanup — remove the campaign
     await supabase.from("wa_campaigns").delete().eq("id", campaign.id);
-    return NextResponse.json({ error: stepsError.message }, { status: 500 });
+    return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
   }
 
-  // 3. Activate if requested
+  // 3. Pass 2: Set branching pointers if edges provided
+  if (branching_edges?.length && insertedSteps.length > 0) {
+    // Map node_id → DB step UUID
+    const nodeToDbId = new Map<string, string>();
+    for (let i = 0; i < steps.length; i++) {
+      const nodeId = steps[i].node_id;
+      const dbStep = insertedSteps[i];
+      if (nodeId && dbStep) {
+        nodeToDbId.set(nodeId, dbStep.id);
+      }
+    }
+
+    // Apply branching edges
+    for (const edge of branching_edges) {
+      const sourceDbId = nodeToDbId.get(edge.source_node_id);
+      const targetDbId = nodeToDbId.get(edge.target_node_id);
+      if (!sourceDbId || !targetDbId) continue;
+
+      const column = edge.branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
+      await supabase
+        .from("wa_steps")
+        .update({ [column]: targetDbId })
+        .eq("id", sourceDbId);
+    }
+  }
+
+  // 4. Activate if requested
   if (activate) {
     await supabase
       .from("wa_campaigns")

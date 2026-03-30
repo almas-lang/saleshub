@@ -16,7 +16,7 @@ import { CampaignStepDetails } from "./campaign-step-details";
 import { CampaignStepAudience } from "./campaign-step-audience";
 import { CampaignStepMessages } from "./campaign-step-messages";
 import { CampaignStepReview } from "./campaign-step-review";
-import { DripFlowCanvas, validateFlow, flowToSteps } from "./drip-flow-canvas";
+import { DripFlowCanvas, validateFlow, flowToSteps, flowToWaStepsWithBranching } from "./drip-flow-canvas";
 
 // Shape returned by Meta API via /api/whatsapp/templates
 interface MetaTemplate {
@@ -178,25 +178,49 @@ export function CampaignWizard({
       setSaving(true);
 
       const isDrip = type === "drip";
-      const resolvedSteps = isDrip && flowData
-        ? flowToSteps(flowData)
-        : campaignSteps;
 
-      const payload: Record<string, unknown> = {
-        name: name.trim(),
-        type,
-        audience_filter: audienceFilter,
-        steps: resolvedSteps.map((s, i) => ({
-          order: i + 1,
-          wa_template_name: s.wa_template_name,
-          template_id: s.template_id,
-          delay_hours: i === 0 ? 0 : s.delay_hours,
-          wa_template_params: s.wa_template_params,
-          ...(s.condition ? { condition: s.condition } : {}),
-        })),
-        activate,
-        ...(isDrip && flowData ? { flow_data: flowData } : {}),
-      };
+      let payload: Record<string, unknown>;
+
+      if (isDrip && flowData) {
+        // Use branching-aware conversion
+        const { steps: branchingSteps, edges: branchingEdges } =
+          flowToWaStepsWithBranching(flowData);
+
+        payload = {
+          name: name.trim(),
+          type,
+          audience_filter: audienceFilter,
+          steps: branchingSteps.map((s, i) => ({
+            node_id: s.node_id,
+            order: i + 1,
+            step_type: s.step_type,
+            wa_template_name: s.wa_template_name,
+            template_id: s.template_id,
+            delay_hours: i === 0 ? 0 : s.delay_hours,
+            wa_template_params: s.wa_template_params,
+            ...(s.condition ? { condition: s.condition } : {}),
+          })),
+          branching_edges: branchingEdges,
+          activate,
+          flow_data: flowData,
+        };
+      } else {
+        payload = {
+          name: name.trim(),
+          type,
+          audience_filter: audienceFilter,
+          steps: campaignSteps.map((s, i) => ({
+            order: i + 1,
+            step_type: "send",
+            wa_template_name: s.wa_template_name,
+            template_id: s.template_id,
+            delay_hours: i === 0 ? 0 : s.delay_hours,
+            wa_template_params: s.wa_template_params,
+            ...(s.condition ? { condition: s.condition } : {}),
+          })),
+          activate,
+        };
+      }
 
       const result = await safeFetch("/api/campaigns/whatsapp", {
         method: "POST",

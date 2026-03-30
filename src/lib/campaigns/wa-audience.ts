@@ -47,16 +47,17 @@ export async function enrollAudience(
 
   if (!toEnroll.length) return 0;
 
-  // Fetch the first step order
+  // Fetch the first step (order + id for branching support)
   const { data: firstStep } = await supabaseAdmin
     .from("wa_steps")
-    .select("order")
+    .select("id, order")
     .eq("campaign_id", campaignId)
     .order("order", { ascending: true })
     .limit(1)
     .single();
 
   const firstOrder = firstStep?.order ?? 1;
+  const firstStepId = firstStep?.id ?? null;
   const now = new Date().toISOString();
 
   // Bulk insert enrollments
@@ -65,6 +66,7 @@ export async function enrollAudience(
     campaign_id: campaignId,
     campaign_type: "whatsapp" as const,
     current_step_order: firstOrder,
+    current_step_id: firstStepId,
     status: "active" as const,
     next_send_at: now,
   }));
