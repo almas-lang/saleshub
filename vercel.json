@@ -25,14 +25,6 @@
       "schedule": "0 2 * * 0"
     },
     {
-      "path": "/api/cron/drip-processor",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/booking-reminder",
-      "schedule": "*/30 * * * *"
-    },
-    {
       "path": "/api/cron/calendar-health",
       "schedule": "0 9 * * *"
     },
