@@ -156,7 +156,7 @@ function EmailComposeOverlay({
         </div>
 
         {/* Right: sticky email preview */}
-        <div className="hidden lg:flex flex-col border-l bg-muted/10">
+        <div className="hidden lg:flex flex-col border-l bg-muted/10 min-h-0">
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <Eye className="size-3.5 text-muted-foreground" />
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Preview</p>
