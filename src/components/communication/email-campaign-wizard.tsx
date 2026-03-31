@@ -245,8 +245,7 @@ export function EmailCampaignWizard({
     }
 
     toast.success("Campaign saved as draft");
-    router.push("/email");
-  }, [buildPayload, router]);
+  }, [buildPayload]);
 
   return (
     <div className="space-y-8">

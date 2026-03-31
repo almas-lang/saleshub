@@ -296,8 +296,7 @@ export function CampaignWizard({
     }
 
     toast.success("Campaign saved as draft");
-    router.push("/whatsapp");
-  }, [buildPayload, router]);
+  }, [buildPayload]);
 
   return (
     <div className="space-y-8">
