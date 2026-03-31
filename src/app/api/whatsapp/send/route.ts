@@ -62,6 +62,18 @@ export async function POST(req: NextRequest) {
     sent_at: new Date().toISOString(),
   });
 
+  // Store in wa_messages for chat inbox
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabaseAdmin as any).from("wa_messages").insert({
+    contact_id,
+    direction: "outbound",
+    body: `[Template: ${template_name}]`,
+    message_type: "template",
+    wa_message_id: result.messageId ?? null,
+    status: "sent",
+    metadata: { template_name, params },
+  });
+
   // Log activity
   await supabaseAdmin.from("activities").insert({
     contact_id,

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const TABS = [
+  { label: "Chat", href: "/whatsapp/chat" },
   { label: "Campaigns", href: "/whatsapp" },
   { label: "Templates", href: "/whatsapp/templates" },
 ];
@@ -18,7 +19,9 @@ export default function WhatsAppLayout({
 
   // Hide tabs on campaign detail/new pages
   const showTabs =
-    pathname === "/whatsapp" || pathname === "/whatsapp/templates";
+    pathname === "/whatsapp" ||
+    pathname === "/whatsapp/templates" ||
+    pathname.startsWith("/whatsapp/chat");
 
   // Hide layout chrome on full-page editors
   if (pathname === "/whatsapp/templates/new") {
@@ -39,7 +42,8 @@ export default function WhatsAppLayout({
           {TABS.map((tab) => {
             const isActive =
               tab.href === "/whatsapp"
-                ? pathname === "/whatsapp"
+                ? pathname === "/whatsapp" ||
+                  pathname.startsWith("/whatsapp/campaigns")
                 : pathname.startsWith(tab.href);
             return (
               <Link

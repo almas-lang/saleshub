@@ -165,16 +165,29 @@ async function handleIncomingMessage(message: {
   timestamp: string;
   type: string;
   text?: { body: string };
+  image?: { caption?: string; id: string; mime_type: string };
+  video?: { caption?: string; id: string; mime_type: string };
+  document?: { caption?: string; filename?: string; id: string; mime_type: string };
+  audio?: { id: string; mime_type: string };
 }) {
   const senderPhone = formatForWA(message.from);
   const senderPhonePlus = `+${senderPhone}`;
   const messageText =
     message.type === "text" ? message.text?.body ?? "" : `[${message.type}]`;
 
+  // Build body: use caption for media if available, else text body
+  const body =
+    message.type === "text"
+      ? message.text?.body ?? ""
+      : message.image?.caption ??
+        message.video?.caption ??
+        message.document?.caption ??
+        null;
+
   // Look up contact by phone (try both with and without + prefix)
   const { data: contact, error: contactErr } = await supabaseAdmin
     .from("contacts")
-    .select("id")
+    .select("id, first_name, last_name")
     .or(`phone.eq.${senderPhone},phone.eq.${senderPhonePlus}`)
     .is("deleted_at", null)
     .maybeSingle();
@@ -196,14 +209,58 @@ async function handleIncomingMessage(message: {
     return;
   }
 
+  // Store in wa_messages for chat inbox
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabaseAdmin as any).from("wa_messages").insert({
+    contact_id: contact.id,
+    direction: "inbound",
+    body,
+    message_type: message.type,
+    wa_message_id: message.id,
+    status: null,
+    metadata:
+      message.type !== "text"
+        ? {
+            media_id:
+              message.image?.id ??
+              message.video?.id ??
+              message.document?.id ??
+              message.audio?.id,
+            mime_type:
+              message.image?.mime_type ??
+              message.video?.mime_type ??
+              message.document?.mime_type ??
+              message.audio?.mime_type,
+            filename: message.document?.filename,
+          }
+        : null,
+  });
+
   // Log activity
   await supabaseAdmin.from("activities").insert({
     contact_id: contact.id,
-    type: "note",
-    title: "WhatsApp reply received",
+    type: "wa_reply" as any,
+    title: "WhatsApp message received",
     body: messageText,
     metadata: { wa_message_id: message.id, from: senderPhone },
   });
+
+  // Create in-app notification for all active team members
+  const contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || senderPhone;
+  const { data: teamMembers } = await supabaseAdmin
+    .from("team_members")
+    .select("id")
+    .eq("is_active", true);
+
+  if (teamMembers && teamMembers.length > 0) {
+    const notifications = teamMembers.map((tm: { id: string }) => ({
+      user_id: tm.id,
+      title: `WhatsApp from ${contactName}`,
+      body: messageText.length > 100 ? messageText.slice(0, 100) + "…" : messageText,
+      link: `/whatsapp/chat?contact=${contact.id}`,
+    }));
+    await supabaseAdmin.from("notifications").insert(notifications);
+  }
 
   // If there's an unreplied wa_sends record, mark as replied
   const { data: unreplied } = await supabaseAdmin
