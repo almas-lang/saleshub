@@ -345,7 +345,11 @@ export function CampaignDetail({
                         <Clock className="size-3.5" />
                         {step.delay_hours === 0
                           ? "Send immediately"
-                          : `${step.delay_hours}h delay`}
+                          : step.delay_hours < 1
+                            ? `${Math.round(step.delay_hours * 60)}m delay`
+                            : step.delay_hours % 1 !== 0
+                              ? `${Math.round(step.delay_hours * 60)}m delay`
+                              : `${step.delay_hours}h delay`}
                       </span>
                     </div>
                     {Array.isArray(step.wa_template_params) &&

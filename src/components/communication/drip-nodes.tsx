@@ -197,7 +197,7 @@ function SendNode({ id, data }: NodeProps) {
 
 function toHours(value: number, unit: DelayUnit): number {
   switch (unit) {
-    case "minutes": return Math.round((value / 60) * 100) / 100;
+    case "minutes": return value / 60;
     case "days": return value * 24;
     default: return value;
   }

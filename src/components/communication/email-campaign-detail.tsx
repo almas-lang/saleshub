@@ -564,7 +564,11 @@ export function EmailCampaignDetail({
                           <Clock className="size-3.5" />
                           {step.delay_hours === 0
                             ? "Send immediately"
-                            : `${step.delay_hours}h delay`}
+                            : step.delay_hours < 1
+                              ? `${Math.round(step.delay_hours * 60)}m delay`
+                              : step.delay_hours % 1 !== 0
+                                ? `${Math.round(step.delay_hours * 60)}m delay`
+                                : `${step.delay_hours}h delay`}
                         </span>
                       </div>
                     </div>

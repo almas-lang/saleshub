@@ -258,11 +258,29 @@ export function CampaignWizard({
       setSaving(true);
       const payload = buildPayload(activate);
 
-      const result = await safeFetch("/api/campaigns/whatsapp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let result;
+      if (savedCampaignId) {
+        // Update existing draft, then activate if needed
+        result = await safeFetch(`/api/campaigns/whatsapp?id=${savedCampaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: payload.name,
+            audience_filter: payload.audience_filter,
+            flow_data: payload.flow_data,
+            ...(activate ? { status: "active" } : {}),
+          }),
+        });
+      } else {
+        result = await safeFetch("/api/campaigns/whatsapp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (result.ok && result.data) {
+          setSavedCampaignId((result.data as { id: string }).id);
+        }
+      }
 
       setSaving(false);
 
@@ -276,7 +294,7 @@ export function CampaignWizard({
       );
       router.push("/whatsapp");
     },
-    [buildPayload, router],
+    [buildPayload, router, savedCampaignId],
   );
 
   const handleQuickDraft = useCallback(async () => {

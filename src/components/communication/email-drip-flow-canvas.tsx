@@ -132,7 +132,7 @@ export function flowToEmailSteps(flow: FlowData): EmailStepDraft[] {
         subject: d.subject ?? "",
         preview_text: d.previewText || undefined,
         body_html: d.bodyHtml ?? "",
-        delay_hours: Math.round(accumulatedDelay),
+        delay_hours: accumulatedDelay,
       });
       accumulatedDelay = 0;
     } else if (node.type === "delay") {
@@ -208,7 +208,7 @@ export function flowToEmailStepsWithBranching(flow: FlowData): {
         subject: d.subject ?? "",
         preview_text: d.previewText || undefined,
         body_html: d.bodyHtml ?? "",
-        delay_hours: Math.round(incomingDelay),
+        delay_hours: incomingDelay,
       });
 
       // Connect from parent
@@ -246,7 +246,7 @@ export function flowToEmailStepsWithBranching(flow: FlowData): {
         step_type: "condition",
         subject: "",
         body_html: "",
-        delay_hours: Math.round(incomingDelay),
+        delay_hours: incomingDelay,
         condition: { check: d.check },
       });
 

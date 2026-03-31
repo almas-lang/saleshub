@@ -207,11 +207,28 @@ export function EmailCampaignWizard({
       setSaving(true);
       const payload = buildPayload(activate);
 
-      const result = await safeFetch("/api/campaigns/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      let result;
+      if (savedCampaignId) {
+        result = await safeFetch(`/api/campaigns/email?id=${savedCampaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: payload.name,
+            audience_filter: payload.audience_filter,
+            flow_data: payload.flow_data,
+            ...(activate ? { status: "active" } : {}),
+          }),
+        });
+      } else {
+        result = await safeFetch("/api/campaigns/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (result.ok && result.data) {
+          setSavedCampaignId((result.data as { id: string }).id);
+        }
+      }
 
       setSaving(false);
 
@@ -225,7 +242,7 @@ export function EmailCampaignWizard({
       );
       router.push("/email");
     },
-    [buildPayload, router],
+    [buildPayload, router, savedCampaignId],
   );
 
   const handleQuickDraft = useCallback(async () => {
