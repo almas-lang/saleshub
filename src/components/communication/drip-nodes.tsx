@@ -16,6 +16,7 @@ import type {
   TriggerNodeData,
   SendNodeData,
   DelayNodeData,
+  DelayUnit,
   ConditionNodeData,
   StopNodeData,
 } from "@/types/campaigns";
@@ -169,8 +170,8 @@ function SendNode({ id, data }: NodeProps) {
           </Select>
 
           {selectedTemplate?.body_text && (
-            <div className="rounded bg-muted/60 p-2">
-              <p className="line-clamp-3 text-[10px] leading-relaxed text-muted-foreground">
+            <div className="rounded bg-muted/60 p-2" title={selectedTemplate.body_text}>
+              <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
                 {selectedTemplate.body_text}
               </p>
             </div>
@@ -194,15 +195,36 @@ function SendNode({ id, data }: NodeProps) {
 
 // ── Delay Node ──
 
+function toHours(value: number, unit: DelayUnit): number {
+  switch (unit) {
+    case "minutes": return Math.round((value / 60) * 100) / 100;
+    case "days": return value * 24;
+    default: return value;
+  }
+}
+
 function DelayNode({ id, data }: NodeProps) {
   const d = data as unknown as DelayNodeData;
   const { setNodes } = useReactFlow();
 
+  const unit: DelayUnit = d.delayUnit ?? "hours";
+  const displayValue = d.delayValue ?? d.hours ?? 24;
+
   const update = useCallback(
-    (hours: number) => {
+    (value: number, newUnit: DelayUnit) => {
       setNodes((nds) =>
         nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, hours } } : n,
+          n.id === id
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  delayValue: value,
+                  delayUnit: newUnit,
+                  hours: toHours(value, newUnit),
+                },
+              }
+            : n,
         ),
       );
     },
@@ -218,10 +240,22 @@ function DelayNode({ id, data }: NodeProps) {
             type="number"
             min={1}
             className="h-8 w-20 text-xs"
-            value={d.hours}
-            onChange={(e) => update(Math.max(1, parseInt(e.target.value) || 1))}
+            value={displayValue}
+            onChange={(e) =>
+              update(Math.max(1, parseInt(e.target.value) || 1), unit)
+            }
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
           />
-          <span className="text-xs text-muted-foreground">hours</span>
+          <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
+            <SelectTrigger className="h-8 w-24 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">mins</SelectItem>
+              <SelectItem value="hours">hours</SelectItem>
+              <SelectItem value="days">days</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500" />

@@ -12,6 +12,7 @@ import {
   FileText,
   Users,
   Send,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -192,6 +193,41 @@ export function CampaignDetail({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {(campaign.status === "draft" || campaign.status === "paused") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => router.push(`/whatsapp/campaigns/${campaign.id}?edit=true`)}
+              disabled={steps.length === 0}
+            >
+              <Pencil className="mr-2 size-4" />
+              Edit Steps
+            </Button>
+          )}
+          {campaign.status === "draft" && (
+            <Button
+              size="sm"
+              onClick={async () => {
+                setLoading(true);
+                const result = await safeFetch(
+                  `/api/campaigns/whatsapp?id=${campaign.id}`,
+                  {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "active" }),
+                  }
+                );
+                setLoading(false);
+                if (!result.ok) { toast.error(result.error); return; }
+                router.refresh();
+                toast.success("Campaign activated");
+              }}
+              disabled={loading || steps.length === 0}
+            >
+              <Play className="mr-2 size-4" />
+              Activate
+            </Button>
+          )}
           {(campaign.status === "active" || campaign.status === "paused") && (
             <Button
               variant="outline"

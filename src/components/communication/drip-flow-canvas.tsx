@@ -132,7 +132,7 @@ export function flowToSteps(flow: FlowData): CampaignStepDraft[] {
       steps.push({
         template_id: d.templateId ?? "",
         wa_template_name: d.templateName ?? "",
-        delay_hours: accumulatedDelay,
+        delay_hours: Math.round(accumulatedDelay),
         wa_template_params: d.templateParams ?? [],
       });
       accumulatedDelay = 0; // reset after emitting
@@ -250,7 +250,7 @@ export function flowToWaStepsWithBranching(
         step_type: "send",
         template_id: d.templateId ?? "",
         wa_template_name: d.templateName ?? "",
-        delay_hours: delayBefore.get(nodeId) ?? 0,
+        delay_hours: Math.round(delayBefore.get(nodeId) ?? 0),
         wa_template_params: d.templateParams ?? [],
       });
 
@@ -273,7 +273,7 @@ export function flowToWaStepsWithBranching(
         step_type: "condition",
         template_id: "",
         wa_template_name: "",
-        delay_hours: delayBefore.get(nodeId) ?? 0,
+        delay_hours: Math.round(delayBefore.get(nodeId) ?? 0),
         wa_template_params: [],
         condition: { check: d.check },
       });
