@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -15,6 +16,8 @@ import {
   Pencil,
   X,
   Check,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -193,6 +196,136 @@ export function EmailCampaignDetail({
     toast.success("Step updated");
     setEditingStepId(null);
     router.refresh();
+  }
+
+  function renderEditOverlay() {
+    if (!editingStepId) return null;
+    const step = steps.find((s) => s.id === editingStepId);
+    if (!step) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex flex-col bg-background">
+        {/* Top bar */}
+        <div className="flex items-center justify-between border-b px-6 py-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="size-8" onClick={cancelEditing}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div>
+              <h1 className="text-lg font-semibold">Edit Step {step.order}</h1>
+              <p className="text-xs text-muted-foreground">
+                {editSubject || "Untitled email"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={cancelEditing} disabled={saving}>Cancel</Button>
+            <Button onClick={saveStep} disabled={saving}>
+              {saving && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+              Save
+            </Button>
+          </div>
+        </div>
+
+        {/* Content: editor + preview */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_420px]">
+          {/* Left: scrollable editor */}
+          <div className="overflow-y-auto px-8 py-6">
+            <div className="mx-auto max-w-2xl space-y-6">
+              <div className="space-y-2">
+                <Label>Subject</Label>
+                <SubjectInputWithVariables
+                  value={editSubject}
+                  onChange={setEditSubject}
+                  placeholder="Email subject line..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Preview Text
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                    shown in inbox before opening
+                  </span>
+                </Label>
+                <Input
+                  placeholder="Optional preview text..."
+                  value={editPreviewText}
+                  onChange={(e) => setEditPreviewText(e.target.value)}
+                  maxLength={150}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Delay (hours)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editDelayHours}
+                  onChange={(e) => setEditDelayHours(parseInt(e.target.value) || 0)}
+                  className="max-w-xs"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Body</Label>
+                <EmailBlockEditor
+                  key={editingStepId}
+                  content={editBody}
+                  onChange={setEditBody}
+                  placeholder="Write your email content..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right: sticky email preview */}
+          <div className="hidden lg:flex flex-col border-l bg-muted/10 min-h-0">
+            <div className="flex items-center gap-2 border-b px-4 py-3">
+              <Eye className="size-3.5 text-muted-foreground" />
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Preview</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Inbox preview */}
+              <div className="mb-4 rounded-lg border p-3 space-y-0.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Inbox Preview</p>
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {editSubject || "No subject"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {editPreviewText || (editBody
+                    ? editBody.replace(/<[^>]*>/g, "").slice(0, 100)
+                    : "No content yet..."
+                  )}
+                </p>
+              </div>
+
+              {/* Email body preview */}
+              <div className="rounded-lg border bg-white dark:bg-card">
+                <div className="border-b px-5 py-4">
+                  <p className="text-base font-semibold text-foreground">
+                    {editSubject || "No subject"}
+                  </p>
+                </div>
+                <div className="px-5 py-4">
+                  {editBody ? (
+                    <div
+                      className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                      dangerouslySetInnerHTML={{ __html: editBody }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      Start writing to see the preview...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
   }
 
   async function handleActivate() {
@@ -412,83 +545,8 @@ export function EmailCampaignDetail({
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {steps.map((step) =>
-                editingStepId === step.id ? (
-                  <div
-                    key={step.id}
-                    className="flex flex-col gap-4 rounded-xl border border-primary/30 p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                          {step.order}
-                        </div>
-                        <span className="text-sm font-medium">Editing step</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={cancelEditing}
-                          disabled={saving}
-                        >
-                          <X className="mr-1 size-4" />
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={saveStep}
-                          disabled={saving}
-                        >
-                          <Check className="mr-1 size-4" />
-                          {saving ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Subject</Label>
-                      <SubjectInputWithVariables
-                        value={editSubject}
-                        onChange={setEditSubject}
-                        placeholder="Email subject"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="edit-preview">
-                        Preview Text
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          (shown in inbox before opening)
-                        </span>
-                      </Label>
-                      <Input
-                        id="edit-preview"
-                        value={editPreviewText}
-                        onChange={(e) => setEditPreviewText(e.target.value)}
-                        placeholder="Optional preview text..."
-                        maxLength={150}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="edit-delay">Delay (hours)</Label>
-                      <Input
-                        id="edit-delay"
-                        type="number"
-                        min={0}
-                        value={editDelayHours}
-                        onChange={(e) =>
-                          setEditDelayHours(parseInt(e.target.value) || 0)
-                        }
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Body</Label>
-                      <EmailBlockEditor
-                        content={editBody}
-                        onChange={setEditBody}
-                      />
-                    </div>
-                  </div>
-                ) : (
+              {renderEditOverlay()}
+              {steps.map((step) => (
                   <div
                     key={step.id}
                     className="flex items-start gap-4 rounded-xl border p-4"
@@ -521,8 +579,7 @@ export function EmailCampaignDetail({
                       </Button>
                     )}
                   </div>
-                )
-              )}
+              ))}
             </div>
           )}
         </TabsContent>
