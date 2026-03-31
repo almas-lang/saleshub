@@ -197,8 +197,9 @@ export function CampaignDetail({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/whatsapp/campaigns/${campaign.id}?edit=true`)}
-              disabled={steps.length === 0}
+              onClick={() => {
+                toast.info("To edit steps, delete this campaign and create a new one. Full edit mode coming soon.");
+              }}
             >
               <Pencil className="mr-2 size-4" />
               Edit Steps

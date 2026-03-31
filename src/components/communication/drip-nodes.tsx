@@ -170,8 +170,8 @@ function SendNode({ id, data }: NodeProps) {
           </Select>
 
           {selectedTemplate?.body_text && (
-            <div className="rounded bg-muted/60 p-2" title={selectedTemplate.body_text}>
-              <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
+            <div className="rounded bg-muted/60 p-1.5" title={selectedTemplate.body_text}>
+              <p className="line-clamp-1 text-[10px] leading-relaxed text-muted-foreground">
                 {selectedTemplate.body_text}
               </p>
             </div>

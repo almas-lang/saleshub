@@ -114,6 +114,7 @@ export function CampaignWizard({
 
   // Step 4 — Review / saving
   const [saving, setSaving] = useState(false);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
 
   // Reset steps when campaign type changes
   const handleTypeChange = (newType: CampaignType) => {
@@ -282,11 +283,27 @@ export function CampaignWizard({
     setSaving(true);
     const payload = buildPayload(false);
 
-    const result = await safeFetch("/api/campaigns/whatsapp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let result;
+    if (savedCampaignId) {
+      result = await safeFetch(`/api/campaigns/whatsapp?id=${savedCampaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: payload.name,
+          audience_filter: payload.audience_filter,
+          flow_data: payload.flow_data,
+        }),
+      });
+    } else {
+      result = await safeFetch("/api/campaigns/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (result.ok && result.data) {
+        setSavedCampaignId((result.data as { id: string }).id);
+      }
+    }
 
     setSaving(false);
 
@@ -296,7 +313,7 @@ export function CampaignWizard({
     }
 
     toast.success("Campaign saved as draft");
-  }, [buildPayload]);
+  }, [buildPayload, savedCampaignId]);
 
   return (
     <div className="space-y-8">
