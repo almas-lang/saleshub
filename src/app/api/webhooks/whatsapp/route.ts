@@ -239,7 +239,8 @@ async function handleIncomingMessage(message: {
   // Log activity
   await supabaseAdmin.from("activities").insert({
     contact_id: contact.id,
-    type: "wa_reply" as any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type: "wa_reply" as any, // enum value added in migration, not yet in generated types
     title: "WhatsApp message received",
     body: messageText,
     metadata: { wa_message_id: message.id, from: senderPhone },

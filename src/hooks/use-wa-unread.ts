@@ -21,8 +21,9 @@ export function useWaUnread() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
     refresh();
-    const interval = setInterval(refresh, 10_000); // poll every 10s
+    const interval = setInterval(refresh, 10_000);
     return () => clearInterval(interval);
   }, [refresh]);
 

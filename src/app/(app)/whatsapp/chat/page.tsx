@@ -8,7 +8,6 @@ import {
   Send,
   ArrowLeft,
   Search,
-  User,
   Check,
   CheckCheck,
   Clock,
@@ -25,7 +24,6 @@ import { safeFetch } from "@/lib/fetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { playNotificationSound } from "@/lib/notification-sound";
 
@@ -285,12 +283,12 @@ export default function WhatsAppChatPage() {
     [scrollToBottom]
   );
 
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
+  useEffect(() => { loadConversations(); }, [loadConversations]);
 
   useEffect(() => {
     if (activeContactId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on param change
       loadMessages(activeContactId);
     } else {
       setMessages([]);

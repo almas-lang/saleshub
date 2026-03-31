@@ -184,9 +184,8 @@ export function ChatThread({ contactId, height = "500px" }: ChatThreadProps) {
     setLoading(false);
   }, [contactId, loading, scrollToBottom]);
 
-  useEffect(() => {
-    loadMessages();
-  }, [loadMessages]);
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
+  useEffect(() => { loadMessages(); }, [loadMessages]);
 
   // Poll for new messages
   useEffect(() => {
