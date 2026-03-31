@@ -199,13 +199,14 @@ export default async function ProspectsPage({
   // Build lastActivityMap — most recent activity per contact
   const contactIds = prospects.map((p) => p.id);
   const lastActivityMap: Record<string, string> = {};
+  const lastActivityTypeMap: Record<string, string> = {};
   let calendlyBookedIds: string[] = [];
 
   if (contactIds.length > 0) {
     try {
       const { data: activities } = await supabase
         .from("activities")
-        .select("contact_id, created_at")
+        .select("contact_id, created_at, type")
         .in("contact_id", contactIds)
         .order("created_at", { ascending: false });
 
@@ -215,6 +216,7 @@ export default async function ProspectsPage({
           if (!seen.has(a.contact_id)) {
             seen.add(a.contact_id);
             lastActivityMap[a.contact_id] = a.created_at;
+            lastActivityTypeMap[a.contact_id] = a.type;
           }
         }
       }
@@ -364,6 +366,7 @@ export default async function ProspectsPage({
               teamMembers: teamMemberList,
             }}
             lastActivityMap={lastActivityMap}
+            lastActivityTypeMap={lastActivityTypeMap}
             bookedContactIds={calendlyBookedIds}
             openForm={params.action === "new"}
             tab={tab}

@@ -23,7 +23,8 @@ import {
   Columns3,
   Archive,
   ArchiveRestore,
-  CalendarCheck,
+  MessageCircle,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch, throwOnError } from "@/lib/fetch";
@@ -80,6 +81,7 @@ interface ProspectListProps {
   totalPages: number;
   filterOptions: FilterOptions;
   lastActivityMap: Record<string, string>;
+  lastActivityTypeMap?: Record<string, string>;
   bookedContactIds?: string[];
   openForm?: boolean;
   tab?: "active" | "archived";
@@ -149,6 +151,7 @@ export function ProspectList({
   totalPages,
   filterOptions,
   lastActivityMap,
+  lastActivityTypeMap = {},
   bookedContactIds = [],
   openForm = false,
   tab = "active",
@@ -677,17 +680,22 @@ export function ProspectList({
                             </TableCell>
                           );
                         }
-                        case "last_activity":
+                        case "last_activity": {
+                          const actType = lastActivityTypeMap[prospect.id];
+                          const isWa = actType === "wa_reply" || actType === "wa_sent" || actType === "wa_delivered" || actType === "wa_read";
+                          const isEmail = actType === "email_sent" || actType === "email_opened";
                           return (
                             <TableCell key={col.key} suppressHydrationWarning>
                               {lastActivityMap[prospect.id] ? (
                                 <span
                                   suppressHydrationWarning
                                   className={cn(
-                                    "text-xs",
+                                    "flex items-center gap-1.5 text-xs",
                                     getActivityTimeColor(lastActivityMap[prospect.id])
                                   )}
                                 >
+                                  {isWa && <MessageCircle className="size-3.5 text-emerald-500" />}
+                                  {isEmail && <Mail className="size-3.5 text-blue-500" />}
                                   {timeAgo(lastActivityMap[prospect.id])}
                                 </span>
                               ) : (
@@ -695,6 +703,7 @@ export function ProspectList({
                               )}
                             </TableCell>
                           );
+                        }
                         default:
                           return null;
                       }

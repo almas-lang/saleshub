@@ -290,6 +290,12 @@ export default function WhatsAppChatPage() {
     if (activeContactId) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on param change
       loadMessages(activeContactId);
+      // Mark WA notifications as read for this contact
+      safeFetch("/api/whatsapp/mark-read", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contact_id: activeContactId }),
+      });
     } else {
       setMessages([]);
       setActiveContact(null);

@@ -8,7 +8,6 @@ const admin = supabaseAdmin as any;
 /**
  * GET /api/whatsapp/conversations
  * Returns contacts that have WA messages, with last message preview.
- * Merges inbound from activities as fallback until webhook deploys.
  */
 export async function GET() {
   const supabase = await createClient();
@@ -20,58 +19,35 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Fetch from wa_messages
-  const { data: waRows } = await admin
+  // Strategy: collect contact_ids from both wa_messages and WA-related activities,
+  // then fetch contact info separately (avoids join issues with untyped client).
+
+  // 1. Get messages from wa_messages (if any exist)
+  const { data: waRows, error: waErr } = await admin
     .from("wa_messages")
-    .select(
-      "contact_id, body, direction, message_type, created_at, contacts(id, first_name, last_name, phone, avatar_url)"
-    )
+    .select("contact_id, body, direction, message_type, created_at")
     .order("created_at", { ascending: false })
     .limit(500);
 
-  // Also fetch inbound from activities (fallback for pre-deploy messages)
-  const { data: inboundActivities } = await supabaseAdmin
+  if (waErr) {
+    console.error("[WA Conversations] wa_messages query error:", waErr);
+  }
+
+  // 2. Get WA-related activities as fallback (for messages before wa_messages table existed)
+  const { data: waActivities, error: actErr } = await supabaseAdmin
     .from("activities")
-    .select("contact_id, body, created_at, metadata, contacts(id, first_name, last_name, phone, avatar_url)")
-    .in("type", ["wa_reply", "note"] as any)
+    .select("contact_id, body, created_at, metadata, type")
+    .in("type", ["wa_reply", "wa_sent", "wa_delivered", "wa_read", "note"] as any)
     .not("metadata", "is", null)
     .order("created_at", { ascending: false })
     .limit(500);
 
-  // Collect wa_message_ids already covered by wa_messages
-  const existingWaIds = new Set(
-    (waRows ?? [])
-      .filter((r: any) => r.wa_message_id)
-      .map((r: any) => r.wa_message_id)
-  );
-
-  // Build unified row list
-  const allRows: any[] = [...(waRows ?? [])];
-
-  for (const act of inboundActivities ?? []) {
-    const meta = act.metadata as Record<string, any> | null;
-    if (!meta?.wa_message_id) continue;
-    if (existingWaIds.has(meta.wa_message_id)) continue;
-    if (!meta.from && !(act as any).type?.startsWith("wa_")) continue;
-
-    allRows.push({
-      contact_id: act.contact_id,
-      body: act.body,
-      direction: "inbound",
-      message_type: "text",
-      created_at: act.created_at,
-      contacts: act.contacts,
-    });
+  if (actErr) {
+    console.error("[WA Conversations] activities query error:", actErr);
   }
 
-  // Sort by created_at desc
-  allRows.sort(
-    (a: any, b: any) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-
-  // Dedupe by contact_id, keep latest message
-  const seen = new Map<
+  // Build a map of contact_id → latest message
+  const contactMap = new Map<
     string,
     {
       contact_id: string;
@@ -79,24 +55,66 @@ export async function GET() {
       last_message_direction: string;
       last_message_type: string;
       last_message_at: string;
-      contact: unknown;
-      unread_count: number;
     }
   >();
 
-  for (const row of allRows) {
-    if (!seen.has(row.contact_id)) {
-      seen.set(row.contact_id, {
+  // Process wa_messages first (most reliable)
+  for (const row of waRows ?? []) {
+    if (!contactMap.has(row.contact_id)) {
+      contactMap.set(row.contact_id, {
         contact_id: row.contact_id,
         last_message: row.body,
         last_message_direction: row.direction,
         last_message_type: row.message_type,
         last_message_at: row.created_at,
-        contact: row.contacts,
-        unread_count: 0,
       });
     }
   }
 
-  return NextResponse.json(Array.from(seen.values()));
+  // Then fill in from activities (only contacts not already found)
+  for (const act of waActivities ?? []) {
+    if (contactMap.has(act.contact_id)) continue;
+    const meta = act.metadata as Record<string, any> | null;
+    // Only include activities that are WA-related
+    if (!meta?.wa_message_id && !meta?.from) continue;
+
+    const isInbound = (act.type as string) === "wa_reply" || (act.type === "note" && meta?.from);
+    contactMap.set(act.contact_id, {
+      contact_id: act.contact_id,
+      last_message: act.body,
+      last_message_direction: isInbound ? "inbound" : "outbound",
+      last_message_type: "text",
+      last_message_at: act.created_at,
+    });
+  }
+
+  if (contactMap.size === 0) {
+    return NextResponse.json([]);
+  }
+
+  // 3. Fetch contact info for all contact_ids in one query
+  const contactIds = Array.from(contactMap.keys());
+  const { data: contacts } = await supabaseAdmin
+    .from("contacts")
+    .select("id, first_name, last_name, phone, avatar_url")
+    .in("id", contactIds);
+
+  const contactLookup = new Map(
+    (contacts ?? []).map((c: any) => [c.id, c])
+  );
+
+  // 4. Build final response sorted by last_message_at desc
+  const conversations = Array.from(contactMap.values())
+    .map((conv) => ({
+      ...conv,
+      contact: contactLookup.get(conv.contact_id) ?? null,
+      unread_count: 0,
+    }))
+    .sort(
+      (a, b) =>
+        new Date(b.last_message_at).getTime() -
+        new Date(a.last_message_at).getTime()
+    );
+
+  return NextResponse.json(conversations);
 }

@@ -187,6 +187,15 @@ export function ChatThread({ contactId, height = "500px" }: ChatThreadProps) {
   // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
   useEffect(() => { loadMessages(); }, [loadMessages]);
 
+  // Mark WA notifications as read when viewing this contact's chat
+  useEffect(() => {
+    safeFetch("/api/whatsapp/mark-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact_id: contactId }),
+    });
+  }, [contactId]);
+
   // Poll for new messages
   useEffect(() => {
     const interval = setInterval(loadMessages, 5000);
