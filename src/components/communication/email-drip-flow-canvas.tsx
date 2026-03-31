@@ -36,7 +36,7 @@ const DEFAULT_TRIGGER: Node = {
   id: "trigger-1",
   type: "trigger",
   position: { x: 250, y: 30 },
-  data: { nodeType: "trigger", event: "manual" },
+  data: { nodeType: "trigger", event: "lead_created" },
   deletable: false,
 };
 
@@ -130,6 +130,7 @@ export function flowToEmailSteps(flow: FlowData): EmailStepDraft[] {
       const d = node.data as unknown as EmailSendNodeData;
       steps.push({
         subject: d.subject ?? "",
+        preview_text: d.previewText || undefined,
         body_html: d.bodyHtml ?? "",
         delay_hours: accumulatedDelay,
       });
@@ -205,6 +206,7 @@ export function flowToEmailStepsWithBranching(flow: FlowData): {
         node_id: node.id,
         step_type: "send",
         subject: d.subject ?? "",
+        preview_text: d.previewText || undefined,
         body_html: d.bodyHtml ?? "",
         delay_hours: incomingDelay,
       });
@@ -367,6 +369,7 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
             addNode("email_send", {
               nodeType: "email_send",
               subject: "",
+              previewText: "",
               bodyHtml: "",
             })
           }
@@ -413,7 +416,7 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
       </div>
 
       {/* Canvas */}
-      <div className="h-[500px] rounded-lg border bg-muted/20">
+      <div className="h-[calc(100vh-320px)] min-h-[400px] rounded-lg border bg-muted/20">
         <ReactFlow
           nodes={nodes}
           edges={edges}

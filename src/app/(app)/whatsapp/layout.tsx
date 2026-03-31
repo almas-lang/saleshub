@@ -20,6 +20,11 @@ export default function WhatsAppLayout({
   const showTabs =
     pathname === "/whatsapp" || pathname === "/whatsapp/templates";
 
+  // Hide layout chrome on full-page editors
+  if (pathname === "/whatsapp/templates/new") {
+    return <>{children}</>;
+  }
+
   return (
     <div className="page-enter space-y-6">
       <div>

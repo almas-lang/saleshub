@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -47,6 +47,7 @@ import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmailBlockEditor } from "./email-block-editor";
+import { SubjectInputWithVariables } from "./subject-input-with-variables";
 
 const STATUS_STYLES: Record<CampaignStatus, { className: string }> = {
   draft: { className: "bg-muted text-muted-foreground" },
@@ -127,6 +128,7 @@ export function EmailCampaignDetail({
   lookups,
 }: EmailCampaignDetailProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showDelete, setShowDelete] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
@@ -137,6 +139,14 @@ export function EmailCampaignDetail({
   const [saving, setSaving] = useState(false);
 
   const canEdit = campaign.status === "draft" || campaign.status === "paused";
+
+  // Auto-open first step for editing when ?edit=true
+  useEffect(() => {
+    if (searchParams.get("edit") === "true" && canEdit && steps.length > 0 && !editingStepId) {
+      startEditing(steps[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function startEditing(step: EmailStep) {
     setEditingStepId(step.id);
@@ -183,6 +193,25 @@ export function EmailCampaignDetail({
     toast.success("Step updated");
     setEditingStepId(null);
     router.refresh();
+  }
+
+  async function handleActivate() {
+    setLoading(true);
+    const result = await safeFetch(
+      `/api/campaigns/email?id=${campaign.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      }
+    );
+    setLoading(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    router.refresh();
+    toast.success("Campaign activated");
   }
 
   async function handleTogglePause() {
@@ -255,6 +284,31 @@ export function EmailCampaignDetail({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (steps.length > 0) {
+                  startEditing(steps[0]);
+                }
+              }}
+              disabled={steps.length === 0}
+            >
+              <Pencil className="mr-2 size-4" />
+              Edit Steps
+            </Button>
+          )}
+          {campaign.status === "draft" && (
+            <Button
+              size="sm"
+              onClick={() => handleActivate()}
+              disabled={loading || steps.length === 0}
+            >
+              <Play className="mr-2 size-4" />
+              Activate
+            </Button>
+          )}
           {(campaign.status === "active" || campaign.status === "paused") && (
             <Button
               variant="outline"
@@ -392,11 +446,10 @@ export function EmailCampaignDetail({
                       </div>
                     </div>
                     <div className="flex flex-col gap-2">
-                      <Label htmlFor="edit-subject">Subject</Label>
-                      <Input
-                        id="edit-subject"
+                      <Label>Subject</Label>
+                      <SubjectInputWithVariables
                         value={editSubject}
-                        onChange={(e) => setEditSubject(e.target.value)}
+                        onChange={setEditSubject}
                         placeholder="Email subject"
                       />
                     </div>

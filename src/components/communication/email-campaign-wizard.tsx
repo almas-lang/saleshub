@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/fetch";
@@ -83,6 +84,19 @@ export function EmailCampaignWizard({
   const handleFilterChange = (filter: AudienceFilter) => {
     setAudienceFilter(filter);
     setCountLoading(true);
+
+    // Sync flow trigger node with enrollment type
+    if (type === "drip" && flowData && filter.enrollment_type !== audienceFilter.enrollment_type) {
+      const triggerEvent = (filter.enrollment_type ?? "new_leads") === "existing" ? "manual" : "lead_created";
+      setFlowData({
+        ...flowData,
+        nodes: flowData.nodes.map((n) =>
+          n.type === "trigger"
+            ? { ...n, data: { ...n.data, event: triggerEvent } }
+            : n
+        ),
+      });
+    }
   };
 
   // Audience count -- debounced
@@ -114,8 +128,13 @@ export function EmailCampaignWizard({
     switch (step) {
       case 0:
         return name.trim().length > 0;
-      case 1:
+      case 1: {
+        // For drip "new_leads" enrollment, no existing contacts needed
+        if (type === "drip" && (audienceFilter.enrollment_type ?? "new_leads") === "new_leads") {
+          return true;
+        }
         return (audienceCount + (audienceFilter.extra_emails?.length ?? 0)) > 0;
+      }
       case 2:
         if (type === "drip") {
           return flowData !== null && validateEmailFlow(flowData);
@@ -128,28 +147,20 @@ export function EmailCampaignWizard({
     }
   })();
 
-  const handleSave = useCallback(
-    async (activate: boolean) => {
-      setSaving(true);
-
+  const buildPayload = useCallback(
+    (activate: boolean) => {
       const isDrip = type === "drip";
 
-      // Extract trigger event from flow data
       let triggerEvent: string | undefined;
-      if (isDrip && flowData) {
-        const triggerNode = flowData.nodes.find((n) => n.type === "trigger");
-        if (triggerNode) {
-          const d = triggerNode.data as { event?: string };
-          triggerEvent = d.event;
-        }
+      if (isDrip) {
+        const enrollment = audienceFilter.enrollment_type ?? "new_leads";
+        triggerEvent = enrollment === "existing" ? "manual" : "lead_created";
       }
 
-      // Use branching-aware conversion for drip, linear for others
-      let payload;
       if (isDrip && flowData) {
         const { steps: branchingSteps, edges: branchingEdges } = flowToEmailStepsWithBranching(flowData);
-        payload = {
-          name: name.trim(),
+        return {
+          name: name.trim() || "Untitled Campaign",
           type,
           trigger_event: triggerEvent,
           audience_filter: audienceFilter,
@@ -159,6 +170,7 @@ export function EmailCampaignWizard({
             order: i + 1,
             step_type: s.step_type,
             subject: s.subject,
+            preview_text: s.preview_text,
             body_html: s.body_html,
             delay_hours: s.delay_hours,
             ...(s.condition ? { condition: s.condition } : {}),
@@ -166,21 +178,33 @@ export function EmailCampaignWizard({
           branching_edges: branchingEdges,
           activate,
         };
-      } else {
-        payload = {
-          name: name.trim(),
-          type,
-          audience_filter: audienceFilter,
-          steps: campaignSteps.map((s, i) => ({
-            order: i + 1,
-            subject: s.subject,
-            body_html: s.body_html,
-            delay_hours: i === 0 ? 0 : s.delay_hours,
-            ...(s.condition ? { condition: s.condition } : {}),
-          })),
-          activate,
-        };
       }
+
+      // Non-drip or drip without flow data yet
+      const stepsToSave = isDrip ? [] : campaignSteps;
+      return {
+        name: name.trim() || "Untitled Campaign",
+        type,
+        audience_filter: audienceFilter,
+        flow_data: flowData ?? undefined,
+        steps: stepsToSave.map((s, i) => ({
+          order: i + 1,
+          subject: s.subject,
+          preview_text: s.preview_text,
+          body_html: s.body_html,
+          delay_hours: i === 0 ? 0 : s.delay_hours,
+          ...(s.condition ? { condition: s.condition } : {}),
+        })),
+        activate,
+      };
+    },
+    [name, type, audienceFilter, campaignSteps, flowData],
+  );
+
+  const handleSave = useCallback(
+    async (activate: boolean) => {
+      setSaving(true);
+      const payload = buildPayload(activate);
 
       const result = await safeFetch("/api/campaigns/email", {
         method: "POST",
@@ -200,8 +224,29 @@ export function EmailCampaignWizard({
       );
       router.push("/email");
     },
-    [name, type, audienceFilter, campaignSteps, flowData, router]
+    [buildPayload, router],
   );
+
+  const handleQuickDraft = useCallback(async () => {
+    setSaving(true);
+    const payload = buildPayload(false);
+
+    const result = await safeFetch("/api/campaigns/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    setSaving(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success("Campaign saved as draft");
+    router.push("/email");
+  }, [buildPayload, router]);
 
   return (
     <div className="space-y-8">
@@ -319,9 +364,25 @@ export function EmailCampaignWizard({
           ) : (
             <div />
           )}
-          <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
-            Continue
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={saving}
+              onClick={handleQuickDraft}
+              className="text-muted-foreground"
+            >
+              {saving ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 size-3.5" />
+              )}
+              Save Draft
+            </Button>
+            <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
+              Continue
+            </Button>
+          </div>
         </div>
       )}
     </div>

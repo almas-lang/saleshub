@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   MessageCircle,
   RefreshCw,
@@ -10,16 +11,31 @@ import {
   Image,
   Video,
   File,
+  Plus,
+  MoreVertical,
+  Trash2,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Card, CardTitle } from "@/components/ui/card";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { safeFetch } from "@/lib/fetch";
 import type { WATemplate } from "@/lib/whatsapp/client";
 
 const STATUS_STYLES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -39,25 +55,16 @@ function getHeaderIcon(components: WATemplate["components"]) {
   const header = components.find((c) => c.type === "HEADER");
   if (!header) return null;
   switch (header.format) {
-    case "IMAGE":
-      return <Image className="size-4 text-muted-foreground" />;
-    case "VIDEO":
-      return <Video className="size-4 text-muted-foreground" />;
-    case "DOCUMENT":
-      return <File className="size-4 text-muted-foreground" />;
-    default:
-      return null;
+    case "IMAGE": return <Image className="size-3.5 text-muted-foreground" />;
+    case "VIDEO": return <Video className="size-3.5 text-muted-foreground" />;
+    case "DOCUMENT": return <File className="size-3.5 text-muted-foreground" />;
+    default: return null;
   }
 }
 
 function getBodyPreview(components: WATemplate["components"]): string {
   const body = components.find((c) => c.type === "BODY");
   return body?.text ?? "";
-}
-
-function getFooterText(components: WATemplate["components"]): string | null {
-  const footer = components.find((c) => c.type === "FOOTER");
-  return footer?.text ?? null;
 }
 
 export function TemplateList({
@@ -70,6 +77,7 @@ export function TemplateList({
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   const filtered = templates.filter((t) => {
     const matchesSearch =
@@ -82,21 +90,33 @@ export function TemplateList({
 
   const categories = [...new Set(templates.map((t) => t.category))];
 
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    const result = await safeFetch(`/api/whatsapp/templates?name=${encodeURIComponent(deleteTarget)}`, {
+      method: "DELETE",
+    });
+    setDeleteTarget(null);
+    if (!result.ok) {
+      const errMsg = typeof result.error === "string" ? result.error : "Failed to delete template";
+      if (errMsg.includes("permission")) {
+        toast.error("Permission denied: Your system user needs Admin access on the WhatsApp Business Account in Meta Business Manager to delete templates.");
+      } else {
+        toast.error(errMsg);
+      }
+      return;
+    }
+    toast.success("Template deleted");
+    router.refresh();
+  }
+
   if (fetchError) {
     return (
       <Card className="flex flex-col items-center justify-center py-12 shadow-sm">
         <MessageCircle className="mb-4 size-12 text-muted-foreground" />
-        <CardTitle className="mb-1 text-base">
-          Could not load templates
-        </CardTitle>
+        <CardTitle className="mb-1 text-base">Could not load templates</CardTitle>
         <p className="text-sm text-muted-foreground">{fetchError}</p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => router.refresh()}
-        >
-          <RefreshCw className="mr-2 size-4" />
-          Retry
+        <Button variant="outline" className="mt-4" onClick={() => router.refresh()}>
+          <RefreshCw className="mr-2 size-4" /> Retry
         </Button>
       </Card>
     );
@@ -108,16 +128,18 @@ export function TemplateList({
         <FileText className="mb-4 size-12 text-muted-foreground" />
         <CardTitle className="mb-1 text-base">No templates found</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Create templates in Meta Business Manager and they will appear here.
+          Create a template to submit it for Meta review, or refresh to sync existing ones.
         </p>
-        <Button
-          variant="outline"
-          className="mt-4"
-          onClick={() => router.refresh()}
-        >
-          <RefreshCw className="mr-2 size-4" />
-          Refresh
-        </Button>
+        <div className="mt-4 flex gap-2">
+          <Button variant="outline" onClick={() => router.refresh()}>
+            <RefreshCw className="mr-2 size-4" /> Refresh
+          </Button>
+          <Button asChild>
+            <Link href="/whatsapp/templates/new">
+              <Plus className="mr-2 size-4" /> Create Template
+            </Link>
+          </Button>
+        </div>
       </Card>
     );
   }
@@ -148,95 +170,107 @@ export function TemplateList({
               key={cat}
               variant={categoryFilter === cat ? "default" : "outline"}
               size="sm"
-              onClick={() =>
-                setCategoryFilter(categoryFilter === cat ? null : cat)
-              }
+              onClick={() => setCategoryFilter(categoryFilter === cat ? null : cat)}
             >
-              {CATEGORY_LABELS[cat] ?? cat} (
-              {templates.filter((t) => t.category === cat).length})
+              {CATEGORY_LABELS[cat] ?? cat} ({templates.filter((t) => t.category === cat).length})
             </Button>
           ))}
           <Button variant="ghost" size="sm" onClick={() => router.refresh()}>
             <RefreshCw className="size-4" />
           </Button>
+          <Button size="sm" asChild>
+            <Link href="/whatsapp/templates/new">
+              <Plus className="mr-1.5 size-4" /> Create Template
+            </Link>
+          </Button>
         </div>
       </div>
 
-      {/* Template grid */}
+      {/* Table */}
       {filtered.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">
-          No templates match your search.
-        </p>
+        <p className="py-8 text-center text-sm text-muted-foreground">No templates match your search.</p>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((template) => {
-            const body = getBodyPreview(template.components);
-            const footer = getFooterText(template.components);
-            const headerIcon = getHeaderIcon(template.components);
-            const statusStyle = STATUS_STYLES[template.status] ?? {
-              label: template.status,
-              variant: "outline" as const,
-            };
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Language</TableHead>
+                <TableHead className="hidden md:table-cell">Body</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((template) => {
+                const bodyPreview = getBodyPreview(template.components);
+                const headerIcon = getHeaderIcon(template.components);
+                const statusStyle = STATUS_STYLES[template.status] ?? {
+                  label: template.status,
+                  variant: "outline" as const,
+                };
+                const canDelete = template.status === "PENDING" || template.status === "REJECTED";
 
-            return (
-              <Card
-                key={template.id ?? template.name}
-                className="shadow-sm transition-all duration-150 hover:border-foreground/20 hover:shadow-md"
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <CardTitle className="truncate text-base">
-                        {template.name.replace(/_/g, " ")}
-                      </CardTitle>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <Badge variant={statusStyle.variant}>
-                          {statusStyle.label}
-                        </Badge>
-                        <Badge variant="outline">
-                          {CATEGORY_LABELS[template.category] ??
-                            template.category}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">
-                          {template.language}
-                        </span>
+                return (
+                  <TableRow key={template.id ?? template.name}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {headerIcon}
+                        <span className="font-medium">{template.name.replace(/_/g, " ")}</span>
                       </div>
-                    </div>
-                    {headerIcon}
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {body && (
-                    <p className="line-clamp-4 whitespace-pre-line text-sm text-muted-foreground">
-                      {body}
-                    </p>
-                  )}
-                  {footer && (
-                    <p className="mt-2 text-xs text-muted-foreground/70">
-                      {footer}
-                    </p>
-                  )}
-                  {template.components.some((c) => c.type === "BUTTONS") && (
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {template.components
-                        .find((c) => c.type === "BUTTONS")
-                        ?.buttons?.map((btn, i) => (
-                          <Badge
-                            key={i}
-                            variant="secondary"
-                            className="font-normal"
-                          >
-                            {btn.text}
-                          </Badge>
-                        ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            );
-          })}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={statusStyle.variant}>{statusStyle.label}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">
+                        {CATEGORY_LABELS[template.category] ?? template.category}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-sm text-muted-foreground">{template.language}</span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell max-w-xs">
+                      <p className="text-sm text-muted-foreground line-clamp-1">{bodyPreview}</p>
+                    </TableCell>
+                    <TableCell>
+                      {canDelete && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="size-8">
+                              <MoreVertical className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setDeleteTarget(template.name)}
+                            >
+                              <Trash2 className="mr-2 size-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         </div>
       )}
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+        title="Delete template"
+        description={`Are you sure you want to delete "${deleteTarget?.replace(/_/g, " ")}"? This will remove it from Meta.`}
+        onConfirm={handleDelete}
+        destructive
+      />
     </div>
   );
 }

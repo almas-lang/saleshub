@@ -72,15 +72,33 @@ export function EmailCampaignStepReview({
       <div className="rounded-lg border p-4 space-y-2">
         <h3 className="text-sm font-semibold">Audience</h3>
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <span className="text-muted-foreground">Total recipients</span>
-          <span className="font-medium">
-            {audienceCount + (filter.extra_emails?.length ?? 0)}
-            {(filter.extra_emails?.length ?? 0) > 0 && (
-              <span className="text-xs text-muted-foreground font-normal ml-1">
-                ({audienceCount} from filters + {filter.extra_emails!.length} additional)
+          {type === "drip" && (
+            <>
+              <span className="text-muted-foreground">Enrollment</span>
+              <span className="font-medium">
+                {filter.enrollment_type === "existing"
+                  ? "Existing contacts only"
+                  : filter.enrollment_type === "both"
+                    ? "Existing contacts + new leads"
+                    : "New leads only"}
               </span>
-            )}
-          </span>
+            </>
+          )}
+          {(type !== "drip" || filter.enrollment_type !== "new_leads") && (
+            <>
+              <span className="text-muted-foreground">
+                {type === "drip" ? "Existing contacts" : "Total recipients"}
+              </span>
+              <span className="font-medium">
+                {audienceCount + (filter.extra_emails?.length ?? 0)}
+                {(filter.extra_emails?.length ?? 0) > 0 && (
+                  <span className="text-xs text-muted-foreground font-normal ml-1">
+                    ({audienceCount} from filters + {filter.extra_emails!.length} additional)
+                  </span>
+                )}
+              </span>
+            </>
+          )}
           {filter.source && (
             <>
               <span className="text-muted-foreground">Source</span>
@@ -132,6 +150,11 @@ export function EmailCampaignStepReview({
             </span>
             <div className="min-w-0 flex-1">
               <p className="font-medium">{s.subject || "(no subject)"}</p>
+              {s.preview_text && (
+                <p className="mt-0.5 text-xs text-muted-foreground italic">
+                  {s.preview_text}
+                </p>
+              )}
               {s.body_html && (
                 <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
                   {s.body_html.replace(/<[^>]*>/g, "").slice(0, 120)}

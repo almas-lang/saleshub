@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/fetch";
@@ -128,6 +129,19 @@ export function CampaignWizard({
   const handleFilterChange = (filter: AudienceFilter) => {
     setAudienceFilter(filter);
     setCountLoading(true);
+
+    // Sync flow trigger node with enrollment type
+    if (type === "drip" && flowData && filter.enrollment_type !== audienceFilter.enrollment_type) {
+      const triggerEvent = (filter.enrollment_type ?? "new_leads") === "existing" ? "manual" : "lead_created";
+      setFlowData({
+        ...flowData,
+        nodes: flowData.nodes.map((n) =>
+          n.type === "trigger"
+            ? { ...n, data: { ...n.data, event: triggerEvent } }
+            : n
+        ),
+      });
+    }
   };
 
   // Audience count — debounced
@@ -159,8 +173,13 @@ export function CampaignWizard({
     switch (step) {
       case 0:
         return name.trim().length > 0;
-      case 1:
+      case 1: {
+        // For drip "new_leads" enrollment, no existing contacts needed
+        if (type === "drip" && (audienceFilter.enrollment_type ?? "new_leads") === "new_leads") {
+          return true;
+        }
         return audienceCount > 0;
+      }
       case 2:
         if (type === "drip") {
           return flowData !== null && validateFlow(flowData);
@@ -173,21 +192,27 @@ export function CampaignWizard({
     }
   })();
 
-  const handleSave = useCallback(
-    async (activate: boolean) => {
-      setSaving(true);
-
+  const buildPayload = useCallback(
+    (activate: boolean) => {
       const isDrip = type === "drip";
 
-      let payload: Record<string, unknown>;
-
       if (isDrip && flowData) {
-        // Use branching-aware conversion
-        const { steps: branchingSteps, edges: branchingEdges } =
-          flowToWaStepsWithBranching(flowData);
+        const enrollment = audienceFilter.enrollment_type ?? "new_leads";
+        const triggerEvent = enrollment === "existing" ? "manual" as const : "lead_created" as const;
+        const syncedFlowData: FlowData = {
+          ...flowData,
+          nodes: flowData.nodes.map((n) =>
+            n.type === "trigger"
+              ? { ...n, data: { ...n.data, event: triggerEvent } }
+              : n
+          ),
+        };
 
-        payload = {
-          name: name.trim(),
+        const { steps: branchingSteps, edges: branchingEdges } =
+          flowToWaStepsWithBranching(syncedFlowData);
+
+        return {
+          name: name.trim() || "Untitled Campaign",
           type,
           audience_filter: audienceFilter,
           steps: branchingSteps.map((s, i) => ({
@@ -202,25 +227,35 @@ export function CampaignWizard({
           })),
           branching_edges: branchingEdges,
           activate,
-          flow_data: flowData,
-        };
-      } else {
-        payload = {
-          name: name.trim(),
-          type,
-          audience_filter: audienceFilter,
-          steps: campaignSteps.map((s, i) => ({
-            order: i + 1,
-            step_type: "send",
-            wa_template_name: s.wa_template_name,
-            template_id: s.template_id,
-            delay_hours: i === 0 ? 0 : s.delay_hours,
-            wa_template_params: s.wa_template_params,
-            ...(s.condition ? { condition: s.condition } : {}),
-          })),
-          activate,
+          flow_data: syncedFlowData,
         };
       }
+
+      const stepsToSave = isDrip ? [] : campaignSteps;
+      return {
+        name: name.trim() || "Untitled Campaign",
+        type,
+        audience_filter: audienceFilter,
+        flow_data: flowData ?? undefined,
+        steps: stepsToSave.map((s, i) => ({
+          order: i + 1,
+          step_type: "send",
+          wa_template_name: s.wa_template_name,
+          template_id: s.template_id,
+          delay_hours: i === 0 ? 0 : s.delay_hours,
+          wa_template_params: s.wa_template_params,
+          ...(s.condition ? { condition: s.condition } : {}),
+        })),
+        activate,
+      };
+    },
+    [name, type, audienceFilter, campaignSteps, flowData],
+  );
+
+  const handleSave = useCallback(
+    async (activate: boolean) => {
+      setSaving(true);
+      const payload = buildPayload(activate);
 
       const result = await safeFetch("/api/campaigns/whatsapp", {
         method: "POST",
@@ -240,8 +275,29 @@ export function CampaignWizard({
       );
       router.push("/whatsapp");
     },
-    [name, type, audienceFilter, campaignSteps, flowData, router]
+    [buildPayload, router],
   );
+
+  const handleQuickDraft = useCallback(async () => {
+    setSaving(true);
+    const payload = buildPayload(false);
+
+    const result = await safeFetch("/api/campaigns/whatsapp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    setSaving(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success("Campaign saved as draft");
+    router.push("/whatsapp");
+  }, [buildPayload, router]);
 
   return (
     <div className="space-y-8">
@@ -362,9 +418,25 @@ export function CampaignWizard({
           ) : (
             <div />
           )}
-          <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
-            Continue
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={saving}
+              onClick={handleQuickDraft}
+              className="text-muted-foreground"
+            >
+              {saving ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 size-3.5" />
+              )}
+              Save Draft
+            </Button>
+            <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
+              Continue
+            </Button>
+          </div>
         </div>
       )}
     </div>

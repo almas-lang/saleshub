@@ -21,8 +21,12 @@ export type CampaignType = Enums<"campaign_type">;     // "drip" | "one_time" | 
 export type CampaignStatus = Enums<"campaign_status">; // "draft" | "active" | "paused" | "completed"
 export type WASendStatus = Enums<"wa_send_status">;    // "queued" | "sent" | "delivered" | "read" | "failed"
 
+// Enrollment type for drip campaigns
+export type EnrollmentType = "new_leads" | "existing" | "both";
+
 // Audience filter for campaign targeting
 export interface AudienceFilter {
+  enrollment_type?: EnrollmentType;
   source?: string;
   funnel_id?: string;
   stage_id?: string;
@@ -66,9 +70,13 @@ export interface SendNodeData {
   templateParams: string[];
 }
 
+export type DelayUnit = "minutes" | "hours" | "days";
+
 export interface DelayNodeData {
   nodeType: "delay";
   hours: number;
+  delayValue?: number;
+  delayUnit?: DelayUnit;
 }
 
 export interface ConditionNodeData {
@@ -168,6 +176,7 @@ export interface BranchingEdge {
 export interface EmailSendNodeData {
   nodeType: "email_send";
   subject: string;
+  previewText: string;
   bodyHtml: string;
 }
 

@@ -197,6 +197,7 @@ export const createCampaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required").max(100),
   type: z.enum(["drip", "one_time", "newsletter"]),
   audience_filter: z.object({
+    enrollment_type: z.enum(["new_leads", "existing", "both"]).optional(),
     source: z.string().optional(),
     funnel_id: z.string().optional(),
     stage_id: z.string().optional(),
@@ -216,7 +217,7 @@ export const createCampaignSchema = z.object({
       check: z.string(),
       value: z.string().optional(),
     }).optional(),
-  })).min(1, "At least one step is required"),
+  })).optional().default([]),
   branching_edges: z.array(z.object({
     source_node_id: z.string(),
     target_node_id: z.string(),
@@ -251,6 +252,7 @@ export const createEmailCampaignSchema = z.object({
   type: z.enum(["drip", "one_time", "newsletter"]),
   trigger_event: z.string().optional(),
   audience_filter: z.object({
+    enrollment_type: z.enum(["new_leads", "existing", "both"]).optional(),
     source: z.string().optional(),
     funnel_id: z.string().optional(),
     stage_id: z.string().optional(),
@@ -272,7 +274,7 @@ export const createEmailCampaignSchema = z.object({
       check: z.string(),
       value: z.string().optional(),
     }).optional(),
-  })).min(1, "At least one step is required"),
+  })).optional().default([]),
   branching_edges: z.array(z.object({
     source_node_id: z.string(),
     target_node_id: z.string(),

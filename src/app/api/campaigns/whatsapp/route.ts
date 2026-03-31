@@ -183,15 +183,19 @@ export async function POST(request: Request) {
     condition: s.condition ?? null,
   }));
 
-  const { data: insertedSteps, error: stepsError } = await supabase
-    .from("wa_steps")
-    .insert(stepRows)
-    .select("id, order");
+  let insertedSteps: { id: string; order: number }[] = [];
 
-  if (stepsError || !insertedSteps) {
-    // Compensating cleanup — remove the campaign
-    await supabase.from("wa_campaigns").delete().eq("id", campaign.id);
-    return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
+  if (stepRows.length > 0) {
+    const { data, error: stepsError } = await supabase
+      .from("wa_steps")
+      .insert(stepRows)
+      .select("id, order");
+
+    if (stepsError || !data) {
+      await supabase.from("wa_campaigns").delete().eq("id", campaign.id);
+      return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
+    }
+    insertedSteps = data;
   }
 
   // 3. Pass 2: Set branching pointers if edges provided
@@ -292,11 +296,13 @@ export async function PATCH(request: NextRequest) {
     existing.status !== "active" &&
     existing.type === "drip"
   ) {
-    const enrolled = await enrollAudience(
-      id,
-      existing.audience_filter as AudienceFilter | null
-    );
-    return NextResponse.json({ ...data, enrolled });
+    const af = existing.audience_filter as AudienceFilter | null;
+    const enrollmentType = af?.enrollment_type ?? "existing";
+    // Only bulk-enroll for "existing" or "both" — skip for "new_leads" (auto-enrolled via auto-enroll.ts)
+    if (enrollmentType === "existing" || enrollmentType === "both") {
+      const enrolled = await enrollAudience(id, af);
+      return NextResponse.json({ ...data, enrolled });
+    }
   }
 
   return NextResponse.json(data);

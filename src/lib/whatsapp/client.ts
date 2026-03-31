@@ -199,6 +199,101 @@ export async function getTemplates(): Promise<WATemplatesResult> {
 }
 
 /**
+ * Create a new message template and submit it for Meta review.
+ * Templates start in PENDING status until approved by Meta.
+ */
+export interface CreateTemplateButton {
+  type: "URL" | "PHONE_NUMBER" | "QUICK_REPLY";
+  text: string;
+  url?: string;
+  phone_number?: string;
+}
+
+export async function createTemplate(params: {
+  name: string;
+  category: "MARKETING" | "UTILITY";
+  language: string;
+  header?: { format: "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT"; text?: string };
+  body: string;
+  footer?: string;
+  buttons?: CreateTemplateButton[];
+}): Promise<{ success: boolean; id?: string; error?: string }> {
+  const components: Record<string, unknown>[] = [];
+
+  if (params.header) {
+    const headerComponent: Record<string, unknown> = {
+      type: "HEADER",
+      format: params.header.format,
+    };
+    if (params.header.format === "TEXT" && params.header.text) {
+      headerComponent.text = params.header.text;
+    }
+    // For IMAGE/VIDEO/DOCUMENT, Meta expects an example handle on creation,
+    // but the actual media is provided at send time. We include the format only.
+    components.push(headerComponent);
+  }
+
+  components.push({
+    type: "BODY",
+    text: params.body,
+  });
+
+  if (params.footer) {
+    components.push({
+      type: "FOOTER",
+      text: params.footer,
+    });
+  }
+
+  if (params.buttons?.length) {
+    components.push({
+      type: "BUTTONS",
+      buttons: params.buttons.map((b) => {
+        if (b.type === "URL") {
+          return { type: "URL", text: b.text, url: b.url };
+        }
+        if (b.type === "PHONE_NUMBER") {
+          return { type: "PHONE_NUMBER", text: b.text, phone_number: b.phone_number };
+        }
+        return { type: "QUICK_REPLY", text: b.text };
+      }),
+    });
+  }
+
+  const url = `${BASE_URL}/${WABA_ID}/message_templates`;
+  const result = await waFetch<{ id: string }>(url, {
+    method: "POST",
+    body: JSON.stringify({
+      name: params.name,
+      category: params.category,
+      language: params.language,
+      components,
+    }),
+  });
+
+  if (!result.ok) {
+    return { success: false, error: result.error };
+  }
+
+  return { success: true, id: result.data?.id };
+}
+
+/**
+ * Delete a message template by name.
+ * Only works for PENDING or REJECTED templates.
+ */
+export async function deleteTemplate(templateName: string): Promise<{ success: boolean; error?: string }> {
+  const url = `${BASE_URL}/${WABA_ID}/message_templates?name=${encodeURIComponent(templateName)}`;
+  const result = await waFetch(url, { method: "DELETE" });
+
+  if (!result.ok) {
+    return { success: false, error: result.error };
+  }
+
+  return { success: true };
+}
+
+/**
  * Mark an incoming message as read (blue ticks).
  */
 export async function markAsRead(messageId: string): Promise<WASendResult> {

@@ -9,6 +9,7 @@ import {
   MoreVertical,
   Trash2,
   Eye,
+  Pencil,
   Pause,
   Play,
   ArrowUpDown,
@@ -386,6 +387,17 @@ export function EmailCampaignList({
                             <Eye className="mr-2 size-4" />
                             View
                           </DropdownMenuItem>
+                          {(campaign.status === "draft" || campaign.status === "paused") && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/email/campaigns/${campaign.id}?edit=true`);
+                              }}
+                            >
+                              <Pencil className="mr-2 size-4" />
+                              Edit
+                            </DropdownMenuItem>
+                          )}
                           {(campaign.status === "active" || campaign.status === "paused") && (
                             <DropdownMenuItem
                               onClick={(e) => {
@@ -485,6 +497,17 @@ export function EmailCampaignList({
                           <Eye className="mr-2 size-4" />
                           View
                         </DropdownMenuItem>
+                        {(campaign.status === "draft" || campaign.status === "paused") && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/email/campaigns/${campaign.id}?edit=true`);
+                            }}
+                          >
+                            <Pencil className="mr-2 size-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        )}
                         {(campaign.status === "active" || campaign.status === "paused") && (
                           <DropdownMenuItem
                             onClick={(e) => {
