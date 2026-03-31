@@ -185,6 +185,14 @@ export default function NewTemplatePage() {
       }));
     }
 
+    // Send sample values for variables (required by Meta for review)
+    if (uniqueVars.length > 0) {
+      const examples = uniqueVars.map((num) =>
+        sampleValues[num] || VARIABLE_SUGGESTIONS[num - 1]?.example || `example_${num}`
+      );
+      payload.body_examples = examples;
+    }
+
     const result = await safeFetch("/api/whatsapp/templates", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

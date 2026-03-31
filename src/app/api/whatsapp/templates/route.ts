@@ -49,6 +49,7 @@ const createTemplateSchema = z.object({
     url: z.string().url().optional(),
     phone_number: z.string().optional(),
   })).max(3).optional(),
+  body_examples: z.array(z.string()).optional(),
 });
 
 export async function POST(request: Request) {
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, category, language, header, body: bodyText, footer, buttons } = parsed.data;
+  const { name, category, language, header, body: bodyText, footer, buttons, body_examples } = parsed.data;
 
   const result = await createTemplate({
     name,
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
     body: bodyText,
     footer: footer || undefined,
     buttons: buttons || undefined,
+    bodyExamples: body_examples || undefined,
   });
 
   if (!result.success) {

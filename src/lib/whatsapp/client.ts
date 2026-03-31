@@ -217,6 +217,7 @@ export async function createTemplate(params: {
   body: string;
   footer?: string;
   buttons?: CreateTemplateButton[];
+  bodyExamples?: string[];
 }): Promise<{ success: boolean; id?: string; error?: string }> {
   const components: Record<string, unknown>[] = [];
 
@@ -233,10 +234,16 @@ export async function createTemplate(params: {
     components.push(headerComponent);
   }
 
-  components.push({
+  const bodyComponent: Record<string, unknown> = {
     type: "BODY",
     text: params.body,
-  });
+  };
+  if (params.bodyExamples?.length) {
+    bodyComponent.example = {
+      body_text: [params.bodyExamples],
+    };
+  }
+  components.push(bodyComponent);
 
   if (params.footer) {
     components.push({
