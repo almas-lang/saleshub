@@ -37,7 +37,7 @@ const DEFAULT_TRIGGER: Node = {
   id: "trigger-1",
   type: "trigger",
   position: { x: 250, y: 30 },
-  data: { nodeType: "trigger", event: "manual" },
+  data: { nodeType: "trigger", event: "lead_created" },
   deletable: false,
 };
 

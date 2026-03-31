@@ -8,6 +8,7 @@ interface BookingReminderProps {
   firstName: string;
   date: string;
   time: string;
+  timeZoneLabel: string;
   hostName: string;
   meetLink: string;
 }
@@ -17,6 +18,7 @@ export function BookingReminderEmail({
   firstName = "there",
   date = "January 1, 2026",
   time = "10:00 AM",
+  timeZoneLabel = "IST",
   hostName = "Xperience Wave Team",
   meetLink = "#",
 }: BookingReminderProps) {
@@ -33,7 +35,7 @@ export function BookingReminderEmail({
       {/* Meeting details card */}
       <Section style={styles.infoCard}>
         <Text style={styles.infoRow}>📅&nbsp; {date}</Text>
-        <Text style={styles.infoRow}>🕐&nbsp; {time} (IST)</Text>
+        <Text style={styles.infoRow}>🕐&nbsp; {time} ({timeZoneLabel})</Text>
         <Text style={styles.infoRow}>👤&nbsp; with {hostName}</Text>
       </Section>
 

@@ -988,7 +988,7 @@ export function ProspectList({
 
       {/* Bulk Action Bar — sticky bottom */}
       {selectedIds.size > 0 && (
-        <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-card px-6 py-3 shadow-lg animate-in slide-in-from-bottom-4 lg:bottom-0">
+        <div className="sticky bottom-0 z-40 -mx-6 border-t bg-card px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.15)] animate-in slide-in-from-bottom-4">
           <div className="mx-auto flex max-w-screen-xl items-center gap-3">
             <span className="text-sm font-medium">
               {selectedIds.size} selected

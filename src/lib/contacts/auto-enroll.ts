@@ -48,12 +48,16 @@ export async function autoEnrollIntoDrips(contactId: string) {
   // Find active WhatsApp drip campaigns with lead_created trigger
   const { data: waCampaigns } = await supabaseAdmin
     .from("wa_campaigns")
-    .select("id, flow_data")
+    .select("id, flow_data, audience_filter")
     .eq("type", "drip")
     .eq("status", "active");
 
   const waToEnroll: string[] = [];
   for (const c of waCampaigns ?? []) {
+    // Skip campaigns with enrollment_type "existing" — they don't auto-enroll new leads
+    const af = c.audience_filter as AudienceFilter | null;
+    if (af?.enrollment_type === "existing") continue;
+
     const flow = c.flow_data as { nodes?: { data?: { event?: string; nodeType?: string } }[] } | null;
     const hasTrigger = flow?.nodes?.some(
       (n) => n.data?.nodeType === "trigger" && n.data?.event === "lead_created"
@@ -70,9 +74,11 @@ export async function autoEnrollIntoDrips(contactId: string) {
     .eq("trigger_event", "lead_created");
 
   // Filter by audience — only enroll if contact matches the campaign's filter
+  // Skip campaigns with enrollment_type "existing"
   const emailToEnroll: string[] = [];
   for (const c of emailCampaigns ?? []) {
     const filter = c.audience_filter as AudienceFilter | null;
+    if (filter?.enrollment_type === "existing") continue;
     const matches = await contactMatchesFilter(contactId, filter);
     if (matches) emailToEnroll.push(c.id);
   }

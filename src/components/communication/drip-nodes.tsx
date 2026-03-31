@@ -82,33 +82,15 @@ function NodeShell({
 
 // ── Trigger Node ──
 
-function TriggerNode({ id, data }: NodeProps) {
+function TriggerNode({ data }: NodeProps) {
   const d = data as unknown as TriggerNodeData;
-  const { setNodes } = useReactFlow();
 
-  const update = useCallback(
-    (event: TriggerNodeData["event"]) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, event } } : n,
-        ),
-      );
-    },
-    [id, setNodes],
-  );
+  const label = d.event === "lead_created" ? "New Lead Created" : "Manual Enrollment";
 
   return (
     <>
       <NodeShell color="emerald" icon={<Zap className="size-4" />} label="Trigger">
-        <Select value={d.event} onValueChange={update}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="manual">Manual</SelectItem>
-            <SelectItem value="lead_created">Lead Created</SelectItem>
-          </SelectContent>
-        </Select>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500" />
     </>
