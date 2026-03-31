@@ -199,7 +199,7 @@ async function handleIncomingMessage(message: {
   // Log activity
   await supabaseAdmin.from("activities").insert({
     contact_id: contact.id,
-    type: "wa_received",
+    type: "note",
     title: "WhatsApp reply received",
     body: messageText,
     metadata: { wa_message_id: message.id, from: senderPhone },
