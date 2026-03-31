@@ -15,10 +15,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { contact_id, template_name, params = [], language = "en" } = body as {
+  const { contact_id, template_name, params = [], param_names, language = "en" } = body as {
     contact_id: string;
     template_name: string;
     params?: string[];
+    param_names?: string[];
     language?: string;
   };
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Send via WhatsApp Cloud API
-  const result = await sendTemplate(contact.phone, template_name, params, language);
+  const result = await sendTemplate(contact.phone, template_name, params, language, param_names);
 
   if (!result.success) {
     return NextResponse.json(

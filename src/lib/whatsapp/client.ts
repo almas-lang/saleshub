@@ -27,6 +27,7 @@ export interface WATemplate {
   status: string;
   language: string;
   category: string;
+  parameter_format?: string;
   components: WATemplateComponent[];
 }
 
@@ -107,9 +108,24 @@ export async function sendTemplate(
   to: string,
   templateName: string,
   params: string[] = [],
-  language = "en"
+  language = "en",
+  paramNames?: string[],
 ): Promise<WASendResult> {
   const phone = formatForWA(to);
+
+  // Build body component parameters
+  let components: Record<string, unknown>[] | undefined;
+  if (params.length > 0) {
+    const parameters = params.map((p, i) => {
+      const param: Record<string, unknown> = { type: "text", text: p };
+      // If named params provided, include parameter_name for NAMED format templates
+      if (paramNames?.[i]) {
+        param.parameter_name = paramNames[i];
+      }
+      return param;
+    });
+    components = [{ type: "body", parameters }];
+  }
 
   const body: Record<string, unknown> = {
     messaging_product: "whatsapp",
@@ -118,14 +134,7 @@ export async function sendTemplate(
     template: {
       name: templateName,
       language: { code: language },
-      ...(params.length > 0 && {
-        components: [
-          {
-            type: "body",
-            parameters: params.map((p) => ({ type: "text", text: p })),
-          },
-        ],
-      }),
+      ...(components ? { components } : {}),
     },
   };
 
