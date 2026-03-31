@@ -65,7 +65,8 @@ export async function GET(request: Request) {
       if (!contact?.email) continue;
 
       const startsAt = new Date(booking.starts_at);
-      const rules = (booking as Record<string, Record<string, unknown>>).booking_pages?.availability_rules as { timezone?: string } | null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rules = (booking as any).booking_pages?.availability_rules as { timezone?: string } | null;
       const tz = rules?.timezone ?? "Asia/Kolkata";
 
       const dateStr = startsAt.toLocaleDateString("en-US", {
