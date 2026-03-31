@@ -114,9 +114,12 @@ async function handleStatusUpdate(status: {
       `(code: ${errorInfo?.code ?? "?"})`
     );
 
+    const errMsg = status.errors?.[0]
+      ? `${status.errors[0].title} (code: ${status.errors[0].code})`
+      : "Unknown error";
     await supabaseAdmin
       .from("wa_sends")
-      .update({ status: "failed" })
+      .update({ status: "failed", error_message: errMsg })
       .eq("id", send.id);
     return;
   }

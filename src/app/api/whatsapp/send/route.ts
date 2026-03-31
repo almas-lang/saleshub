@@ -54,11 +54,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Insert wa_sends record
+  // Insert wa_sends record — status is "sent" since Meta accepted it
   await supabaseAdmin.from("wa_sends").insert({
     contact_id,
     wa_message_id: result.messageId ?? null,
-    status: "queued",
+    status: "sent",
     sent_at: new Date().toISOString(),
   });
 
