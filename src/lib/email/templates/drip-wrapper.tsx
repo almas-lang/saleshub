@@ -1,11 +1,9 @@
 import {
   Body,
-  Container,
   Head,
   Html,
   Link,
   Preview,
-  Text,
   render,
 } from "@react-email/components";
 import * as React from "react";
@@ -22,7 +20,7 @@ interface DripWrapperProps {
   unsubscribeUrl?: string;
 }
 
-// ── Component — clean, plain-text-style layout (no card/header chrome) ──
+// ── Component — looks like a normal typed email, no branding ──
 function DripWrapperEmail({
   preview,
   unsubscribeUrl = "#",
@@ -34,7 +32,8 @@ function DripWrapperEmail({
           ul, ol { padding-left: 24px; margin: 8px 0; }
           li { margin: 0; padding: 0; }
           li + li { margin-top: 4px; }
-          p { margin: 0 0 12px 0; }
+          p { margin: 0 0 12px 0; line-height: 1.6; }
+          a { color: #1a73e8; }
         `}</style>
       </Head>
       {preview && <Preview>{preview}</Preview>}
@@ -42,29 +41,27 @@ function DripWrapperEmail({
         style={{
           backgroundColor: "#ffffff",
           fontFamily,
+          fontSize: "14px",
+          color: "#222222",
           margin: 0,
-          padding: 0,
+          padding: "12px 0",
         }}
       >
-        <Container
+        <div
           style={{
-            maxWidth: "600px",
-            margin: "0",
-            padding: "16px 20px",
+            maxWidth: "100%",
+            padding: "0 16px",
           }}
         >
           {/* Body content gets swapped in here */}
           <div>{BODY_SLOT}</div>
 
-          {/* Minimal footer */}
-          <Text
+          {/* Tiny unsubscribe — just a link, no chrome */}
+          <div
             style={{
-              fontSize: "12px",
-              color: "#999999",
-              lineHeight: "18px",
               marginTop: "40px",
-              borderTop: "1px solid #eeeeee",
-              paddingTop: "16px",
+              fontSize: "11px",
+              color: "#999999",
             }}
           >
             <Link
@@ -73,10 +70,8 @@ function DripWrapperEmail({
             >
               Unsubscribe
             </Link>
-            {" | "}
-            Xperience Wave · Bangalore, India
-          </Text>
-        </Container>
+          </div>
+        </div>
       </Body>
     </Html>
   );

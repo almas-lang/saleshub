@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { sendEmail } from "@/lib/email/client";
+import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 import { z } from "zod";
 
 const schema = z.object({
@@ -31,17 +32,12 @@ export async function POST(request: Request) {
 
   const { to, subject, body_html, preview_text } = parsed.data;
 
-  // Wrap body in a simple email layout
-  const html = `
-    ${preview_text ? `<div style="display:none;max-height:0;overflow:hidden">${preview_text}</div>` : ""}
-    <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px">
-      ${body_html}
-      <hr style="margin-top:32px;border:none;border-top:1px solid #e5e5e5"/>
-      <p style="font-size:11px;color:#999;margin-top:12px">
-        This is a test email sent from SalesHub campaign preview.
-      </p>
-    </div>
-  `;
+  // Use the same plain wrapper as actual campaign emails
+  const { html } = await renderDripEmail({
+    subject,
+    bodyHtml: body_html,
+    preview: preview_text,
+  });
 
   const result = await sendEmail({
     to,
