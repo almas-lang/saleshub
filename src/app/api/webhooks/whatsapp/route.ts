@@ -167,14 +167,15 @@ async function handleIncomingMessage(message: {
   text?: { body: string };
 }) {
   const senderPhone = formatForWA(message.from);
+  const senderPhonePlus = `+${senderPhone}`;
   const messageText =
     message.type === "text" ? message.text?.body ?? "" : `[${message.type}]`;
 
-  // Look up contact by phone
+  // Look up contact by phone (try both with and without + prefix)
   const { data: contact, error: contactErr } = await supabaseAdmin
     .from("contacts")
     .select("id")
-    .eq("phone", senderPhone)
+    .or(`phone.eq.${senderPhone},phone.eq.${senderPhonePlus}`)
     .is("deleted_at", null)
     .maybeSingle();
 
@@ -198,8 +199,8 @@ async function handleIncomingMessage(message: {
   // Log activity
   await supabaseAdmin.from("activities").insert({
     contact_id: contact.id,
-    type: "note",
-    title: "WhatsApp message received",
+    type: "wa_received",
+    title: "WhatsApp reply received",
     body: messageText,
     metadata: { wa_message_id: message.id, from: senderPhone },
   });
