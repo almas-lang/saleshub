@@ -320,6 +320,7 @@ function DelayNode({ id, data }: NodeProps) {
             onChange={(e) =>
               update(Math.max(1, parseInt(e.target.value) || 1), unit)
             }
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
           />
           <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
             <SelectTrigger className="h-8 w-24 text-xs">

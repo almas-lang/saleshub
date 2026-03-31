@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { WACampaignWithStats, CampaignStatus, CampaignType } from "@/types/campaigns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -380,7 +380,7 @@ export function WACampaignList({
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(campaign.created_at)}
+                      <span title={formatDateTime(campaign.created_at)}>{timeAgo(campaign.created_at)}</span>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -479,7 +479,7 @@ export function WACampaignList({
                       {TYPE_LABELS[campaign.type] ?? campaign.type}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {formatDate(campaign.created_at)}
+                      <span title={formatDateTime(campaign.created_at)}>{timeAgo(campaign.created_at)}</span>
                     </span>
                   </div>
 

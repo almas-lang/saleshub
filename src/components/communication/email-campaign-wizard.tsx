@@ -71,6 +71,7 @@ export function EmailCampaignWizard({
 
   // Step 4 -- Review / saving
   const [saving, setSaving] = useState(false);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
 
   // Reset steps when campaign type changes
   const handleTypeChange = (newType: CampaignType) => {
@@ -231,11 +232,29 @@ export function EmailCampaignWizard({
     setSaving(true);
     const payload = buildPayload(false);
 
-    const result = await safeFetch("/api/campaigns/email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    let result;
+    if (savedCampaignId) {
+      // Update existing draft
+      result = await safeFetch(`/api/campaigns/email?id=${savedCampaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: payload.name,
+          audience_filter: payload.audience_filter,
+          flow_data: payload.flow_data,
+        }),
+      });
+    } else {
+      // Create new draft
+      result = await safeFetch("/api/campaigns/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (result.ok && result.data) {
+        setSavedCampaignId((result.data as { id: string }).id);
+      }
+    }
 
     setSaving(false);
 
@@ -245,7 +264,7 @@ export function EmailCampaignWizard({
     }
 
     toast.success("Campaign saved as draft");
-  }, [buildPayload]);
+  }, [buildPayload, savedCampaignId]);
 
   return (
     <div className="space-y-8">

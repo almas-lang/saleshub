@@ -251,3 +251,15 @@
 .ProseMirror ul ul ul {
   list-style-type: square;
 }
+
+/* Email preview paragraph spacing */
+.prose p {
+  margin-top: 0.75em;
+  margin-bottom: 0.75em;
+}
+.prose p:first-child {
+  margin-top: 0;
+}
+.prose p:last-child {
+  margin-bottom: 0;
+}
