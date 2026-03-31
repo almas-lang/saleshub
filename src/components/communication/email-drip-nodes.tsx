@@ -170,7 +170,7 @@ function EmailComposeOverlay({
               </p>
               <p className="text-xs text-muted-foreground truncate">
                 {data.previewText || (data.bodyHtml
-                  ? data.bodyHtml.replace(/<[^>]*>/g, "").slice(0, 100)
+                  ? data.bodyHtml.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").slice(0, 100)
                   : "No content yet..."
                 )}
               </p>

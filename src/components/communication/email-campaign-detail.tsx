@@ -294,7 +294,7 @@ export function EmailCampaignDetail({
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {editPreviewText || (editBody
-                    ? editBody.replace(/<[^>]*>/g, "").slice(0, 100)
+                    ? editBody.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").slice(0, 100)
                     : "No content yet..."
                   )}
                 </p>
@@ -557,7 +557,7 @@ export function EmailCampaignDetail({
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <p className="font-medium">{step.subject}</p>
                       <p className="text-xs text-muted-foreground line-clamp-2">
-                        {step.body_html.replace(/<[^>]*>/g, "").slice(0, 150)}
+                        {step.body_html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").slice(0, 150)}
                       </p>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
