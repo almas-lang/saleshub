@@ -603,6 +603,10 @@ export async function GET(request: Request) {
           `[Drip Processor] Error processing enrollment ${enrollment.id}:`,
           err
         );
+        // Stop the enrollment to prevent infinite retries and duplicate sends
+        await supabaseAdmin.from("drip_enrollments")
+          .update({ status: "stopped", stopped_reason: "processing_error" })
+          .eq("id", enrollment.id);
         failed++;
       }
     }
