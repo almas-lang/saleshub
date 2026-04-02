@@ -415,6 +415,7 @@ export type Database = {
           current_stage_id: string | null
           deleted_at: string | null
           email: string | null
+          email_unsubscribed_at: string | null
           first_name: string
           funnel_id: string | null
           id: string
@@ -443,6 +444,7 @@ export type Database = {
           current_stage_id?: string | null
           deleted_at?: string | null
           email?: string | null
+          email_unsubscribed_at?: string | null
           first_name: string
           funnel_id?: string | null
           id?: string
@@ -471,6 +473,7 @@ export type Database = {
           current_stage_id?: string | null
           deleted_at?: string | null
           email?: string | null
+          email_unsubscribed_at?: string | null
           first_name?: string
           funnel_id?: string | null
           id?: string
