@@ -290,18 +290,21 @@ export function EmailCampaignWizard({
         {STEPS.map((s, i) => (
           <div key={s.label} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
-              <div
+              <button
+                type="button"
+                disabled={i >= step}
+                onClick={() => i < step && setStep(i)}
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors",
                   i < step
-                    ? "border-primary bg-primary text-primary-foreground"
+                    ? "border-primary bg-primary text-primary-foreground cursor-pointer hover:opacity-80"
                     : i === step
                       ? "border-primary text-primary"
                       : "border-muted-foreground/30 text-muted-foreground/50"
                 )}
               >
                 {i < step ? "\u2713" : i + 1}
-              </div>
+              </button>
               <span
                 className={cn(
                   "text-[11px] font-medium",
@@ -378,6 +381,7 @@ export function EmailCampaignWizard({
             audienceCount={audienceCount}
             saving={saving}
             onSave={handleSave}
+            onBack={() => setStep(2)}
             funnels={funnels}
             stages={stages}
             teamMembers={teamMembers}

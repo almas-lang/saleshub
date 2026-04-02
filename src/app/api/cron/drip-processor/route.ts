@@ -77,15 +77,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: enrollError.message }, { status: 500 });
     }
 
-    if (!enrollments?.length) {
-      return NextResponse.json({ success: true, processed: 0, sent: 0, stopped: 0, failed: 0 });
-    }
-
     let sent = 0;
     let stopped = 0;
     let failed = 0;
 
-    for (const enrollment of enrollments as Enrollment[]) {
+    for (const enrollment of (enrollments ?? []) as Enrollment[]) {
       try {
         const isEmail = enrollment.campaign_type === "email";
 
@@ -718,7 +714,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      processed: enrollments.length,
+      processed: (enrollments ?? []).length,
       sent,
       stopped,
       failed,

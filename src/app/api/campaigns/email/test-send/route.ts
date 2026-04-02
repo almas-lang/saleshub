@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { sendEmail } from "@/lib/email/client";
+import { sendEmail, renderVariables } from "@/lib/email/client";
 import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 import { z } from "zod";
 
@@ -32,16 +32,28 @@ export async function POST(request: Request) {
 
   const { to, subject, body_html, preview_text } = parsed.data;
 
+  // Resolve template variables with sample/fallback data for test sends
+  const testVars: Record<string, string> = {
+    first_name: "there",
+    last_name: "",
+    full_name: "there",
+    email: to,
+    company_name: "your company",
+  };
+  const renderedSubject = renderVariables(subject, testVars);
+  const renderedBody = renderVariables(body_html, testVars);
+  const renderedPreview = preview_text ? renderVariables(preview_text, testVars) : undefined;
+
   // Use the same plain wrapper as actual campaign emails
   const { html } = await renderDripEmail({
-    subject,
-    bodyHtml: body_html,
-    preview: preview_text,
+    subject: renderedSubject,
+    bodyHtml: renderedBody,
+    preview: renderedPreview,
   });
 
   const result = await sendEmail({
     to,
-    subject: `[TEST] ${subject}`,
+    subject: `[TEST] ${renderedSubject}`,
     html,
   });
 

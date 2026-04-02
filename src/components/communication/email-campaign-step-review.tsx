@@ -26,6 +26,7 @@ interface EmailCampaignStepReviewProps {
   audienceCount: number;
   saving: boolean;
   onSave: (activate: boolean) => void;
+  onBack?: () => void;
   funnels: FilterOption[];
   stages: { id: string; name: string; funnel_id: string }[];
   teamMembers: FilterOption[];
@@ -46,6 +47,7 @@ export function EmailCampaignStepReview({
   audienceCount,
   saving,
   onSave,
+  onBack,
   funnels,
   stages,
   teamMembers,
@@ -180,6 +182,11 @@ export function EmailCampaignStepReview({
 
       {/* Actions */}
       <div className="flex gap-3">
+        {onBack && (
+          <Button variant="ghost" disabled={saving} onClick={onBack}>
+            Back
+          </Button>
+        )}
         <Button
           variant="outline"
           className="flex-1"
