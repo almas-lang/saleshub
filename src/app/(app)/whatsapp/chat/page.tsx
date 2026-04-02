@@ -179,13 +179,15 @@ function ConversationItem({
   isActive: boolean;
   onClick: () => void;
 }) {
-  const name = conv.contact
+  const contactName = conv.contact
     ? `${conv.contact.first_name} ${conv.contact.last_name ?? ""}`.trim()
-    : "Unknown";
+    : null;
+  const phone = conv.contact?.phone ?? null;
+  const name = contactName || phone || "Unknown";
 
-  const initials = conv.contact
-    ? `${conv.contact.first_name?.[0] ?? ""}${conv.contact.last_name?.[0] ?? ""}`.toUpperCase()
-    : "?";
+  const initials = contactName
+    ? `${conv.contact!.first_name?.[0] ?? ""}${conv.contact!.last_name?.[0] ?? ""}`.toUpperCase()
+    : phone ? "#" : "?";
 
   const preview =
     conv.last_message_type !== "text" && conv.last_message_type !== "template"

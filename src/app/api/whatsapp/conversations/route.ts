@@ -94,9 +94,10 @@ export async function GET() {
 
   // 3. Fetch contact info for all contact_ids in one query
   const contactIds = Array.from(contactMap.keys());
+  // Include soft-deleted contacts so we can still show their name/phone
   const { data: contacts } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, phone, avatar_url")
+    .select("id, first_name, last_name, phone, avatar_url, deleted_at")
     .in("id", contactIds);
 
   const contactLookup = new Map(
