@@ -141,3 +141,12 @@ export function renderVariables(
     return variables[key] ?? match;
   });
 }
+
+/**
+ * Generate an unsubscribe URL for a contact.
+ */
+export function getUnsubscribeUrl(contactId: string): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.xperiencewave.com";
+  const token = Buffer.from(contactId).toString("base64url");
+  return `${appUrl}/unsubscribe?token=${token}`;
+}

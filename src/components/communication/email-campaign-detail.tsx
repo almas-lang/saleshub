@@ -421,15 +421,12 @@ export function EmailCampaignDetail({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                if (steps.length > 0) {
-                  startEditing(steps[0]);
-                }
-              }}
-              disabled={steps.length === 0}
+              asChild
             >
-              <Pencil className="mr-2 size-4" />
-              Edit Steps
+              <Link href={`/email/campaigns/${campaign.id}/edit`}>
+                <Pencil className="mr-2 size-4" />
+                Edit Campaign
+              </Link>
             </Button>
           )}
           {campaign.status === "draft" && (

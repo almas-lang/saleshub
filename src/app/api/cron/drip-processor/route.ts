@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendTemplate } from "@/lib/whatsapp/client";
-import { sendEmail, renderVariables } from "@/lib/email/client";
+import { sendEmail, renderVariables, getUnsubscribeUrl } from "@/lib/email/client";
 import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
 import { evaluateCondition } from "@/lib/campaigns/condition-evaluators";
@@ -241,13 +241,21 @@ export async function GET(request: Request) {
           // Fetch contact
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("id, email, first_name, last_name, company_name, deleted_at")
+            .select("id, email, first_name, last_name, company_name, deleted_at, email_unsubscribed_at")
             .eq("id", enrollment.contact_id)
             .single();
 
           if (!contact || contact.deleted_at) {
             await supabaseAdmin.from("drip_enrollments")
               .update({ status: "stopped", stopped_reason: contact?.deleted_at ? "contact_deleted" : "contact_not_found" })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          if (contact.email_unsubscribed_at) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: "unsubscribed" })
               .eq("id", enrollment.id);
             stopped++;
             continue;
@@ -262,10 +270,12 @@ export async function GET(request: Request) {
           }
 
           // Variable substitution
+          const unsubscribeUrl = getUnsubscribeUrl(contact.id);
           const variables: Record<string, string> = {
             first_name: contact.first_name || "there",
             last_name: contact.last_name || "",
             company_name: contact.company_name || "your company",
+            unsubscribe_link: unsubscribeUrl,
           };
           const rawSubject = renderVariables(currentStep.subject, variables);
           const rawBody = renderVariables(currentStep.body_html, variables);
@@ -278,6 +288,7 @@ export async function GET(request: Request) {
             subject: rawSubject,
             bodyHtml: rawBody,
             preview: rawPreview,
+            unsubscribeUrl,
           });
 
           // Send email
@@ -614,7 +625,7 @@ export async function GET(request: Request) {
 
       const [{ data: qSteps }, { data: qContacts }] = await Promise.all([
         supabaseAdmin.from("email_steps").select("id, subject, preview_text, body_html").in("id", stepIds),
-        supabaseAdmin.from("contacts").select("id, first_name, last_name, email, company_name").in("id", contactIds),
+        supabaseAdmin.from("contacts").select("id, first_name, last_name, email, company_name, email_unsubscribed_at").in("id", contactIds),
       ]);
 
       const qStepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string }>();
@@ -622,7 +633,7 @@ export async function GET(request: Request) {
 
       const qContactMap = new Map<string, { email: string; first_name: string | null; last_name: string | null; company_name: string | null }>();
       for (const c of qContacts ?? []) {
-        if (c.email) qContactMap.set(c.id, { email: c.email, first_name: c.first_name, last_name: c.last_name, company_name: c.company_name });
+        if (c.email && !c.email_unsubscribed_at) qContactMap.set(c.id, { email: c.email, first_name: c.first_name, last_name: c.last_name, company_name: c.company_name });
       }
 
       // Pre-render wrappers per step
@@ -643,17 +654,21 @@ export async function GET(request: Request) {
           return false;
         }
 
+        const unsubscribeUrl = getUnsubscribeUrl(send.contact_id);
         const vars: Record<string, string> = {
           first_name: contact.first_name ?? "",
           last_name: contact.last_name ?? "",
           full_name: [contact.first_name, contact.last_name].filter(Boolean).join(" "),
           email: contact.email,
           company_name: contact.company_name ?? "",
+          unsubscribe_link: unsubscribeUrl,
         };
 
         const subject = renderVariables(step.subject, vars);
         const bodyHtml = renderVariables(step.body_html, vars);
-        const html = wrapper.wrapperHtml.replace(wrapper.placeholder, bodyHtml);
+        const html = wrapper.wrapperHtml
+          .replace(wrapper.placeholder, bodyHtml)
+          .replace(/href="#"/, `href="${unsubscribeUrl}"`);
 
         const result = await sendEmail({
           to: contact.email,

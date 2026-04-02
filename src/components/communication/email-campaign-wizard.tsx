@@ -29,11 +29,21 @@ interface StageOption extends FilterOption {
   order: number;
 }
 
+export interface EmailCampaignInitialData {
+  id: string;
+  name: string;
+  type: CampaignType;
+  audience_filter: AudienceFilter | null;
+  flow_data: FlowData | null;
+  steps: EmailStepDraft[];
+}
+
 interface EmailCampaignWizardProps {
   funnels: FilterOption[];
   stages: StageOption[];
   teamMembers: FilterOption[];
   sources: string[];
+  initialData?: EmailCampaignInitialData;
 }
 
 const STEPS = [
@@ -48,30 +58,41 @@ export function EmailCampaignWizard({
   stages,
   teamMembers,
   sources,
+  initialData,
 }: EmailCampaignWizardProps) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const isEditing = !!initialData;
+
+  // Determine initial step: for editing, start at Review if all data is present
+  const getInitialStep = () => {
+    if (!initialData) return 0;
+    if (initialData.steps.length > 0 || initialData.flow_data) return 3;
+    if (initialData.audience_filter) return 2;
+    if (initialData.name) return 1;
+    return 0;
+  };
+  const [step, setStep] = useState(getInitialStep);
 
   // Step 1 -- Details
-  const [name, setName] = useState("");
-  const [type, setType] = useState<CampaignType>("one_time");
+  const [name, setName] = useState(initialData?.name ?? "");
+  const [type, setType] = useState<CampaignType>(initialData?.type ?? "one_time");
 
   // Step 2 -- Audience
-  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>({});
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>(initialData?.audience_filter ?? {});
   const [audienceCount, setAudienceCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
 
   // Step 3 -- Messages (one-time / newsletter)
-  const [campaignSteps, setCampaignSteps] = useState<EmailStepDraft[]>([
-    { subject: "", body_html: "", delay_hours: 0 },
-  ]);
+  const [campaignSteps, setCampaignSteps] = useState<EmailStepDraft[]>(
+    initialData?.steps.length ? initialData.steps : [{ subject: "", body_html: "", delay_hours: 0 }]
+  );
 
   // Step 3 -- Flow builder (drip only)
-  const [flowData, setFlowData] = useState<FlowData | null>(null);
+  const [flowData, setFlowData] = useState<FlowData | null>(initialData?.flow_data ?? null);
 
   // Step 4 -- Review / saving
   const [saving, setSaving] = useState(false);
-  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(initialData?.id ?? null);
 
   // Reset steps when campaign type changes
   const handleTypeChange = (newType: CampaignType) => {
@@ -189,6 +210,7 @@ export function EmailCampaignWizard({
         audience_filter: audienceFilter,
         flow_data: flowData ?? undefined,
         steps: stepsToSave.map((s, i) => ({
+          ...(s.id ? { id: s.id } : {}),
           order: i + 1,
           subject: s.subject,
           preview_text: s.preview_text,
@@ -216,6 +238,7 @@ export function EmailCampaignWizard({
             name: payload.name,
             audience_filter: payload.audience_filter,
             flow_data: payload.flow_data,
+            steps: payload.steps,
             ...(activate ? { status: "active" } : {}),
           }),
         });
@@ -238,9 +261,11 @@ export function EmailCampaignWizard({
       }
 
       toast.success(
-        activate ? "Campaign created and activated" : "Campaign saved as draft"
+        activate
+          ? isEditing ? "Campaign updated and activated" : "Campaign created and activated"
+          : isEditing ? "Campaign updated" : "Campaign saved as draft"
       );
-      router.push("/email");
+      router.push(isEditing ? `/email/campaigns/${savedCampaignId}` : "/email");
     },
     [buildPayload, router, savedCampaignId],
   );
