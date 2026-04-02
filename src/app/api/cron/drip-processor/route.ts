@@ -631,9 +631,15 @@ export async function GET(request: Request) {
       const qStepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string }>();
       for (const s of qSteps ?? []) qStepMap.set(s.id, s);
 
+      // Track unsubscribed contacts separately so we don't mark them as "failed"
+      const unsubscribedContactIds = new Set<string>();
       const qContactMap = new Map<string, { email: string; first_name: string | null; last_name: string | null; company_name: string | null }>();
       for (const c of qContacts ?? []) {
-        if (c.email && !c.email_unsubscribed_at) qContactMap.set(c.id, { email: c.email, first_name: c.first_name, last_name: c.last_name, company_name: c.company_name });
+        if (c.email_unsubscribed_at) {
+          unsubscribedContactIds.add(c.id);
+        } else if (c.email) {
+          qContactMap.set(c.id, { email: c.email, first_name: c.first_name, last_name: c.last_name, company_name: c.company_name });
+        }
       }
 
       // Pre-render wrappers per step
@@ -649,7 +655,14 @@ export async function GET(request: Request) {
         const contact = qContactMap.get(send.contact_id);
         const wrapper = send.step_id ? wrapperCache.get(send.step_id) : null;
 
+        // Skip unsubscribed contacts — mark as skipped, not failed
+        if (unsubscribedContactIds.has(send.contact_id)) {
+          await supabaseAdmin.from("email_sends").update({ status: "failed" }).eq("id", send.id);
+          return false;
+        }
+
         if (!step || !contact || !wrapper) {
+          console.error(`[Drip Processor] Missing data for send ${send.id}: step=${!!step} contact=${!!contact} wrapper=${!!wrapper}`);
           await supabaseAdmin.from("email_sends").update({ status: "failed" }).eq("id", send.id);
           return false;
         }
