@@ -95,14 +95,25 @@ export async function GET() {
   // 3. Fetch contact info for all contact_ids in one query
   const contactIds = Array.from(contactMap.keys());
   // Include soft-deleted contacts so we can still show their name/phone
-  const { data: contacts } = await supabaseAdmin
+  const { data: contacts, error: contactsErr } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, phone, avatar_url, deleted_at")
+    .select("id, first_name, last_name, phone, avatar_url")
     .in("id", contactIds);
+
+  if (contactsErr) {
+    console.error("[WA Conversations] contacts query error:", contactsErr);
+  }
 
   const contactLookup = new Map(
     (contacts ?? []).map((c: any) => [c.id, c])
   );
+
+  // Debug: log when contacts aren't found
+  for (const cid of contactIds) {
+    if (!contactLookup.has(cid)) {
+      console.warn(`[WA Conversations] Contact not found for id: ${cid}`);
+    }
+  }
 
   // 4. Build final response sorted by last_message_at desc
   const conversations = Array.from(contactMap.values())
