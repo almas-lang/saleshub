@@ -22,13 +22,12 @@ interface CampaignStepMessagesProps {
   campaignType: CampaignType;
 }
 
-function parseParams(bodyText: string | null): number[] {
+/** Parse template parameters — supports both positional ({{1}}) and named ({{customer_name}}) formats */
+function parseParams(bodyText: string | null): string[] {
   if (!bodyText) return [];
-  const matches = bodyText.match(/\{\{(\d+)\}\}/g);
+  const matches = bodyText.match(/\{\{(\w+)\}\}/g);
   if (!matches) return [];
-  return [...new Set(matches.map((m) => parseInt(m.replace(/\D/g, ""))))].sort(
-    (a, b) => a - b
-  );
+  return [...new Set(matches.map((m) => m.replace(/\{|\}/g, "")))];
 }
 
 export function CampaignStepMessages({

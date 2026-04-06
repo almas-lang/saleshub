@@ -28,13 +28,12 @@ export const TemplatesContext = createContext<WizardTemplate[]>([]);
 
 // ── Helper: parse {{n}} params from body text ──
 
-function parseParams(bodyText: string | null): number[] {
+/** Parse template parameters — supports both positional ({{1}}) and named ({{customer_name}}) formats */
+function parseParams(bodyText: string | null): string[] {
   if (!bodyText) return [];
-  const matches = bodyText.match(/\{\{(\d+)\}\}/g);
+  const matches = bodyText.match(/\{\{(\w+)\}\}/g);
   if (!matches) return [];
-  return [...new Set(matches.map((m) => parseInt(m.replace(/\D/g, ""))))].sort(
-    (a, b) => a - b,
-  );
+  return [...new Set(matches.map((m) => m.replace(/\{|\}/g, "")))];
 }
 
 // ── Node wrapper ──
@@ -120,6 +119,7 @@ function SendNode({ id, data }: NodeProps) {
                   templateId: tpl.id,
                   templateName: tpl.name,
                   templateParams: paramSlots.map(() => ""),
+                  templateParamNames: paramSlots,
                 },
               }
             : n,
@@ -177,11 +177,11 @@ function SendNode({ id, data }: NodeProps) {
             </div>
           )}
 
-          {paramSlots.map((paramNum, pi) => (
+          {paramSlots.map((paramName, pi) => (
             <Input
-              key={paramNum}
+              key={paramName}
               className="h-7 text-xs"
-              placeholder={`{{${paramNum}}}`}
+              placeholder={`{{${paramName}}} e.g. {{first_name}}`}
               value={d.templateParams?.[pi] ?? ""}
               onChange={(e) => handleParamChange(pi, e.target.value)}
             />

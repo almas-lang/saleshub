@@ -42,6 +42,7 @@ export interface CampaignStepDraft {
   wa_template_name: string;
   delay_hours: number;
   wa_template_params: string[];
+  wa_template_param_names?: string[];
   condition?: { check: string; value?: string };
 }
 
@@ -53,6 +54,7 @@ export interface WAStepDraftWithBranching {
   wa_template_name: string;
   delay_hours: number;
   wa_template_params: string[];
+  wa_template_param_names?: string[];
   condition?: { check: string; value?: string };
 }
 
@@ -68,6 +70,7 @@ export interface SendNodeData {
   templateId: string;
   templateName: string;
   templateParams: string[];
+  templateParamNames: string[];
 }
 
 export type DelayUnit = "minutes" | "hours" | "days";

@@ -30,6 +30,7 @@ interface WAStep {
   step_type: string;
   wa_template_name: string;
   wa_template_params: string[] | null;
+  wa_template_param_names: string[] | null;
   delay_hours: number;
   condition: { check: string; value?: string } | null;
   next_step_id_yes: string | null;
@@ -378,7 +379,7 @@ export async function GET(request: Request) {
 
           const { data: waSteps } = await supabaseAdmin
             .from("wa_steps")
-            .select("id, campaign_id, order, step_type, wa_template_name, wa_template_params, delay_hours, condition, next_step_id_yes, next_step_id_no")
+            .select("id, campaign_id, order, step_type, wa_template_name, wa_template_params, wa_template_param_names, delay_hours, condition, next_step_id_yes, next_step_id_no")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
@@ -532,6 +533,7 @@ export async function GET(request: Request) {
 
           // ── Send WhatsApp template ──
           const rawParams = (currentStep.wa_template_params ?? []) as string[];
+          const paramNames = (currentStep.wa_template_param_names ?? []) as string[];
           const resolvedParams = rawParams.map((p) =>
             p
               .replace(/\{\{first_name\}\}/g, contact.first_name || "there")
@@ -541,7 +543,9 @@ export async function GET(request: Request) {
           const result = await sendTemplate(
             contact.phone,
             currentStep.wa_template_name,
-            resolvedParams
+            resolvedParams,
+            "en",
+            paramNames.length > 0 ? paramNames : undefined
           );
 
           await supabaseAdmin.from("wa_sends").insert({

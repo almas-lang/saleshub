@@ -134,6 +134,7 @@ export function flowToSteps(flow: FlowData): CampaignStepDraft[] {
         wa_template_name: d.templateName ?? "",
         delay_hours: accumulatedDelay,
         wa_template_params: d.templateParams ?? [],
+        wa_template_param_names: d.templateParamNames ?? [],
       });
       accumulatedDelay = 0; // reset after emitting
     } else if (node.type === "delay") {
@@ -252,6 +253,7 @@ export function flowToWaStepsWithBranching(
         wa_template_name: d.templateName ?? "",
         delay_hours: delayBefore.get(nodeId) ?? 0,
         wa_template_params: d.templateParams ?? [],
+        wa_template_param_names: d.templateParamNames ?? [],
       });
 
       // Find the next non-delay actionable node for edges
