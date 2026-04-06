@@ -22,3 +22,6 @@ END $$;
 
 -- 3. Named template parameter support for drip campaigns
 ALTER TABLE wa_steps ADD COLUMN IF NOT EXISTS wa_template_param_names TEXT[];
+
+-- 4. Allow fractional delay_hours (40 mins = 0.666 hours)
+ALTER TABLE wa_steps ALTER COLUMN delay_hours TYPE DOUBLE PRECISION;
