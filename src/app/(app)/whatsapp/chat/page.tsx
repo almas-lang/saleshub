@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -331,24 +331,20 @@ function ImagePreview({
   file: File;
   onClear: () => void;
 }) {
-  const [preview, setPreview] = useState<string | null>(null);
+  const preview = useMemo(() => URL.createObjectURL(file), [file]);
 
   useEffect(() => {
-    const url = URL.createObjectURL(file);
-    setPreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [file]);
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-t bg-muted/30">
-      {preview && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={preview}
-          alt="Preview"
-          className="h-12 w-12 rounded object-cover"
-        />
-      )}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={preview}
+        alt="Preview"
+        className="h-12 w-12 rounded object-cover"
+      />
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">{file.name}</p>
         <p className="text-[10px] text-muted-foreground">
@@ -434,15 +430,14 @@ export default function WhatsAppChatPage() {
     [scrollToBottom]
   );
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
     loadConversations();
   }, [loadConversations]);
 
   useEffect(() => {
     if (activeContactId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on param change
-      loadMessages(activeContactId);
+      loadMessages(activeContactId); // eslint-disable-line react-hooks/set-state-in-effect -- data fetch on param change
       // Mark WA notifications as read for this contact
       safeFetch("/api/whatsapp/mark-read", {
         method: "POST",

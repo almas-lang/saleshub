@@ -194,6 +194,7 @@ async function handleIncomingMessage(message: {
         null;
 
   // Look up contact by phone (try both with and without + prefix)
+  // eslint-disable-next-line prefer-const
   let { data: contact, error: contactErr } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name")
