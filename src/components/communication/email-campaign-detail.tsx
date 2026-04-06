@@ -134,6 +134,8 @@ export function EmailCampaignDetail({
   const searchParams = useSearchParams();
   const [showDelete, setShowDelete] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("steps");
+  const [sendFilter, setSendFilter] = useState<"all" | "sent" | "opened" | "clicked" | "failed">("all");
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [editSubject, setEditSubject] = useState("");
   const [editPreviewText, setEditPreviewText] = useState("");
@@ -472,53 +474,41 @@ export function EmailCampaignDetail({
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — clickable to filter Sends tab */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Recipients</p>
-          <p className="text-2xl font-semibold">{stats.recipient_count}</p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Sent</p>
-          <p className="text-2xl font-semibold">{stats.sent_count}</p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Opened</p>
-          <p className="text-2xl font-semibold">
-            {stats.opened_count}
-            {stats.sent_count > 0 && (
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                ({pct(stats.opened_count, stats.sent_count)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Clicked</p>
-          <p className="text-2xl font-semibold">
-            {stats.clicked_count}
-            {stats.sent_count > 0 && (
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                ({pct(stats.clicked_count, stats.sent_count)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Failed</p>
-          <p
+        {([
+          { label: "Recipients", value: stats.recipient_count, filter: "all" as const, pctVal: null },
+          { label: "Sent", value: stats.sent_count, filter: "sent" as const, pctVal: null },
+          { label: "Opened", value: stats.opened_count, filter: "opened" as const, pctVal: stats.sent_count > 0 ? pct(stats.opened_count, stats.sent_count) : null },
+          { label: "Clicked", value: stats.clicked_count, filter: "clicked" as const, pctVal: stats.sent_count > 0 ? pct(stats.clicked_count, stats.sent_count) : null },
+          { label: "Failed", value: stats.failed_count, filter: "failed" as const, pctVal: null },
+        ]).map((card) => (
+          <button
+            key={card.label}
+            onClick={() => { setActiveTab("sends"); setSendFilter(card.filter); }}
             className={cn(
-              "text-2xl font-semibold",
-              stats.failed_count > 0 && "text-red-600 dark:text-red-400"
+              "rounded-xl border p-4 text-left transition-colors hover:bg-muted/50",
+              activeTab === "sends" && sendFilter === card.filter && "ring-2 ring-primary"
             )}
           >
-            {stats.failed_count}
-          </p>
-        </div>
+            <p className="text-sm text-muted-foreground">{card.label}</p>
+            <p className={cn(
+              "text-2xl font-semibold",
+              card.label === "Failed" && card.value > 0 && "text-red-600 dark:text-red-400"
+            )}>
+              {card.value}
+              {card.pctVal && (
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                  ({card.pctVal})
+                </span>
+              )}
+            </p>
+          </button>
+        ))}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="steps">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v !== "sends") setSendFilter("all"); }}>
         <TabsList>
           <TabsTrigger value="steps">
             <FileText className="mr-1.5 size-4" />
@@ -655,6 +645,19 @@ export function EmailCampaignDetail({
 
         {/* Sends tab */}
         <TabsContent value="sends" className="mt-4">
+          {sendFilter !== "all" && (
+            <div className="mb-3 flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs capitalize">
+                Filtered: {sendFilter}
+              </Badge>
+              <button
+                onClick={() => setSendFilter("all")}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
           {sends.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No sends yet. Messages will appear here once the campaign is
@@ -698,7 +701,14 @@ export function EmailCampaignDetail({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sends.map((send) => {
+                  {sends.filter((send) => {
+                    if (sendFilter === "all") return true;
+                    if (sendFilter === "sent") return send.status !== "queued" && send.status !== "failed";
+                    if (sendFilter === "opened") return send.status === "opened" || send.status === "clicked";
+                    if (sendFilter === "clicked") return send.status === "clicked";
+                    if (sendFilter === "failed") return send.status === "failed" || send.status === "bounced";
+                    return true;
+                  }).map((send) => {
                     const name = send.contacts
                       ? [send.contacts.first_name, send.contacts.last_name]
                           .filter(Boolean)
