@@ -83,7 +83,7 @@ export async function GET(
   // Fetch contact info
   const { data: contact } = await supabaseAdmin
     .from("contacts")
-    .select("id, first_name, last_name, phone, avatar_url")
+    .select("id, first_name, last_name, phone")
     .eq("id", contactId)
     .single();
 
