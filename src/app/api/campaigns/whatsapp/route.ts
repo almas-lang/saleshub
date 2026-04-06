@@ -268,7 +268,7 @@ export async function PATCH(request: NextRequest) {
     update.flow_data = body.flow_data;
   }
 
-  if (Object.keys(update).length === 0) {
+  if (Object.keys(update).length === 0 && !body.steps) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
@@ -288,6 +288,65 @@ export async function PATCH(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Replace steps if provided
+  if (Array.isArray(body.steps) && body.steps.length > 0) {
+    // Delete existing steps
+    await supabase.from("wa_steps").delete().eq("campaign_id", id);
+
+    // Insert new steps
+    const stepRows = (body.steps as Array<Record<string, unknown>>).map((s) => ({
+      campaign_id: id,
+      order: s.order,
+      step_type: s.step_type ?? "send",
+      wa_template_name: s.wa_template_name,
+      template_id: null,
+      delay_hours: s.delay_hours,
+      wa_template_params: s.wa_template_params,
+      wa_template_param_names: s.wa_template_param_names ?? [],
+      condition: s.condition ?? null,
+    }));
+
+    const { data: insertedSteps, error: stepsError } = await supabase
+      .from("wa_steps")
+      .insert(stepRows)
+      .select("id, order");
+
+    if (stepsError) {
+      console.error("[WA Campaign PATCH] Steps insert error:", stepsError.message);
+    }
+
+    // Set branching pointers if edges provided
+    const branchingEdges = body.branching_edges as Array<{
+      source_node_id: string;
+      target_node_id: string;
+      branch: "yes" | "no" | null;
+    }> | undefined;
+
+    if (branchingEdges?.length && insertedSteps?.length) {
+      const steps = body.steps as Array<{ node_id?: string }>;
+      const nodeToDbId = new Map<string, string>();
+      for (let i = 0; i < steps.length; i++) {
+        const nodeId = steps[i].node_id;
+        const dbStep = insertedSteps[i];
+        if (nodeId && dbStep) {
+          nodeToDbId.set(nodeId, dbStep.id);
+        }
+      }
+
+      for (const edge of branchingEdges) {
+        const sourceDbId = nodeToDbId.get(edge.source_node_id);
+        const targetDbId = nodeToDbId.get(edge.target_node_id);
+        if (!sourceDbId || !targetDbId) continue;
+
+        const column = edge.branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
+        await supabase
+          .from("wa_steps")
+          .update({ [column]: targetDbId })
+          .eq("id", sourceDbId);
+      }
+    }
   }
 
   // Auto-enroll audience when a drip campaign is activated

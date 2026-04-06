@@ -269,6 +269,8 @@ export function CampaignWizard({
             name: payload.name,
             audience_filter: payload.audience_filter,
             flow_data: payload.flow_data,
+            steps: payload.steps,
+            branching_edges: payload.branching_edges,
             ...(activate ? { status: "active" } : {}),
           }),
         });
