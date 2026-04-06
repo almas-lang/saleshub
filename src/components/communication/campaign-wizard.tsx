@@ -57,11 +57,20 @@ interface StageOption extends FilterOption {
   order: number;
 }
 
+interface CampaignWizardInitialData {
+  id: string;
+  name: string;
+  type: CampaignType;
+  audience_filter: AudienceFilter | null;
+  flow_data: FlowData | null;
+}
+
 interface CampaignWizardProps {
   funnels: FilterOption[];
   stages: StageOption[];
   teamMembers: FilterOption[];
   sources: string[];
+  initialData?: CampaignWizardInitialData;
 }
 
 const STEPS = [
@@ -76,9 +85,11 @@ export function CampaignWizard({
   stages,
   teamMembers,
   sources,
+  initialData,
 }: CampaignWizardProps) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const isEditing = !!initialData;
+  const [step, setStep] = useState(isEditing ? 2 : 0);
 
   // Templates — fetched client-side from Meta API
   const [templates, setTemplates] = useState<WizardTemplate[]>([]);
@@ -96,11 +107,11 @@ export function CampaignWizard({
   }, []);
 
   // Step 1 — Details
-  const [name, setName] = useState("");
-  const [type, setType] = useState<CampaignType>("one_time");
+  const [name, setName] = useState(initialData?.name ?? "");
+  const [type, setType] = useState<CampaignType>(initialData?.type ?? "one_time");
 
   // Step 2 — Audience
-  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>({});
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>(initialData?.audience_filter ?? {});
   const [audienceCount, setAudienceCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
 
@@ -110,11 +121,11 @@ export function CampaignWizard({
   ]);
 
   // Step 3 — Flow builder (drip only)
-  const [flowData, setFlowData] = useState<FlowData | null>(null);
+  const [flowData, setFlowData] = useState<FlowData | null>(initialData?.flow_data ?? null);
 
   // Step 4 — Review / saving
   const [saving, setSaving] = useState(false);
-  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(initialData?.id ?? null);
 
   // Reset steps when campaign type changes
   const handleTypeChange = (newType: CampaignType) => {
@@ -295,7 +306,7 @@ export function CampaignWizard({
       toast.success(
         activate ? "Campaign created and activated" : "Campaign saved as draft"
       );
-      router.push("/whatsapp");
+      router.push(isEditing ? `/whatsapp/campaigns/${savedCampaignId}` : "/whatsapp");
     },
     [buildPayload, router, savedCampaignId],
   );

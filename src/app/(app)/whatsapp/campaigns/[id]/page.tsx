@@ -41,6 +41,7 @@ export default async function CampaignDetailPage({
   const sends = (sendsRes.data ?? []) as Array<{
     id: string;
     contact_id: string;
+    step_id: string | null;
     status: WASendStatus;
     sent_at: string | null;
     delivered_at: string | null;

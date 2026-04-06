@@ -47,6 +47,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmailBlockEditor } from "./email-block-editor";
@@ -88,6 +94,7 @@ const SEND_STATUS_STYLES: Record<EmailSendStatus, string> = {
 interface EmailSendWithContact {
   id: string;
   contact_id: string;
+  step_id: string | null;
   status: EmailSendStatus;
   sent_at: string | null;
   opened_at: string | null;
@@ -136,6 +143,7 @@ export function EmailCampaignDetail({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("steps");
   const [sendFilter, setSendFilter] = useState<"all" | "sent" | "opened" | "clicked" | "failed">("all");
+  const [viewingSend, setViewingSend] = useState<EmailSendWithContact | null>(null);
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [editSubject, setEditSubject] = useState("");
   const [editPreviewText, setEditPreviewText] = useState("");
@@ -715,7 +723,7 @@ export function EmailCampaignDetail({
                           .join(" ") || "\u2014"
                       : "\u2014";
                     return (
-                      <TableRow key={send.id} className="h-12">
+                      <TableRow key={send.id} className="h-12 cursor-pointer hover:bg-muted/50" onClick={() => setViewingSend(send)}>
                         <TableCell className="font-medium">{name}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {send.contacts?.email ?? "\u2014"}
@@ -752,6 +760,57 @@ export function EmailCampaignDetail({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Send detail dialog */}
+      <Dialog open={viewingSend !== null} onOpenChange={(open) => !open && setViewingSend(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          {viewingSend && (() => {
+            const step = viewingSend.step_id ? steps.find((s) => s.id === viewingSend.step_id) : null;
+            const contactName = viewingSend.contacts
+              ? [viewingSend.contacts.first_name, viewingSend.contacts.last_name].filter(Boolean).join(" ") || viewingSend.contacts.email
+              : "Unknown";
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    Email to {contactName}
+                  </DialogTitle>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={cn("text-xs font-medium capitalize border-0", SEND_STATUS_STYLES[viewingSend.status])}>
+                      {viewingSend.status}
+                    </Badge>
+                    {viewingSend.sent_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Sent {formatDateTime(viewingSend.sent_at)}
+                      </span>
+                    )}
+                  </div>
+                </DialogHeader>
+                {step ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Subject</p>
+                      <p className="text-sm font-medium">{step.subject}</p>
+                    </div>
+                    <div className="rounded-lg border bg-white dark:bg-card">
+                      <div className="p-4">
+                        <div
+                          className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                          dangerouslySetInnerHTML={{ __html: step.body_html }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Email content not available.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <ConfirmDialog

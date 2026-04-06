@@ -42,6 +42,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const STATUS_STYLES: Record<CampaignStatus, { className: string }> = {
   draft: { className: "bg-muted text-muted-foreground" },
@@ -77,6 +83,7 @@ const SEND_STATUS_STYLES: Record<WASendStatus, string> = {
 interface SendWithContact {
   id: string;
   contact_id: string;
+  step_id: string | null;
   status: WASendStatus;
   sent_at: string | null;
   delivered_at: string | null;
@@ -126,6 +133,7 @@ export function CampaignDetail({
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("steps");
   const [sendFilter, setSendFilter] = useState<SendFilter>("all");
+  const [viewingSend, setViewingSend] = useState<SendWithContact | null>(null);
 
   async function handleTogglePause() {
     const newStatus = campaign.status === "active" ? "paused" : "active";
@@ -198,15 +206,11 @@ export function CampaignDetail({
         </div>
         <div className="flex items-center gap-2">
           {(campaign.status === "draft" || campaign.status === "paused") && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                toast.info("To edit steps, delete this campaign and create a new one. Full edit mode coming soon.");
-              }}
-            >
-              <Pencil className="mr-2 size-4" />
-              Edit Steps
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/whatsapp/campaigns/${campaign.id}/edit`}>
+                <Pencil className="mr-2 size-4" />
+                Edit Campaign
+              </Link>
             </Button>
           )}
           {campaign.status === "draft" && (
@@ -509,7 +513,7 @@ export function CampaignDetail({
                           .join(" ") || "—"
                       : "—";
                     return (
-                      <TableRow key={send.id} className="h-12">
+                      <TableRow key={send.id} className="h-12 cursor-pointer hover:bg-muted/50" onClick={() => setViewingSend(send)}>
                         <TableCell className="font-medium">{name}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {send.contacts?.phone ?? "—"}
@@ -546,6 +550,65 @@ export function CampaignDetail({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Send detail dialog */}
+      <Dialog open={viewingSend !== null} onOpenChange={(open) => !open && setViewingSend(null)}>
+        <DialogContent className="max-w-md">
+          {viewingSend && (() => {
+            const step = viewingSend.step_id ? steps.find((s) => s.id === viewingSend.step_id) : null;
+            const contactName = viewingSend.contacts
+              ? [viewingSend.contacts.first_name, viewingSend.contacts.last_name].filter(Boolean).join(" ") || viewingSend.contacts.phone
+              : "Unknown";
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    WhatsApp to {contactName}
+                  </DialogTitle>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={cn("text-xs font-medium capitalize border-0", SEND_STATUS_STYLES[viewingSend.status])}>
+                      {viewingSend.status}
+                    </Badge>
+                    {viewingSend.sent_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Sent {formatDateTime(viewingSend.sent_at)}
+                      </span>
+                    )}
+                  </div>
+                </DialogHeader>
+                {step ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Template</p>
+                      <p className="text-sm font-medium">{step.wa_template_name.replace(/_/g, " ")}</p>
+                    </div>
+                    {Array.isArray(step.wa_template_params) && step.wa_template_params.length > 0 && (
+                      <div className="rounded-lg border p-3">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">Parameters</p>
+                        <div className="flex flex-wrap gap-1">
+                          {(step.wa_template_params as string[]).map((param, i) => (
+                            <Badge key={i} variant="outline" className="text-xs font-normal">
+                              {`{{${i + 1}}}`} = {param}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                      {viewingSend.delivered_at && <p>Delivered: {formatDateTime(viewingSend.delivered_at)}</p>}
+                      {viewingSend.read_at && <p>Read: {formatDateTime(viewingSend.read_at)}</p>}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Message details not available.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <ConfirmDialog
