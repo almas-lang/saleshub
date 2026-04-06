@@ -619,12 +619,12 @@ export default function WhatsAppChatPage() {
       {/* ── Left: Conversation list ── */}
       <div
         className={cn(
-          "w-full sm:w-80 lg:w-96 border-r flex flex-col shrink-0",
+          "w-full sm:w-80 lg:w-96 border-r flex flex-col shrink-0 overflow-hidden",
           activeContactId && "hidden sm:flex"
         )}
       >
         {/* Tabs: Chat / Archived */}
-        <div className="flex border-b">
+        <div className="flex border-b shrink-0">
           <button
             onClick={() => setShowArchived(false)}
             className={cn(
@@ -651,7 +651,7 @@ export default function WhatsAppChatPage() {
         </div>
 
         {/* Search */}
-        <div className="p-3 border-b">
+        <div className="p-3 border-b shrink-0">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
