@@ -17,7 +17,7 @@ import { CampaignStepDetails } from "./campaign-step-details";
 import { CampaignStepAudience } from "./campaign-step-audience";
 import { CampaignStepMessages } from "./campaign-step-messages";
 import { CampaignStepReview } from "./campaign-step-review";
-import { DripFlowCanvas, validateFlow, flowToSteps, flowToWaStepsWithBranching } from "./drip-flow-canvas";
+import { DripFlowCanvas, validateFlow, getFlowErrors, flowToSteps, flowToWaStepsWithBranching } from "./drip-flow-canvas";
 
 // Shape returned by Meta API via /api/whatsapp/templates
 interface MetaTemplate {
@@ -224,6 +224,7 @@ export function CampaignWizard({
             template_id: s.template_id,
             delay_hours: i === 0 ? 0 : s.delay_hours,
             wa_template_params: s.wa_template_params,
+            wa_template_param_names: s.wa_template_param_names ?? [],
             ...(s.condition ? { condition: s.condition } : {}),
           })),
           branching_edges: branchingEdges,
@@ -404,12 +405,21 @@ export function CampaignWizard({
         )}
 
         {step === 2 && type === "drip" && (
-          <DripFlowCanvas
-            templates={templates}
-            templatesLoading={templatesLoading}
-            flowData={flowData}
-            onFlowChange={setFlowData}
-          />
+          <>
+            <DripFlowCanvas
+              templates={templates}
+              templatesLoading={templatesLoading}
+              flowData={flowData}
+              onFlowChange={setFlowData}
+            />
+            {flowData && !validateFlow(flowData) && (
+              <div className="mt-2 space-y-1">
+                {getFlowErrors(flowData).map((err, i) => (
+                  <p key={i} className="text-sm text-destructive">{err}</p>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {step === 2 && type !== "drip" && (

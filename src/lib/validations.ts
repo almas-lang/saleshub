@@ -213,6 +213,7 @@ export const createCampaignSchema = z.object({
     template_id: z.string().optional().or(z.literal("")),
     delay_hours: z.number().int().min(0),
     wa_template_params: z.array(z.string()),
+    wa_template_param_names: z.array(z.string()).optional().default([]),
     condition: z.object({
       check: z.string(),
       value: z.string().optional(),

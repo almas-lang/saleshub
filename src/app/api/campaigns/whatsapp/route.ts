@@ -180,6 +180,7 @@ export async function POST(request: Request) {
     template_id: null, // wa_templates mirror not synced yet; store name only
     delay_hours: s.delay_hours,
     wa_template_params: s.wa_template_params,
+    wa_template_param_names: s.wa_template_param_names ?? [],
     condition: s.condition ?? null,
   }));
 
@@ -297,8 +298,8 @@ export async function PATCH(request: NextRequest) {
     existing.type === "drip"
   ) {
     const af = existing.audience_filter as AudienceFilter | null;
-    const enrollmentType = af?.enrollment_type ?? "existing";
-    // Only bulk-enroll for "existing" or "both" — skip for "new_leads" (auto-enrolled via auto-enroll.ts)
+    const enrollmentType = af?.enrollment_type ?? "new_leads";
+    // Only bulk-enroll for "existing" or "both" — "new_leads" are auto-enrolled via auto-enroll.ts
     if (enrollmentType === "existing" || enrollmentType === "both") {
       const enrolled = await enrollAudience(id, af);
       return NextResponse.json({ ...data, enrolled });

@@ -69,16 +69,30 @@ function serializeFlow(nodes: Node[], edges: Edge[]): FlowData {
 // ── Validate flow ──
 
 export function validateFlow(flow: FlowData): boolean {
+  return getFlowErrors(flow).length === 0;
+}
+
+/** Returns a list of human-readable validation errors for the flow. Empty = valid. */
+export function getFlowErrors(flow: FlowData): string[] {
+  const errors: string[] = [];
+
   const triggerNodes = flow.nodes.filter((n) => n.type === "trigger");
-  if (triggerNodes.length !== 1) return false;
+  if (triggerNodes.length !== 1) {
+    errors.push("Flow must have exactly one Trigger node.");
+    return errors;
+  }
 
   const sendNodes = flow.nodes.filter((n) => n.type === "send");
-  if (sendNodes.length === 0) return false;
+  if (sendNodes.length === 0) {
+    errors.push("Add at least one Send node with a template selected.");
+    return errors;
+  }
 
-  // All send nodes must have a template selected
   for (const n of sendNodes) {
     const d = n.data as SendNodeData;
-    if (!d.templateName) return false;
+    if (!d.templateName) {
+      errors.push(`Send node is missing a template selection.`);
+    }
   }
 
   // Check graph is connected (all nodes reachable from trigger)
@@ -100,7 +114,12 @@ export function validateFlow(flow: FlowData): boolean {
     }
   }
 
-  return visited.size === flow.nodes.length;
+  if (visited.size !== flow.nodes.length) {
+    const disconnected = flow.nodes.length - visited.size;
+    errors.push(`${disconnected} node(s) are not connected to the flow. Connect all nodes with edges.`);
+  }
+
+  return errors;
 }
 
 // ── flowToSteps: walk graph to derive linear CampaignStepDraft[] ──
@@ -468,7 +487,7 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
       </div>
 
       {/* Canvas */}
-      <div className="h-[500px] rounded-lg border bg-muted/20">
+      <div className="h-[calc(100vh-20rem)] min-h-[400px] rounded-lg border bg-muted/20">
         <ReactFlow
           nodes={nodes}
           edges={edges}
