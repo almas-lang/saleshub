@@ -553,6 +553,27 @@ export async function GET(request: Request) {
             sent_at: result.success ? now : null,
           });
 
+          if (!result.success) {
+            console.error(`[Drip Processor] WA send failed for enrollment ${enrollment.id}:`, result.error);
+            await supabaseAdmin.from("activities").insert({
+              contact_id: contact.id,
+              type: "wa_sent",
+              title: `Drip failed: ${currentStep.wa_template_name}`,
+              metadata: {
+                campaign_id: enrollment.campaign_id,
+                step_order: currentStep.order,
+                template: currentStep.wa_template_name,
+                error: result.error,
+              },
+            });
+            // Stop enrollment to prevent infinite retry loop
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: `send_failed: ${result.error?.slice(0, 100) ?? "unknown"}` })
+              .eq("id", enrollment.id);
+            failed++;
+            continue;
+          }
+
           await supabaseAdmin.from("activities").insert({
             contact_id: contact.id,
             type: "wa_sent",
@@ -563,11 +584,6 @@ export async function GET(request: Request) {
               template: currentStep.wa_template_name,
             },
           });
-
-          if (!result.success) {
-            failed++;
-            continue;
-          }
 
           sent++;
 
