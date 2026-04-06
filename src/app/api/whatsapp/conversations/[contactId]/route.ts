@@ -30,6 +30,7 @@ export async function GET(
     .from("wa_messages")
     .select("*")
     .eq("contact_id", contactId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: true })
     .limit(500);
 

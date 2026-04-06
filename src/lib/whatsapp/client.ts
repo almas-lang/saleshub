@@ -328,3 +328,80 @@ export async function markAsRead(messageId: string): Promise<WASendResult> {
 
   return { success: true };
 }
+
+/**
+ * Upload media to WhatsApp Cloud API.
+ * Returns a media_id that can be used to send a media message.
+ *
+ * Note: Uses raw fetch (not waFetch) because multipart form-data
+ * requires the browser/node to set the Content-Type boundary.
+ */
+export async function uploadMedia(
+  fileBuffer: Buffer,
+  mimeType: string,
+  fileName: string
+): Promise<{ success: boolean; mediaId?: string; error?: string }> {
+  const url = `${BASE_URL}/${PHONE_NUMBER_ID}/media`;
+
+  const formData = new FormData();
+  formData.append("messaging_product", "whatsapp");
+  formData.append("type", mimeType);
+  formData.append("file", new Blob([new Uint8Array(fileBuffer)], { type: mimeType }), fileName);
+
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${ACCESS_TOKEN}` },
+      body: formData,
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      const errMsg = data?.error?.message ?? `HTTP ${res.status}`;
+      console.error("[WhatsApp API] uploadMedia error:", errMsg);
+      return { success: false, error: errMsg };
+    }
+
+    return { success: true, mediaId: data.id };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[WhatsApp API] uploadMedia fetch error:", message);
+    return { success: false, error: message };
+  }
+}
+
+/**
+ * Send an image message via WhatsApp.
+ * Only works within the 24h conversation window or as a template.
+ */
+export async function sendImageMessage(
+  to: string,
+  mediaId: string,
+  caption?: string
+): Promise<WASendResult> {
+  const phone = formatForWA(to);
+
+  const image: Record<string, string> = { id: mediaId };
+  if (caption) image.caption = caption;
+
+  const result = await waFetch<{
+    messages: { id: string }[];
+  }>(MESSAGES_URL, {
+    method: "POST",
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "image",
+      image,
+    }),
+  });
+
+  if (!result.ok) {
+    return { success: false, error: result.error };
+  }
+
+  return {
+    success: true,
+    messageId: result.data?.messages?.[0]?.id,
+  };
+}

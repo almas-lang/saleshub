@@ -1,15 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const admin = supabaseAdmin as any;
 
 /**
- * GET /api/whatsapp/conversations
+ * GET /api/whatsapp/conversations?archived=true
  * Returns contacts that have WA messages, with last message preview.
+ * Pass ?archived=true to get archived conversations only.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const showArchived = request.nextUrl.searchParams.get("archived") === "true";
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -26,6 +29,7 @@ export async function GET() {
   const { data: waRows, error: waErr } = await admin
     .from("wa_messages")
     .select("contact_id, body, direction, message_type, created_at")
+    .is("deleted_at", null)
     .order("created_at", { ascending: false })
     .limit(500);
 
@@ -86,6 +90,24 @@ export async function GET() {
       last_message_type: "text",
       last_message_at: act.created_at,
     });
+  }
+
+  if (contactMap.size === 0) {
+    return NextResponse.json([]);
+  }
+
+  // Filter by archived status
+  const { data: archivedRows } = await admin
+    .from("wa_archived_chats")
+    .select("contact_id");
+  const archivedSet = new Set(
+    (archivedRows ?? []).map((r: any) => r.contact_id)
+  );
+  for (const cid of contactMap.keys()) {
+    const isArchived = archivedSet.has(cid);
+    if (showArchived ? !isArchived : isArchived) {
+      contactMap.delete(cid);
+    }
   }
 
   if (contactMap.size === 0) {

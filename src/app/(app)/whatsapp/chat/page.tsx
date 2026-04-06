@@ -17,6 +17,11 @@ import {
   Video,
   Mic,
   ExternalLink,
+  MoreVertical,
+  Trash2,
+  Archive,
+  ArchiveRestore,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, timeAgo, formatPhone } from "@/lib/utils";
@@ -25,6 +30,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { playNotificationSound } from "@/lib/notification-sound";
 
 // ── Types ──
@@ -34,7 +46,6 @@ interface Contact {
   first_name: string;
   last_name: string | null;
   phone: string | null;
-  avatar_url: string | null;
 }
 
 interface Conversation {
@@ -94,59 +105,113 @@ function MediaTypeIcon({ type }: { type: string }) {
 
 // ── Message Bubble ──
 
-function MessageBubble({ msg }: { msg: WAMessage }) {
+function MessageBubble({
+  msg,
+  onDelete,
+}: {
+  msg: WAMessage;
+  onDelete: (id: string) => void;
+}) {
   const isOutbound = msg.direction === "outbound";
   const isMedia = msg.message_type !== "text" && msg.message_type !== "template";
 
   return (
     <div
+      className={cn("group flex", isOutbound ? "justify-end" : "justify-start")}
+    >
+      {/* Delete menu — left side for outbound, right side for inbound */}
+      {!isOutbound && (
+        <div className="flex items-start">
+          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} />
+          <MessageActions msgId={msg.id} onDelete={onDelete} />
+        </div>
+      )}
+      {isOutbound && (
+        <div className="flex items-start">
+          <MessageActions msgId={msg.id} onDelete={onDelete} />
+          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MessageContent({
+  msg,
+  isOutbound,
+  isMedia,
+}: {
+  msg: WAMessage;
+  isOutbound: boolean;
+  isMedia: boolean;
+}) {
+  return (
+    <div
       className={cn(
-        "flex",
-        isOutbound ? "justify-end" : "justify-start"
+        "max-w-[75%] rounded-2xl px-3.5 py-2 text-sm",
+        isOutbound
+          ? "bg-emerald-600 text-white rounded-br-md"
+          : "bg-muted text-foreground rounded-bl-md"
       )}
     >
+      {isMedia && (
+        <div className="flex items-center gap-1.5 mb-1 opacity-80">
+          <MediaTypeIcon type={msg.message_type} />
+          <span className="text-xs capitalize">{msg.message_type}</span>
+        </div>
+      )}
+      {msg.body ? (
+        <p className="whitespace-pre-wrap break-words">{msg.body}</p>
+      ) : isMedia ? (
+        <p className="italic opacity-70">{msg.message_type} message</p>
+      ) : null}
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-3.5 py-2 text-sm",
-          isOutbound
-            ? "bg-emerald-600 text-white rounded-br-md"
-            : "bg-muted text-foreground rounded-bl-md"
+          "flex items-center gap-1 mt-1",
+          isOutbound ? "justify-end" : "justify-start"
         )}
       >
-        {isMedia && (
-          <div className="flex items-center gap-1.5 mb-1 opacity-80">
-            <MediaTypeIcon type={msg.message_type} />
-            <span className="text-xs capitalize">{msg.message_type}</span>
-          </div>
-        )}
-        {msg.body ? (
-          <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-        ) : isMedia ? (
-          <p className="italic opacity-70">
-            {msg.message_type} message
-          </p>
-        ) : null}
-        <div
+        <span
           className={cn(
-            "flex items-center gap-1 mt-1",
-            isOutbound ? "justify-end" : "justify-start"
+            "text-[10px]",
+            isOutbound ? "text-white/70" : "text-muted-foreground"
           )}
         >
-          <span
-            className={cn(
-              "text-[10px]",
-              isOutbound ? "text-white/70" : "text-muted-foreground"
-            )}
-          >
-            {new Date(msg.created_at).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-          {isOutbound && <MessageStatus status={msg.status} />}
-        </div>
+          {new Date(msg.created_at).toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </span>
+        {isOutbound && <MessageStatus status={msg.status} />}
       </div>
     </div>
+  );
+}
+
+function MessageActions({
+  msgId,
+  onDelete,
+}: {
+  msgId: string;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted/50 self-center">
+          <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-32">
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={() => onDelete(msgId)}
+        >
+          <Trash2 className="mr-2 h-3.5 w-3.5" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -174,10 +239,14 @@ function ConversationItem({
   conv,
   isActive,
   onClick,
+  onArchive,
+  isArchived,
 }: {
   conv: Conversation;
   isActive: boolean;
   onClick: () => void;
+  onArchive: (contactId: string, archive: boolean) => void;
+  isArchived: boolean;
 }) {
   const contactName = conv.contact
     ? `${conv.contact.first_name} ${conv.contact.last_name ?? ""}`.trim()
@@ -187,7 +256,9 @@ function ConversationItem({
 
   const initials = contactName
     ? `${conv.contact!.first_name?.[0] ?? ""}${conv.contact!.last_name?.[0] ?? ""}`.toUpperCase()
-    : phone ? "#" : "?";
+    : phone
+      ? "#"
+      : "?";
 
   const preview =
     conv.last_message_type !== "text" && conv.last_message_type !== "template"
@@ -195,31 +266,99 @@ function ConversationItem({
       : conv.last_message ?? "";
 
   return (
-    <button
-      onClick={onClick}
+    <div
       className={cn(
-        "w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50",
+        "group/conv flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50 cursor-pointer",
         isActive && "bg-muted"
       )}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium">
-        {initials}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-medium">{name}</span>
-          <span className="shrink-0 text-[11px] text-muted-foreground">
-            {timeAgo(conv.last_message_at)}
-          </span>
+      <button onClick={onClick} className="flex items-start gap-3 flex-1 min-w-0 text-left">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium">
+          {initials}
         </div>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-          {conv.last_message_direction === "outbound" && (
-            <span className="mr-1">You:</span>
-          )}
-          {preview || "No messages"}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-sm font-medium">{name}</span>
+            <span className="shrink-0 text-[11px] text-muted-foreground">
+              {timeAgo(conv.last_message_at)}
+            </span>
+          </div>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            {conv.last_message_direction === "outbound" && (
+              <span className="mr-1">You:</span>
+            )}
+            {preview || "No messages"}
+          </p>
+        </div>
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className="opacity-0 group-hover/conv:opacity-100 transition-opacity p-1 rounded hover:bg-muted self-center shrink-0">
+            <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-36">
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive(conv.contact_id, !isArchived);
+            }}
+          >
+            {isArchived ? (
+              <>
+                <ArchiveRestore className="mr-2 h-3.5 w-3.5" />
+                Unarchive
+              </>
+            ) : (
+              <>
+                <Archive className="mr-2 h-3.5 w-3.5" />
+                Archive
+              </>
+            )}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
+// ── Image Preview Strip ──
+
+function ImagePreview({
+  file,
+  onClear,
+}: {
+  file: File;
+  onClear: () => void;
+}) {
+  const [preview, setPreview] = useState<string | null>(null);
+
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-2 border-t bg-muted/30">
+      {preview && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={preview}
+          alt="Preview"
+          className="h-12 w-12 rounded object-cover"
+        />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-medium truncate">{file.name}</p>
+        <p className="text-[10px] text-muted-foreground">
+          {(file.size / 1024).toFixed(0)} KB
         </p>
       </div>
-    </button>
+      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClear}>
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
   );
 }
 
@@ -238,9 +377,13 @@ export default function WhatsAppChatPage() {
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const prevInboundCountRef = useRef(0);
 
   // Scroll to bottom on new messages
@@ -250,14 +393,15 @@ export default function WhatsAppChatPage() {
 
   // Load conversations
   const loadConversations = useCallback(async () => {
-    const result = await safeFetch<Conversation[]>(
-      "/api/whatsapp/conversations"
-    );
+    const url = showArchived
+      ? "/api/whatsapp/conversations?archived=true"
+      : "/api/whatsapp/conversations";
+    const result = await safeFetch<Conversation[]>(url);
     if (result.ok) {
       setConversations(result.data);
     }
     setLoading(false);
-  }, []);
+  }, [showArchived]);
 
   // Load messages for active contact
   const loadMessages = useCallback(
@@ -270,8 +414,13 @@ export default function WhatsAppChatPage() {
       if (result.ok) {
         const newMsgs = result.data.messages;
         // Detect new inbound messages and play sound
-        const inboundCount = newMsgs.filter((m) => m.direction === "inbound").length;
-        if (prevInboundCountRef.current > 0 && inboundCount > prevInboundCountRef.current) {
+        const inboundCount = newMsgs.filter(
+          (m) => m.direction === "inbound"
+        ).length;
+        if (
+          prevInboundCountRef.current > 0 &&
+          inboundCount > prevInboundCountRef.current
+        ) {
           playNotificationSound();
         }
         prevInboundCountRef.current = inboundCount;
@@ -286,7 +435,9 @@ export default function WhatsAppChatPage() {
   );
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- data fetch on mount
-  useEffect(() => { loadConversations(); }, [loadConversations]);
+  useEffect(() => {
+    loadConversations();
+  }, [loadConversations]);
 
   useEffect(() => {
     if (activeContactId) {
@@ -315,38 +466,116 @@ export default function WhatsAppChatPage() {
     return () => clearInterval(interval);
   }, [activeContactId, loadConversations, loadMessages]);
 
-  // Send reply
+  // Delete message
+  async function handleDeleteMessage() {
+    if (!deleteTarget) return;
+    const result = await safeFetch(`/api/whatsapp/messages/${deleteTarget}`, {
+      method: "DELETE",
+    });
+    if (result.ok) {
+      setMessages((prev) => prev.filter((m) => m.id !== deleteTarget));
+      toast.success("Message deleted");
+    } else {
+      toast.error("Failed to delete message");
+    }
+    setDeleteTarget(null);
+  }
+
+  // Archive/unarchive conversation
+  async function handleArchive(contactId: string, archive: boolean) {
+    const result = await safeFetch(
+      `/api/whatsapp/conversations/${contactId}/archive`,
+      { method: archive ? "POST" : "DELETE" }
+    );
+    if (result.ok) {
+      setConversations((prev) =>
+        prev.filter((c) => c.contact_id !== contactId)
+      );
+      toast.success(archive ? "Chat archived" : "Chat unarchived");
+      if (contactId === activeContactId) {
+        router.push("/whatsapp/chat");
+      }
+    } else {
+      toast.error("Failed to update chat");
+    }
+  }
+
+  // Send reply (text or image)
   async function handleSend() {
-    if (!replyText.trim() || !activeContactId || sending) return;
+    if ((!replyText.trim() && !selectedImage) || !activeContactId || sending)
+      return;
     setSending(true);
     const text = replyText.trim();
     setReplyText("");
 
-    const result = await safeFetch<{ message: WAMessage }>(
-      "/api/whatsapp/reply",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contact_id: activeContactId,
-          message: text,
-        }),
-      }
-    );
+    if (selectedImage) {
+      // Send image
+      const formData = new FormData();
+      formData.append("contact_id", activeContactId);
+      formData.append("file", selectedImage);
+      if (text) formData.append("caption", text);
 
-    if (!result.ok) {
-      toast.error(result.error);
-      setReplyText(text); // restore on failure
-    } else {
-      // Append the new message immediately
-      if (result.data.message) {
-        setMessages((prev) => [...prev, result.data.message]);
+      const result = await safeFetch<{ message: WAMessage }>(
+        "/api/whatsapp/send-image",
+        { method: "POST", body: formData }
+      );
+
+      if (!result.ok) {
+        toast.error(result.error);
+        setReplyText(text);
+      } else {
+        if (result.data.message) {
+          setMessages((prev) => [...prev, result.data.message]);
+        }
+        setTimeout(scrollToBottom, 100);
+        loadConversations();
       }
-      setTimeout(scrollToBottom, 100);
-      loadConversations(); // refresh sidebar
+      setSelectedImage(null);
+    } else {
+      // Send text
+      const result = await safeFetch<{ message: WAMessage }>(
+        "/api/whatsapp/reply",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contact_id: activeContactId,
+            message: text,
+          }),
+        }
+      );
+
+      if (!result.ok) {
+        toast.error(result.error);
+        setReplyText(text);
+      } else {
+        if (result.data.message) {
+          setMessages((prev) => [...prev, result.data.message]);
+        }
+        setTimeout(scrollToBottom, 100);
+        loadConversations();
+      }
     }
     setSending(false);
     inputRef.current?.focus();
+  }
+
+  // Handle file selection
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      toast.error("Only JPEG, PNG, and WebP images are supported");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+    setSelectedImage(file);
+    // Reset the input so re-selecting the same file triggers onChange
+    e.target.value = "";
   }
 
   function selectConversation(contactId: string) {
@@ -394,6 +623,33 @@ export default function WhatsAppChatPage() {
           activeContactId && "hidden sm:flex"
         )}
       >
+        {/* Tabs: Chat / Archived */}
+        <div className="flex border-b">
+          <button
+            onClick={() => setShowArchived(false)}
+            className={cn(
+              "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
+              !showArchived
+                ? "text-foreground border-b-2 border-emerald-600"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => setShowArchived(true)}
+            className={cn(
+              "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
+              showArchived
+                ? "text-foreground border-b-2 border-emerald-600"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Archive className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
+            Archived
+          </button>
+        </div>
+
         {/* Search */}
         <div className="p-3 border-b">
           <div className="relative">
@@ -419,11 +675,15 @@ export default function WhatsAppChatPage() {
               <p className="mt-2 text-sm text-muted-foreground">
                 {searchQuery
                   ? "No conversations match your search"
-                  : "No WhatsApp conversations yet"}
+                  : showArchived
+                    ? "No archived conversations"
+                    : "No WhatsApp conversations yet"}
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Send a template or receive a message to start
-              </p>
+              {!searchQuery && !showArchived && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Send a template or receive a message to start
+                </p>
+              )}
             </div>
           ) : (
             <div className="divide-y">
@@ -433,6 +693,8 @@ export default function WhatsAppChatPage() {
                   conv={conv}
                   isActive={conv.contact_id === activeContactId}
                   onClick={() => selectConversation(conv.contact_id)}
+                  onArchive={handleArchive}
+                  isArchived={showArchived}
                 />
               ))}
             </div>
@@ -519,7 +781,11 @@ export default function WhatsAppChatPage() {
                       <DateSeparator date={group.date} />
                       <div className="space-y-1.5">
                         {group.messages.map((msg) => (
-                          <MessageBubble key={msg.id} msg={msg} />
+                          <MessageBubble
+                            key={msg.id}
+                            msg={msg}
+                            onDelete={setDeleteTarget}
+                          />
                         ))}
                       </div>
                     </div>
@@ -529,12 +795,40 @@ export default function WhatsAppChatPage() {
               )}
             </ScrollArea>
 
+            {/* Image preview */}
+            {selectedImage && (
+              <ImagePreview
+                file={selectedImage}
+                onClear={() => setSelectedImage(null)}
+              />
+            )}
+
             {/* Reply composer */}
             <div className="border-t p-3">
               <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleFileSelect}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-9 w-9"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                >
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                </Button>
                 <Input
                   ref={inputRef}
-                  placeholder="Type a message... (24h window required)"
+                  placeholder={
+                    selectedImage
+                      ? "Add a caption... (optional)"
+                      : "Type a message... (24h window required)"
+                  }
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   onKeyDown={(e) => {
@@ -549,20 +843,30 @@ export default function WhatsAppChatPage() {
                 <Button
                   size="icon"
                   onClick={handleSend}
-                  disabled={!replyText.trim() || sending}
+                  disabled={(!replyText.trim() && !selectedImage) || sending}
                   className="shrink-0 bg-emerald-600 hover:bg-emerald-700"
                 >
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
               <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Free-text replies only work within 24h of the contact&apos;s last message.
-                Outside this window, use a template.
+                Free-text replies only work within 24h of the contact&apos;s
+                last message. Outside this window, use a template.
               </p>
             </div>
           </>
         )}
       </div>
+
+      {/* Delete confirmation */}
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete message?"
+        description="This message will be removed from your inbox. This cannot be undone."
+        onConfirm={handleDeleteMessage}
+        destructive
+      />
     </div>
   );
 }
