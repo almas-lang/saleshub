@@ -94,6 +94,7 @@ export async function GET() {
 
   // 3. Fetch contact info for all contact_ids in one query
   const contactIds = Array.from(contactMap.keys());
+  console.log(`[WA Conversations] Looking up ${contactIds.length} contacts:`, contactIds);
   // Include soft-deleted contacts so we can still show their name/phone
   const { data: contacts, error: contactsErr } = await supabaseAdmin
     .from("contacts")
@@ -103,6 +104,7 @@ export async function GET() {
   if (contactsErr) {
     console.error("[WA Conversations] contacts query error:", contactsErr);
   }
+  console.log(`[WA Conversations] Found ${contacts?.length ?? 0} contacts`, contacts?.map((c: any) => ({ id: c.id, name: c.first_name })));
 
   const contactLookup = new Map(
     (contacts ?? []).map((c: any) => [c.id, c])
