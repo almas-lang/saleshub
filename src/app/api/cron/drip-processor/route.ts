@@ -50,6 +50,8 @@ interface EmailStepRow {
   next_step_id_no: string | null;
 }
 
+export { GET as POST };
+
 export async function GET(request: Request) {
   // ── Auth (header or query param) ─────────────────
   const authHeader = request.headers.get("authorization");

@@ -6,6 +6,8 @@ import { renderBookingReminderEmail } from "@/lib/email/templates/booking-remind
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+export { GET as POST };
+
 export async function GET(request: Request) {
   // ── Auth (header or query param) ─────────────────
   const authHeader = request.headers.get("authorization");
