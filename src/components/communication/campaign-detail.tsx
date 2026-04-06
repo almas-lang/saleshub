@@ -112,6 +112,8 @@ function pct(n: number, total: number): string {
   return `${Math.round((n / total) * 100)}%`;
 }
 
+type SendFilter = "all" | "delivered" | "read" | "failed";
+
 export function CampaignDetail({
   campaign,
   steps,
@@ -122,6 +124,8 @@ export function CampaignDetail({
   const router = useRouter();
   const [showDelete, setShowDelete] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("steps");
+  const [sendFilter, setSendFilter] = useState<SendFilter>("all");
 
   async function handleTogglePause() {
     const newStatus = campaign.status === "active" ? "paused" : "active";
@@ -262,49 +266,40 @@ export function CampaignDetail({
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — clickable to filter Sends tab */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Recipients</p>
-          <p className="text-2xl font-semibold">{stats.recipient_count}</p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Delivered</p>
-          <p className="text-2xl font-semibold">
-            {stats.delivered_count}
-            {stats.recipient_count > 0 && (
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                ({pct(stats.delivered_count, stats.recipient_count)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Read</p>
-          <p className="text-2xl font-semibold">
-            {stats.read_count}
-            {stats.recipient_count > 0 && (
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                ({pct(stats.read_count, stats.recipient_count)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Failed</p>
-          <p
+        {([
+          { label: "Recipients", value: stats.recipient_count, filter: "all" as SendFilter, pctVal: null },
+          { label: "Delivered", value: stats.delivered_count, filter: "delivered" as SendFilter, pctVal: stats.recipient_count > 0 ? pct(stats.delivered_count, stats.recipient_count) : null },
+          { label: "Read", value: stats.read_count, filter: "read" as SendFilter, pctVal: stats.recipient_count > 0 ? pct(stats.read_count, stats.recipient_count) : null },
+          { label: "Failed", value: stats.failed_count, filter: "failed" as SendFilter, pctVal: null },
+        ]).map((card) => (
+          <button
+            key={card.label}
+            onClick={() => { setActiveTab("sends"); setSendFilter(card.filter); }}
             className={cn(
-              "text-2xl font-semibold",
-              stats.failed_count > 0 && "text-red-600 dark:text-red-400"
+              "rounded-xl border p-4 text-left transition-colors hover:bg-muted/50",
+              activeTab === "sends" && sendFilter === card.filter && "ring-2 ring-primary"
             )}
           >
-            {stats.failed_count}
-          </p>
-        </div>
+            <p className="text-sm text-muted-foreground">{card.label}</p>
+            <p className={cn(
+              "text-2xl font-semibold",
+              card.label === "Failed" && card.value > 0 && "text-red-600 dark:text-red-400"
+            )}>
+              {card.value}
+              {card.pctVal && (
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                  ({card.pctVal})
+                </span>
+              )}
+            </p>
+          </button>
+        ))}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="steps">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v !== "sends") setSendFilter("all"); }}>
         <TabsList>
           <TabsTrigger value="steps">
             <FileText className="mr-1.5 size-4" />
@@ -445,6 +440,19 @@ export function CampaignDetail({
 
         {/* Sends tab */}
         <TabsContent value="sends" className="mt-4">
+          {sendFilter !== "all" && (
+            <div className="mb-3 flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs">
+                Filtered: {sendFilter}
+              </Badge>
+              <button
+                onClick={() => setSendFilter("all")}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
           {sends.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No sends yet. Messages will appear here once the campaign is
@@ -488,7 +496,13 @@ export function CampaignDetail({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sends.map((send) => {
+                  {sends.filter((send) => {
+                    if (sendFilter === "all") return true;
+                    if (sendFilter === "delivered") return send.status === "delivered" || send.status === "read";
+                    if (sendFilter === "read") return send.status === "read";
+                    if (sendFilter === "failed") return send.status === "failed";
+                    return true;
+                  }).map((send) => {
                     const name = send.contacts
                       ? [send.contacts.first_name, send.contacts.last_name]
                           .filter(Boolean)
