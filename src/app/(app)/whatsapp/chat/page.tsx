@@ -618,36 +618,9 @@ export default function WhatsAppChatPage() {
           activeContactId && "hidden sm:flex"
         )}
       >
-        {/* Tabs: Chat / Archived */}
-        <div className="flex border-b shrink-0">
-          <button
-            onClick={() => setShowArchived(false)}
-            className={cn(
-              "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
-              !showArchived
-                ? "text-foreground border-b-2 border-emerald-600"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Chat
-          </button>
-          <button
-            onClick={() => setShowArchived(true)}
-            className={cn(
-              "flex-1 px-4 py-2.5 text-sm font-medium transition-colors",
-              showArchived
-                ? "text-foreground border-b-2 border-emerald-600"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Archive className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />
-            Archived
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="p-3 border-b shrink-0">
-          <div className="relative">
+        {/* Search + Archive toggle */}
+        <div className="p-3 border-b shrink-0 flex items-center gap-2">
+          <div className="relative flex-1">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search conversations..."
@@ -656,6 +629,15 @@ export default function WhatsAppChatPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
+          <Button
+            variant={showArchived ? "default" : "outline"}
+            size="icon"
+            className="h-9 w-9 shrink-0"
+            onClick={() => setShowArchived((v) => !v)}
+            title={showArchived ? "Show active chats" : "Show archived chats"}
+          >
+            <Archive className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Conversation list */}
@@ -671,7 +653,7 @@ export default function WhatsAppChatPage() {
                 {searchQuery
                   ? "No conversations match your search"
                   : showArchived
-                    ? "No archived conversations"
+                    ? "No archived chats"
                     : "No WhatsApp conversations yet"}
               </p>
               {!searchQuery && !showArchived && (
