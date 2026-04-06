@@ -52,17 +52,35 @@ export async function autoEnrollIntoDrips(contactId: string) {
     .eq("type", "drip")
     .eq("status", "active");
 
+  console.log(`[Auto-Enroll] Found ${waCampaigns?.length ?? 0} active WA drip campaigns for contact ${contactId}`);
+
   const waToEnroll: string[] = [];
   for (const c of waCampaigns ?? []) {
-    // Skip campaigns with enrollment_type "existing" — they don't auto-enroll new leads
     const af = c.audience_filter as AudienceFilter | null;
-    if (af?.enrollment_type === "existing") continue;
+    if (af?.enrollment_type === "existing") {
+      console.log(`[Auto-Enroll] Skipping WA campaign ${c.id}: enrollment_type=existing`);
+      continue;
+    }
 
     const flow = c.flow_data as { nodes?: { data?: { event?: string; nodeType?: string } }[] } | null;
     const hasTrigger = flow?.nodes?.some(
       (n) => n.data?.nodeType === "trigger" && n.data?.event === "lead_created"
     );
-    if (hasTrigger) waToEnroll.push(c.id);
+
+    if (!hasTrigger) {
+      console.log(`[Auto-Enroll] Skipping WA campaign ${c.id}: no lead_created trigger. Trigger nodes:`,
+        flow?.nodes?.filter((n) => n.data?.nodeType === "trigger").map((n) => n.data));
+      continue;
+    }
+
+    // Check audience filter match
+    const matches = await contactMatchesFilter(contactId, af);
+    if (!matches) {
+      console.log(`[Auto-Enroll] Skipping WA campaign ${c.id}: contact doesn't match audience filter`);
+      continue;
+    }
+
+    waToEnroll.push(c.id);
   }
 
   // Find active email drip campaigns with lead_created trigger
