@@ -63,8 +63,17 @@ export async function POST(request: NextRequest) {
 
         // Handle incoming messages
         if (value.messages) {
+          // Build a map of wa_id → profile name from the contacts array
+          const profileNames = new Map<string, string>();
+          for (const c of value.contacts ?? []) {
+            if (c.wa_id && c.profile?.name) {
+              profileNames.set(c.wa_id, c.profile.name);
+            }
+          }
+
           for (const message of value.messages) {
-            await handleIncomingMessage(message);
+            const profileName = profileNames.get(message.from) ?? null;
+            await handleIncomingMessage(message, profileName);
           }
         }
       }
@@ -169,7 +178,7 @@ async function handleIncomingMessage(message: {
   video?: { caption?: string; id: string; mime_type: string };
   document?: { caption?: string; filename?: string; id: string; mime_type: string };
   audio?: { id: string; mime_type: string };
-}) {
+}, profileName: string | null) {
   const senderPhone = formatForWA(message.from);
   const senderPhonePlus = `+${senderPhone}`;
   const messageText =
@@ -185,7 +194,7 @@ async function handleIncomingMessage(message: {
         null;
 
   // Look up contact by phone (try both with and without + prefix)
-  const { data: contact, error: contactErr } = await supabaseAdmin
+  let { data: contact, error: contactErr } = await supabaseAdmin
     .from("contacts")
     .select("id, first_name, last_name")
     .or(`phone.eq.${senderPhone},phone.eq.${senderPhonePlus}`)
@@ -204,9 +213,30 @@ async function handleIncomingMessage(message: {
     console.error("[WA Webhook] markAsRead failed:", err);
   }
 
+  // Auto-create contact for unknown senders
   if (!contact) {
-    console.log(`[WA Webhook] No contact found for phone ${senderPhone}`);
-    return;
+    console.log(`[WA Webhook] Auto-creating contact for phone ${senderPhone} (profile: ${profileName ?? "unknown"})`);
+
+    // Use WhatsApp profile name, or fall back to phone number
+    const firstName = profileName ?? `+${senderPhone}`;
+
+    const { data: newContact, error: createErr } = await supabaseAdmin
+      .from("contacts")
+      .insert({
+        first_name: firstName,
+        phone: senderPhonePlus,
+        source: "whatsapp",
+        type: "prospect",
+      })
+      .select("id, first_name, last_name")
+      .single();
+
+    if (createErr || !newContact) {
+      console.error("[WA Webhook] Failed to create contact:", createErr?.message);
+      return;
+    }
+
+    contact = newContact;
   }
 
   // Store in wa_messages for chat inbox
