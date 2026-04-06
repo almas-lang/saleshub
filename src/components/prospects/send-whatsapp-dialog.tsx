@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Send, ArrowLeft, Loader2, Check } from "lucide-react";
+import { Send, ArrowLeft, Loader2 } from "lucide-react";
 import { safeFetch } from "@/lib/fetch";
 import { cn } from "@/lib/utils";
 import {

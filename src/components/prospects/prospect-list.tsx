@@ -155,7 +155,7 @@ export function ProspectList({
   bookedContactIds = [],
   openForm = false,
   tab = "active",
-  stats,
+  stats: _stats,
 }: ProspectListProps) {
   const bookedSet = new Set(bookedContactIds);
   const isArchived = tab === "archived";
