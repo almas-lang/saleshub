@@ -157,6 +157,12 @@ export async function sendTemplate(
     return { success: false, error: result.error };
   }
 
+  await logger.info("whatsapp-api", `Template "${templateName}" sent to ${phone}`, {
+    phone,
+    template: templateName,
+    messageId: result.data?.messages?.[0]?.id,
+  });
+
   return {
     success: true,
     messageId: result.data?.messages?.[0]?.id,

@@ -776,9 +776,21 @@ export async function GET(request: Request) {
       }
     }
 
+    const total = (enrollments ?? []).length;
+    if (total > 0 || oneTimeSent > 0 || oneTimeFailed > 0) {
+      await logger.info("drip-processor", `Run complete: ${sent} sent, ${failed} failed, ${stopped} stopped`, {
+        processed: total,
+        sent,
+        stopped,
+        failed,
+        one_time_sent: oneTimeSent,
+        one_time_failed: oneTimeFailed,
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      processed: (enrollments ?? []).length,
+      processed: total,
       sent,
       stopped,
       failed,
@@ -786,7 +798,7 @@ export async function GET(request: Request) {
       one_time_failed: oneTimeFailed,
     });
   } catch (error) {
-    console.error("[Drip Processor] Cron error:", error);
+    await logger.error("drip-processor", `Cron error: ${error instanceof Error ? error.message : "Unknown"}`);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

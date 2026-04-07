@@ -4,6 +4,7 @@ import { createEvent } from "@/lib/google/calendar";
 import { sendEmail } from "@/lib/email/client";
 import { renderWelcomeEmail } from "@/lib/email/templates/welcome";
 import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
+import { logger } from "@/lib/logger";
 import type { AvailabilityRules } from "@/types/bookings";
 
 /**
@@ -540,7 +541,14 @@ export async function POST(request: Request) {
   }
 
   // ── Step 8: Return success ─────────────────────
-  console.log(`[Booking] Created for ${email} (contact: ${contactId}, booking: ${booking.id})`);
+  await logger.info("booking", `Booking created for ${email}`, {
+    contact_id: contactId,
+    booking_id: booking.id,
+    email,
+    date,
+    time,
+    slug,
+  });
 
   return NextResponse.json({
     success: true,

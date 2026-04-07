@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { logger } from "@/lib/logger";
 import type { AudienceFilter } from "@/types/campaigns";
 
 /**
@@ -172,9 +173,12 @@ export async function autoEnrollIntoDrips(contactId: string) {
 
   const { error } = await supabaseAdmin.from("drip_enrollments").insert(rows);
   if (error) {
-    console.error("[Auto-Enroll] Drip enrollment insert error:", error.message);
+    await logger.error("auto-enroll", `Enrollment insert error: ${error.message}`, { contact_id: contactId });
     return;
   }
 
-  console.log(`[Auto-Enroll] Enrolled contact ${contactId} into ${rows.length} drip(s)`);
+  await logger.info("auto-enroll", `Enrolled contact ${contactId} into ${rows.length} drip(s)`, {
+    contact_id: contactId,
+    campaigns: rows.length,
+  });
 }
