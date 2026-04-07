@@ -109,7 +109,7 @@ export function Sidebar({ onNavigate }: SidebarProps = {}) {
                   )}
                   {Icon && <Icon className="size-4" />}
                   <span>{item.name}</span>
-                  {item.href === "/whatsapp" && waUnread > 0 && (
+                  {item.href === "/whatsapp/chat" && waUnread > 0 && (
                     <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
                       {waUnread > 99 ? "99+" : waUnread}
                     </span>

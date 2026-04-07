@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 const TABS = [
   { label: "Chat", href: "/whatsapp/chat" },
-  { label: "Campaigns", href: "/whatsapp" },
+  { label: "Campaigns", href: "/whatsapp/campaigns" },
   { label: "Templates", href: "/whatsapp/templates" },
 ];
 
@@ -19,7 +19,7 @@ export default function WhatsAppLayout({
 
   // Hide tabs on campaign detail/new pages
   const showTabs =
-    pathname === "/whatsapp" ||
+    pathname === "/whatsapp/campaigns" ||
     pathname === "/whatsapp/templates" ||
     pathname.startsWith("/whatsapp/chat");
 
@@ -40,11 +40,7 @@ export default function WhatsAppLayout({
       {showTabs && (
         <div className="flex gap-1 border-b">
           {TABS.map((tab) => {
-            const isActive =
-              tab.href === "/whatsapp"
-                ? pathname === "/whatsapp" ||
-                  pathname.startsWith("/whatsapp/campaigns")
-                : pathname.startsWith(tab.href);
+            const isActive = pathname.startsWith(tab.href);
             return (
               <Link
                 key={tab.href}

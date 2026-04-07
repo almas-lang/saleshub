@@ -283,12 +283,19 @@ function ConversationItem({
               {timeAgo(conv.last_message_at)}
             </span>
           </div>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {conv.last_message_direction === "outbound" && (
-              <span className="mr-1">You:</span>
+          <div className="mt-0.5 flex items-center gap-2">
+            <p className="truncate text-xs text-muted-foreground flex-1">
+              {conv.last_message_direction === "outbound" && (
+                <span className="mr-1">You:</span>
+              )}
+              {preview || "No messages"}
+            </p>
+            {conv.unread_count > 0 && (
+              <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
+                {conv.unread_count}
+              </span>
             )}
-            {preview || "No messages"}
-          </p>
+          </div>
         </div>
       </button>
       <DropdownMenu>
@@ -641,7 +648,7 @@ export default function WhatsAppChatPage() {
         </div>
 
         {/* Conversation list */}
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           {loading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Loading...
@@ -676,7 +683,7 @@ export default function WhatsAppChatPage() {
               ))}
             </div>
           )}
-        </ScrollArea>
+        </div>
       </div>
 
       {/* ── Right: Chat thread ── */}

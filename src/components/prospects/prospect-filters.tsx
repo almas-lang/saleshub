@@ -84,7 +84,7 @@ export function ProspectFilters({
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Source</label>
+            <label className="text-xs font-medium text-muted-foreground">Source</label>
             <Select
               value={filters.source || "all"}
               onValueChange={(v) => onFilterChange("source", v === "all" ? "" : v)}
@@ -104,7 +104,7 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Funnel</label>
+            <label className="text-xs font-medium text-muted-foreground">Funnel</label>
             <Select
               value={filters.funnel_id || "all"}
               onValueChange={(v) => {
@@ -129,7 +129,7 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Stage</label>
+            <label className="text-xs font-medium text-muted-foreground">Stage</label>
             <Select
               value={filters.stage_id || "all"}
               onValueChange={(v) => onFilterChange("stage_id", v === "all" ? "" : v)}
@@ -150,7 +150,7 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Assigned To</label>
+            <label className="text-xs font-medium text-muted-foreground">Assigned To</label>
             <Select
               value={filters.assigned_to || "all"}
               onValueChange={(v) => onFilterChange("assigned_to", v === "all" ? "" : v)}
@@ -170,7 +170,7 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Call Booked</label>
+            <label className="text-xs font-medium text-muted-foreground">Call Booked</label>
             <Select
               value={filters.booked || "all"}
               onValueChange={(v) => onFilterChange("booked", v === "all" ? "" : v)}
@@ -185,6 +185,18 @@ export function ProspectFilters({
               </SelectContent>
             </Select>
           </div>
+          {activeCount > 0 && (
+            <div className="pt-2 border-t">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-muted-foreground"
+                onClick={onClearFilters}
+              >
+                Clear all filters
+              </Button>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>
