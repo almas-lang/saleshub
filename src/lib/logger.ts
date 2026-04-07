@@ -27,15 +27,18 @@ async function writeLog(entry: LogEntry) {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (supabaseAdmin as any).from("system_logs").insert({
+    const { error } = await (supabaseAdmin as any).from("system_logs").insert({
       level: entry.level,
       source: entry.source,
       message: entry.message,
       metadata: entry.metadata ?? null,
     });
-  } catch {
+    if (error) {
+      console.error("[Logger] DB insert error:", error.message);
+    }
+  } catch (err) {
     // Don't let logging failures break the app
-    console.error("[Logger] Failed to write log to DB");
+    console.error("[Logger] Failed to write log to DB:", err instanceof Error ? err.message : err);
   }
 }
 

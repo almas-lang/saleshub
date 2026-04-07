@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  // Auth check with user client
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -17,7 +19,9 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get("limit") ?? "100"), 500);
   const offset = parseInt(searchParams.get("offset") ?? "0");
 
-  let query = supabase
+  // Use admin client to bypass RLS on system_logs
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query = (supabaseAdmin as any)
     .from("system_logs")
     .select("*", { count: "exact" })
     .order("created_at", { ascending: false })
@@ -54,7 +58,9 @@ export async function DELETE(request: NextRequest) {
 
   const cutoff = new Date(Date.now() - olderThanDays * 86400000).toISOString();
 
-  const { error } = await supabase
+  // Use admin client to bypass RLS
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabaseAdmin as any)
     .from("system_logs")
     .delete()
     .lt("created_at", cutoff);
