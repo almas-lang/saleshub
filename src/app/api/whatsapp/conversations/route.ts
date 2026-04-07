@@ -96,6 +96,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([]);
   }
 
+  // Get per-contact unread counts from notifications
+  const { data: member } = await admin
+    .from("team_members")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .maybeSingle();
+
+  const unreadMap = new Map<string, number>();
+  if (member) {
+    const { data: unreadRows } = await admin
+      .from("notifications")
+      .select("link")
+      .eq("user_id", member.id)
+      .eq("read", false)
+      .like("link", "/whatsapp/%");
+
+    for (const row of unreadRows ?? []) {
+      // links are like /whatsapp/chat?contact=<contact_id>
+      const match = (row.link as string)?.match(/contact=([^&]+)/);
+      if (match) {
+        const cid = match[1];
+        unreadMap.set(cid, (unreadMap.get(cid) ?? 0) + 1);
+      }
+    }
+  }
+
   // Filter by archived status
   const { data: archivedRows } = await admin
     .from("wa_archived_chats")
@@ -142,7 +168,7 @@ export async function GET(request: NextRequest) {
     .map((conv) => ({
       ...conv,
       contact: contactLookup.get(conv.contact_id) ?? null,
-      unread_count: 0,
+      unread_count: unreadMap.get(conv.contact_id) ?? 0,
     }))
     .sort(
       (a, b) =>

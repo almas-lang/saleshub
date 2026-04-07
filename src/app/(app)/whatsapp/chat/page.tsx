@@ -28,7 +28,6 @@ import { cn, timeAgo, formatPhone } from "@/lib/utils";
 import { safeFetch } from "@/lib/fetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
@@ -621,7 +620,7 @@ export default function WhatsAppChatPage() {
       {/* ── Left: Conversation list ── */}
       <div
         className={cn(
-          "w-full sm:w-80 lg:w-96 border-r flex flex-col shrink-0 overflow-hidden",
+          "w-full sm:w-80 lg:w-96 border-r flex flex-col shrink-0 overflow-hidden min-h-0",
           activeContactId && "hidden sm:flex"
         )}
       >
@@ -689,7 +688,7 @@ export default function WhatsAppChatPage() {
       {/* ── Right: Chat thread ── */}
       <div
         className={cn(
-          "flex-1 flex flex-col min-w-0",
+          "flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden",
           !activeContactId && "hidden sm:flex"
         )}
       >
@@ -742,7 +741,7 @@ export default function WhatsAppChatPage() {
             </div>
 
             {/* Messages area */}
-            <ScrollArea className="flex-1 p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
               {messagesLoading && messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <p className="text-sm text-muted-foreground">
@@ -777,7 +776,7 @@ export default function WhatsAppChatPage() {
                   <div ref={messagesEndRef} />
                 </div>
               )}
-            </ScrollArea>
+            </div>
 
             {/* Image preview */}
             {selectedImage && (

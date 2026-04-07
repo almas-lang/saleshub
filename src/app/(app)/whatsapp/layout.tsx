@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useWaUnread } from "@/hooks/use-wa-unread";
 
 const TABS = [
   { label: "Chat", href: "/whatsapp/chat" },
@@ -16,6 +17,7 @@ export default function WhatsAppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { count: waUnread } = useWaUnread();
 
   // Hide tabs on campaign detail/new pages
   const showTabs =
@@ -53,6 +55,11 @@ export default function WhatsAppLayout({
                 )}
               >
                 {tab.label}
+                {tab.href === "/whatsapp/chat" && waUnread > 0 && (
+                  <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
+                    {waUnread > 99 ? "99+" : waUnread}
+                  </span>
+                )}
                 {isActive && (
                   <span className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" />
                 )}
