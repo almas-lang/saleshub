@@ -344,9 +344,15 @@ export function BookingWidget({
               <div>
                 {step !== "date" ? (
                   <button
-                    onClick={() =>
-                      setStep(step === "form" ? "time" : "date")
-                    }
+                    onClick={() => {
+                      if (step === "form") {
+                        setStep("time");
+                      } else {
+                        // Clear selected date so user can re-click the same day
+                        setSelectedDate(undefined);
+                        setStep("date");
+                      }
+                    }}
                     className="flex items-center gap-1 text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
                   >
                     <ArrowLeft className="size-3.5" />
@@ -436,15 +442,15 @@ export function BookingWidget({
                       month_caption:
                         "flex items-center justify-center h-10 w-full px-10 sm:h-12 sm:px-12",
                       caption_label:
-                        "text-sm font-semibold select-none sm:text-base text-gray-900",
+                        "text-sm font-semibold select-none sm:text-base text-white",
                       weekdays: "flex w-full",
                       weekday:
                         "text-gray-400 flex-1 font-medium text-xs select-none sm:text-sm",
                       week: "flex w-full mt-0.5 sm:mt-1",
-                      day: "relative flex-1 p-0 text-center group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+                      day: "relative flex-1 p-0 text-center text-white font-medium group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
                       today:
-                        "bg-indigo-50 text-indigo-600 font-semibold rounded-lg data-[selected=true]:rounded-none",
-                      disabled: "text-gray-300 cursor-not-allowed",
+                        "bg-indigo-500/30 text-indigo-300 font-semibold rounded-lg data-[selected=true]:rounded-none",
+                      disabled: "!text-gray-600 cursor-not-allowed !font-normal",
                     }}
                   />
                 </div>
@@ -465,8 +471,8 @@ export function BookingWidget({
 
                 {loadingSlots ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
-                      {Array.from({ length: 6 }).map((_, i) => (
+                    <div className="flex flex-col gap-2.5 max-w-sm">
+                      {Array.from({ length: 4 }).map((_, i) => (
                         <Skeleton
                           key={i}
                           className="h-12 rounded-xl bg-gray-100"
@@ -503,14 +509,14 @@ export function BookingWidget({
                   </Card>
                 ) : (
                   <>
-                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                    <div className="flex flex-col gap-2.5 max-w-sm">
                       {slots.map((slot) => (
                         <button
                           key={slot.time}
                           onClick={() => handleSlotSelect(slot)}
-                          className="group flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-md active:scale-[0.98]"
+                          className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-md active:scale-[0.98]"
                         >
-                          <Clock className="size-3.5 text-gray-400 transition-colors group-hover:text-indigo-400" />
+                          <Clock className="size-4 text-gray-400 transition-colors group-hover:text-indigo-400" />
                           {to12Hour(slot.time)}
                         </button>
                       ))}
@@ -536,7 +542,7 @@ export function BookingWidget({
                   </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-6">
                   {renderFormFields(formFields, formData, updateField, errors)}
 
                   <Separator className="bg-gray-100" />
@@ -752,7 +758,7 @@ function FormFieldInput({
 }) {
   const id = `field-${field.id}`;
   const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
-  const inputBase = `h-11 rounded-lg bg-white shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
+  const inputBase = `h-11 rounded-lg !bg-white !text-gray-900 placeholder:!text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
 
   return (
     <div id={id} className="space-y-1.5">
@@ -808,7 +814,7 @@ function FormFieldInput({
             type="tel"
             value={value}
             onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder || "98765 43210"}
+            placeholder={field.placeholder?.replace(/^\+91\s*/, "") || "98765 43210"}
             required={field.required}
             className={`rounded-l-none ${inputBase}`}
           />
@@ -823,7 +829,7 @@ function FormFieldInput({
           placeholder={field.placeholder}
           required={field.required}
           rows={3}
-          className={`resize-none rounded-lg bg-white shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`}
+          className={`resize-none rounded-lg !bg-white !text-gray-900 placeholder:!text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`}
         />
       )}
 
@@ -835,7 +841,7 @@ function FormFieldInput({
         >
           <SelectTrigger
             id={`${id}-input`}
-            className={`h-11 w-full rounded-lg bg-white shadow-sm ${errorClass}`}
+            className={`h-11 w-full rounded-lg !bg-white !text-gray-900 shadow-sm ${errorClass}`}
           >
             <SelectValue placeholder={field.placeholder || "Select..."} />
           </SelectTrigger>
@@ -853,7 +859,7 @@ function FormFieldInput({
         <RadioGroup
           value={value}
           onValueChange={onChange}
-          className="space-y-1.5"
+          className="!gap-1.5"
         >
           {(field.options ?? []).map((opt) => (
             <label
@@ -864,7 +870,7 @@ function FormFieldInput({
               <RadioGroupItem
                 value={opt}
                 id={`${id}-${opt}`}
-                className="mt-0.5"
+                className="mt-0.5 !bg-white border-gray-300 data-[state=checked]:border-indigo-500"
               />
               <span className="text-sm leading-snug text-gray-700">
                 {opt}
