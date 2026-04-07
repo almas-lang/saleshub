@@ -126,8 +126,8 @@ export async function sendTemplate(
   if (params.length > 0) {
     const parameters = params.map((p, i) => {
       const param: Record<string, unknown> = { type: "text", text: p };
-      // If named params provided, include parameter_name for NAMED format templates
-      if (paramNames?.[i]) {
+      // Only include parameter_name for actual NAMED format params (not numeric indices like "1", "2")
+      if (paramNames?.[i] && !/^\d+$/.test(paramNames[i])) {
         param.parameter_name = paramNames[i];
       }
       return param;
