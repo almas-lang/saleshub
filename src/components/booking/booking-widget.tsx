@@ -87,7 +87,12 @@ export function BookingWidget({
     const defaults: Record<string, string> = {};
     for (const field of formFields) {
       if (field.defaultValue) {
-        defaults[field.label] = field.defaultValue;
+        // Strip +91 prefix from phone defaults since it's shown as a label
+        if (field.type === "phone") {
+          defaults[field.label] = field.defaultValue.replace(/^\+91\s*/, "");
+        } else {
+          defaults[field.label] = field.defaultValue;
+        }
       }
     }
     return defaults;
@@ -332,8 +337,23 @@ export function BookingWidget({
   );
 
   return (
-    <div className="light w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl" style={{ colorScheme: "light" }}>
-      <div className="flex flex-col md:flex-row md:min-h-[580px]">
+    <div className="booking-light w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl" style={{ colorScheme: "light" }}>
+      <style>{`
+        .booking-light input,
+        .booking-light textarea,
+        .booking-light [data-slot="input"],
+        .booking-light [data-slot="select-trigger"],
+        .booking-light [data-slot="radio-group-item"] {
+          background-color: white !important;
+          color: #111827 !important;
+          border-color: #e5e7eb !important;
+        }
+        .booking-light input::placeholder,
+        .booking-light textarea::placeholder {
+          color: #9ca3af !important;
+        }
+      `}</style>
+      <div className="flex flex-col md:flex-row md:h-[620px]">
         {sidebar}
 
         {/* Main content */}
@@ -412,8 +432,8 @@ export function BookingWidget({
             </div>
           )}
 
-          {/* Content area */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6">
+          {/* Content area — scrollable within fixed height */}
+          <div className="flex-1 overflow-y-auto p-5 sm:p-6 min-h-0">
             {/* ── Step 1: Date ── */}
             {step === "date" && (
               <div className="space-y-5">
