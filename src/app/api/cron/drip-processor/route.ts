@@ -5,6 +5,7 @@ import { sendEmail, renderVariables, getUnsubscribeUrl } from "@/lib/email/clien
 import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
 import { evaluateCondition } from "@/lib/campaigns/condition-evaluators";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,7 +77,7 @@ export async function GET(request: Request) {
       .limit(BATCH_LIMIT);
 
     if (enrollError) {
-      console.error("[Drip Processor] Query error:", enrollError.message);
+      await logger.error("drip-processor", "Failed to query enrollments", { error: enrollError.message });
       return NextResponse.json({ error: enrollError.message }, { status: 500 });
     }
 
@@ -555,10 +556,19 @@ export async function GET(request: Request) {
             status: result.success ? "sent" : "failed",
             wa_message_id: result.messageId ?? null,
             sent_at: result.success ? now : null,
+            error_message: result.success ? null : (result.error ?? "Unknown error"),
           });
 
           if (!result.success) {
-            console.error(`[Drip Processor] WA send failed for enrollment ${enrollment.id}:`, result.error);
+            await logger.error("drip-processor", `WA send failed for enrollment ${enrollment.id}`, {
+              enrollment_id: enrollment.id,
+              campaign_id: enrollment.campaign_id,
+              contact_id: contact.id,
+              phone: contact.phone,
+              template: currentStep.wa_template_name,
+              step_order: currentStep.order,
+              error: result.error,
+            });
             await supabaseAdmin.from("activities").insert({
               contact_id: contact.id,
               type: "wa_sent",

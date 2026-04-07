@@ -88,6 +88,7 @@ interface SendWithContact {
   sent_at: string | null;
   delivered_at: string | null;
   read_at: string | null;
+  error_message: string | null;
   contacts: {
     id: string;
     first_name: string | null;
@@ -497,6 +498,11 @@ export function CampaignDetail({
                         Read
                       </span>
                     </TableHead>
+                    <TableHead>
+                      <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                        Error
+                      </span>
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -540,6 +546,9 @@ export function CampaignDetail({
                           {send.read_at
                             ? formatDateTime(send.read_at)
                             : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs text-red-400 max-w-[200px] truncate" title={send.error_message ?? undefined}>
+                          {send.error_message ?? "—"}
                         </TableCell>
                       </TableRow>
                     );
@@ -598,6 +607,12 @@ export function CampaignDetail({
                       {viewingSend.delivered_at && <p>Delivered: {formatDateTime(viewingSend.delivered_at)}</p>}
                       {viewingSend.read_at && <p>Read: {formatDateTime(viewingSend.read_at)}</p>}
                     </div>
+                    {viewingSend.status === "failed" && viewingSend.error_message && (
+                      <div className="rounded-lg border border-red-500/30 bg-red-950/30 p-3">
+                        <p className="text-xs font-medium text-red-400 mb-1">Error</p>
+                        <p className="text-sm text-red-300">{viewingSend.error_message}</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">

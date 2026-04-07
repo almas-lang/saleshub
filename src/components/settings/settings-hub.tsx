@@ -11,6 +11,7 @@ import {
   Users,
   Bell,
   AlertTriangle,
+  ScrollText,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,12 @@ const SETTINGS_LINKS = [
     icon: Bell,
     title: "Notifications",
     description: "Configure notification preferences.",
+  },
+  {
+    href: "/settings/logs",
+    icon: ScrollText,
+    title: "System Logs",
+    description: "View logs from campaigns, WhatsApp API, and background jobs.",
   },
 ] as const;
 

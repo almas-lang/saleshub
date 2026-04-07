@@ -6,6 +6,8 @@
  * Auth: Bearer token from Meta System User
  */
 
+import { logger } from "@/lib/logger";
+
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID!;
 const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!;
 const WABA_ID = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID!;
@@ -81,14 +83,20 @@ async function waFetch<T>(
         data?.error?.message ??
         data?.error?.error_user_msg ??
         `HTTP ${res.status}`;
-      console.error(`[WhatsApp API] ${options.method ?? "GET"} ${url}:`, errMsg);
+      await logger.error("whatsapp-api", `${options.method ?? "GET"} failed: ${errMsg}`, {
+        url,
+        status: res.status,
+        error: errMsg,
+        error_code: data?.error?.code,
+        error_subcode: data?.error?.error_subcode,
+      });
       return { ok: false, error: errMsg };
     }
 
     return { ok: true, data };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error(`[WhatsApp API] fetch error:`, message);
+    await logger.error("whatsapp-api", `Fetch error: ${message}`, { url });
     return { ok: false, error: message };
   }
 }

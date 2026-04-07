@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { markAsRead } from "@/lib/whatsapp/client";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -117,11 +118,13 @@ async function handleStatusUpdate(status: {
   // Handle failed status
   if (newStatus === "failed") {
     const errorInfo = status.errors?.[0];
-    console.error(
-      `[WA Webhook] Message ${waMessageId} failed:`,
-      errorInfo?.title ?? "Unknown error",
-      `(code: ${errorInfo?.code ?? "?"})`
-    );
+    await logger.error("whatsapp-webhook", `Message ${waMessageId} failed: ${errorInfo?.title ?? "Unknown error"}`, {
+      wa_message_id: waMessageId,
+      contact_id: send.contact_id,
+      error_title: errorInfo?.title,
+      error_code: errorInfo?.code,
+      error_details: (errorInfo as Record<string, unknown>)?.error_data,
+    });
 
     const errMsg = status.errors?.[0]
       ? `${status.errors[0].title} (code: ${status.errors[0].code})`
