@@ -332,7 +332,7 @@ export function BookingWidget({
   );
 
   return (
-    <div className="w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl">
+    <div className="light w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl" style={{ colorScheme: "light" }}>
       <div className="flex flex-col md:flex-row md:min-h-[580px]">
         {sidebar}
 
@@ -434,7 +434,7 @@ export function BookingWidget({
                     disabled={isDayDisabled}
                     fromDate={new Date()}
                     toDate={maxBookingDate}
-                    className="w-full rounded-xl p-2 [--cell-size:2.5rem] sm:p-4 sm:[--cell-size:3rem]"
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 [--cell-size:2.5rem] sm:p-4 sm:[--cell-size:3rem] [&_button]:text-gray-800 [&_button:hover]:bg-gray-100 [&_button:hover]:text-gray-900 [&_button[data-selected-single=true]]:!bg-indigo-600 [&_button[data-selected-single=true]]:!text-white"
                     classNames={{
                       root: "w-full",
                       months: "flex flex-col w-full relative",
@@ -442,15 +442,15 @@ export function BookingWidget({
                       month_caption:
                         "flex items-center justify-center h-10 w-full px-10 sm:h-12 sm:px-12",
                       caption_label:
-                        "text-sm font-semibold select-none sm:text-base text-white",
+                        "text-sm font-semibold select-none sm:text-base text-gray-900",
                       weekdays: "flex w-full",
                       weekday:
                         "text-gray-400 flex-1 font-medium text-xs select-none sm:text-sm",
                       week: "flex w-full mt-0.5 sm:mt-1",
-                      day: "relative flex-1 p-0 text-center text-white font-medium group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+                      day: "relative flex-1 p-0 text-center text-gray-800 font-medium group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
                       today:
-                        "bg-indigo-500/30 text-indigo-300 font-semibold rounded-lg data-[selected=true]:rounded-none",
-                      disabled: "!text-gray-600 cursor-not-allowed !font-normal",
+                        "bg-indigo-50 text-indigo-600 font-semibold rounded-lg data-[selected=true]:rounded-none",
+                      disabled: "!text-gray-300 cursor-not-allowed !font-normal",
                     }}
                   />
                 </div>
@@ -758,7 +758,7 @@ function FormFieldInput({
 }) {
   const id = `field-${field.id}`;
   const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
-  const inputBase = `h-11 rounded-lg !bg-white !text-gray-900 placeholder:!text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
+  const inputBase = `h-11 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
 
   return (
     <div id={id} className="space-y-1.5">
@@ -829,7 +829,7 @@ function FormFieldInput({
           placeholder={field.placeholder}
           required={field.required}
           rows={3}
-          className={`resize-none rounded-lg !bg-white !text-gray-900 placeholder:!text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`}
+          className={`resize-none rounded-lg bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`}
         />
       )}
 
@@ -841,7 +841,7 @@ function FormFieldInput({
         >
           <SelectTrigger
             id={`${id}-input`}
-            className={`h-11 w-full rounded-lg !bg-white !text-gray-900 shadow-sm ${errorClass}`}
+            className={`h-11 w-full rounded-lg bg-white text-gray-900 shadow-sm ${errorClass}`}
           >
             <SelectValue placeholder={field.placeholder || "Select..."} />
           </SelectTrigger>
@@ -870,7 +870,7 @@ function FormFieldInput({
               <RadioGroupItem
                 value={opt}
                 id={`${id}-${opt}`}
-                className="mt-0.5 !bg-white border-gray-300 data-[state=checked]:border-indigo-500"
+                className="mt-0.5 bg-white border-gray-300 data-[state=checked]:border-indigo-500"
               />
               <span className="text-sm leading-snug text-gray-700">
                 {opt}
