@@ -247,6 +247,10 @@ export function ProspectList({
     updateParams({ [key]: value });
   }
 
+  function handleApplyFilters(newFilters: Record<string, string>) {
+    updateParams(newFilters);
+  }
+
   function handleClearFilters() {
     router.push(isArchived ? "/prospects?tab=archived" : "/prospects");
     setSearchValue("");
@@ -432,6 +436,7 @@ export function ProspectList({
               teamMembers={filterOptions.teamMembers}
               filters={filters}
               onFilterChange={handleFilterChange}
+              onApplyFilters={handleApplyFilters}
               onClearFilters={handleClearFilters}
             />
           </div>

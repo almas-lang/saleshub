@@ -40,6 +40,7 @@ interface ProspectFiltersProps {
   teamMembers: FilterOption[];
   filters: Filters;
   onFilterChange: (key: string, value: string) => void;
+  onApplyFilters?: (filters: Record<string, string>) => void;
   onClearFilters: () => void;
 }
 
@@ -58,6 +59,7 @@ export function ProspectFilters({
   teamMembers,
   filters,
   onFilterChange,
+  onApplyFilters,
   onClearFilters,
 }: ProspectFiltersProps) {
   const activeCount = Object.values(filters).filter(Boolean).length;
@@ -83,10 +85,15 @@ export function ProspectFilters({
   };
 
   const handleApply = () => {
-    // Apply all draft values
-    for (const [key, value] of Object.entries(draft)) {
-      if (value !== filters[key as keyof Filters]) {
-        onFilterChange(key, value);
+    if (onApplyFilters) {
+      // Batch apply all filter values in a single navigation
+      onApplyFilters(draft);
+    } else {
+      // Fallback: apply one by one
+      for (const [key, value] of Object.entries(draft)) {
+        if (value !== filters[key as keyof Filters]) {
+          onFilterChange(key, value);
+        }
       }
     }
     setOpen(false);

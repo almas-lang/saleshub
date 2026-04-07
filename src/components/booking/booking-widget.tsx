@@ -353,7 +353,7 @@ export function BookingWidget({
           color: #9ca3af !important;
         }
       `}</style>
-      <div className="flex flex-col md:flex-row md:h-[620px]">
+      <div className="flex flex-col md:flex-row md:min-h-[580px]">
         {sidebar}
 
         {/* Main content */}
@@ -432,8 +432,8 @@ export function BookingWidget({
             </div>
           )}
 
-          {/* Content area — scrollable within fixed height */}
-          <div className="flex-1 overflow-y-auto p-5 sm:p-6 min-h-0">
+          {/* Content area — fixed height for steps 1-2 on desktop, grows for step 3 */}
+          <div className={`flex-1 p-5 sm:p-6 ${step !== "form" && step !== "confirmed" ? "md:h-[520px] md:overflow-y-auto" : ""}`}>
             {/* ── Step 1: Date ── */}
             {step === "date" && (
               <div className="space-y-5">
