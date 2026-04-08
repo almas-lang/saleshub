@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   Receipt,
   Megaphone,
+  Target,
   FileBarChart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,7 @@ const FINANCE_TABS = [
   { label: "Overview", href: "/finance", icon: LayoutDashboard },
   { label: "Expenses", href: "/finance/expenses", icon: Receipt },
   { label: "Ad Spend", href: "/finance/ad-spend", icon: Megaphone },
+  { label: "Paid Traffic", href: "/finance/paid-traffic", icon: Target },
   { label: "Reports", href: "/finance/reports", icon: FileBarChart },
 ] as const;
 

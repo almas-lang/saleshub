@@ -64,10 +64,11 @@ interface BookingWidgetProps {
   trackingParams?: Record<string, string>;
 }
 
-type Step = "date" | "time" | "form" | "confirmed";
+type Step = "date" | "time" | "datetime" | "form" | "confirmed";
 
-const STEPS: Step[] = ["date", "time", "form"];
-const STEP_LABELS: Record<string, string> = { date: "Date", time: "Time", form: "Details" };
+const STEPS_MOBILE: Step[] = ["date", "time", "form"];
+const STEPS_DESKTOP: Step[] = ["datetime", "form"];
+const STEP_LABELS: Record<string, string> = { date: "Date", time: "Time", datetime: "Date & Time", form: "Details" };
 
 export function BookingWidget({
   slug,
@@ -78,11 +79,34 @@ export function BookingWidget({
   availability,
   trackingParams = {},
 }: BookingWidgetProps) {
+  // Detect desktop (md breakpoint = 768px) for combined date+time view
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
+  const STEPS = isDesktop ? STEPS_DESKTOP : STEPS_MOBILE;
+  const initialStep = isDesktop ? "datetime" : "date";
+
   const [step, setStep] = useState<Step>("date");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+
+  // Sync step when breakpoint changes
+  useEffect(() => {
+    if (step === "form" || step === "confirmed") return;
+    if (isDesktop && (step === "date" || step === "time")) {
+      setStep("datetime");
+    } else if (!isDesktop && step === "datetime") {
+      setStep(selectedDate ? "time" : "date");
+    }
+  }, [isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
   const formDefaults = useMemo(() => {
     const defaults: Record<string, string> = {};
     for (const field of formFields) {
@@ -162,12 +186,62 @@ export function BookingWidget({
     if (!date) return;
     setSelectedDate(date);
     fetchSlots(date);
-    setStep("time");
+    if (!isDesktop) setStep("time");
   }
 
   function handleSlotSelect(slot: TimeSlot) {
     setSelectedSlot(slot);
     setStep("form");
+  }
+
+  // Time slot column (reused in both mobile step 2 and desktop combined view)
+  function renderTimeSlots() {
+    if (loadingSlots) {
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-col gap-2.5">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 rounded-xl bg-gray-100" />
+            ))}
+          </div>
+          <p className="text-center text-sm text-gray-400">Loading available times...</p>
+        </div>
+      );
+    }
+
+    if (slots.length === 0) {
+      return (
+        <div className="flex flex-col items-center gap-3 py-6 text-center">
+          <div className="flex size-12 items-center justify-center rounded-full bg-gray-100">
+            <CalendarIcon className="size-5 text-gray-400" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-sm font-semibold text-gray-700">No available times</p>
+            <p className="text-xs text-gray-500">All slots on this date are booked.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div className="flex flex-col gap-2">
+          {slots.map((slot) => (
+            <button
+              key={slot.time}
+              onClick={() => handleSlotSelect(slot)}
+              className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-md active:scale-[0.98]"
+            >
+              <Clock className="size-4 text-gray-400 transition-colors group-hover:text-indigo-400" />
+              {to12Hour(slot.time)}
+            </button>
+          ))}
+        </div>
+        <p className="text-center text-xs text-gray-400 mt-2">
+          {slots.length} time{slots.length !== 1 ? "s" : ""} available
+        </p>
+      </>
+    );
   }
 
   function updateField(label: string, value: string) {
@@ -232,7 +306,7 @@ export function BookingWidget({
       result.error?.includes("just booked")
     ) {
       toast.error("This slot was just taken. Refreshing available times...");
-      setStep("time");
+      setStep(isDesktop ? "datetime" : "time");
       setSelectedSlot(null);
       if (selectedDate) fetchSlots(selectedDate);
     } else {
@@ -337,7 +411,7 @@ export function BookingWidget({
   );
 
   return (
-    <div className="booking-light w-full max-w-4xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl" style={{ colorScheme: "light" }}>
+    <div className="booking-light w-full max-w-5xl overflow-hidden border border-gray-200 bg-white shadow-xl sm:rounded-2xl" style={{ colorScheme: "light" }}>
       <style>{`
         .booking-light input,
         .booking-light textarea,
@@ -362,13 +436,12 @@ export function BookingWidget({
           {step !== "confirmed" && (
             <div className="flex items-center justify-between border-b border-gray-100 px-5 py-3 sm:px-6">
               <div>
-                {step !== "date" ? (
+                {step !== "date" && step !== "datetime" ? (
                   <button
                     onClick={() => {
                       if (step === "form") {
-                        setStep("time");
+                        setStep(isDesktop ? "datetime" : "time");
                       } else {
-                        // Clear selected date so user can re-click the same day
                         setSelectedDate(undefined);
                         setStep("date");
                       }
@@ -477,7 +550,7 @@ export function BookingWidget({
               </div>
             )}
 
-            {/* ── Step 2: Time ── */}
+            {/* ── Step 2: Time (mobile only) ── */}
             {step === "time" && (
               <div className="space-y-5">
                 <div>
@@ -488,65 +561,78 @@ export function BookingWidget({
                     {selectedDate && format(selectedDate, "EEEE, MMMM d, yyyy")}
                   </p>
                 </div>
+                <div className="max-w-sm">{renderTimeSlots()}</div>
+              </div>
+            )}
 
-                {loadingSlots ? (
-                  <div className="space-y-3">
-                    <div className="flex flex-col gap-2.5 max-w-sm">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <Skeleton
-                          key={i}
-                          className="h-12 rounded-xl bg-gray-100"
-                        />
-                      ))}
-                    </div>
-                    <p className="text-center text-sm text-gray-400">
-                      Loading available times...
-                    </p>
+            {/* ── Combined Date & Time (desktop) ── */}
+            {step === "datetime" && (
+              <div className="space-y-5">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">
+                    Select a Date & Time
+                  </h2>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Pick a day and time that works best for you
+                  </p>
+                </div>
+                <div className="flex gap-0 rounded-xl border border-gray-200 overflow-hidden">
+                  {/* Calendar */}
+                  <div className="flex-1 min-w-0 p-4">
+                    <Calendar
+                      mode="single"
+                      showOutsideDays={false}
+                      selected={selectedDate}
+                      onSelect={handleDateSelect}
+                      disabled={isDayDisabled}
+                      fromDate={new Date()}
+                      toDate={maxBookingDate}
+                      className="w-full bg-white [--cell-size:2.5rem] sm:[--cell-size:3rem] [&_button]:text-gray-800 [&_button:hover]:bg-gray-100 [&_button:hover]:text-gray-900 [&_button[data-selected-single=true]]:!bg-indigo-600 [&_button[data-selected-single=true]]:!text-white"
+                      classNames={{
+                        root: "w-full",
+                        months: "flex flex-col w-full relative",
+                        month: "flex flex-col w-full gap-3 sm:gap-4",
+                        month_caption:
+                          "flex items-center justify-center h-10 w-full px-10 sm:h-12 sm:px-12",
+                        caption_label:
+                          "text-sm font-semibold select-none sm:text-base text-gray-900",
+                        weekdays: "flex w-full",
+                        weekday:
+                          "text-gray-400 flex-1 font-medium text-xs select-none sm:text-sm",
+                        week: "flex w-full mt-0.5 sm:mt-1",
+                        day: "relative flex-1 p-0 text-center text-gray-800 font-medium group/day aspect-square select-none [&:first-child[data-selected=true]_button]:rounded-l-md [&:last-child[data-selected=true]_button]:rounded-r-md",
+                        today:
+                          "bg-indigo-50 text-indigo-600 font-semibold rounded-lg data-[selected=true]:rounded-none",
+                        disabled: "!text-gray-300 cursor-not-allowed !font-normal",
+                      }}
+                    />
                   </div>
-                ) : slots.length === 0 ? (
-                  <Card className="border-dashed border-gray-200 bg-gray-50/50 py-10 shadow-none">
-                    <CardContent className="flex flex-col items-center gap-4 text-center">
-                      <div className="flex size-14 items-center justify-center rounded-full bg-gray-100">
-                        <CalendarIcon className="size-6 text-gray-400" />
+
+                  {/* Time slots column */}
+                  <div className="w-56 shrink-0 border-l border-gray-200 bg-gray-50/50">
+                    {selectedDate ? (
+                      <div className="flex flex-col h-full">
+                        <div className="px-4 py-3 border-b border-gray-200">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {format(selectedDate, "EEEE, MMM d")}
+                          </p>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-3 max-h-[380px]">
+                          {renderTimeSlots()}
+                        </div>
                       </div>
-                      <div className="space-y-1">
-                        <p className="font-semibold text-gray-700">
-                          No available times
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          All slots on this date are booked. Try another day.
-                        </p>
+                    ) : (
+                      <div className="flex h-full items-center justify-center p-6">
+                        <div className="text-center space-y-2">
+                          <CalendarIcon className="size-8 text-gray-300 mx-auto" />
+                          <p className="text-sm text-gray-400">
+                            Select a date to see available times
+                          </p>
+                        </div>
                       </div>
-                      <Button
-                        variant="outline"
-                        className="mt-1"
-                        onClick={() => setStep("date")}
-                      >
-                        <ArrowLeft className="mr-1.5 size-3.5" />
-                        Pick another date
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <>
-                    <div className="flex flex-col gap-2.5 max-w-sm">
-                      {slots.map((slot) => (
-                        <button
-                          key={slot.time}
-                          onClick={() => handleSlotSelect(slot)}
-                          className="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm font-medium text-gray-700 shadow-sm transition-all hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-600 hover:shadow-md active:scale-[0.98]"
-                        >
-                          <Clock className="size-4 text-gray-400 transition-colors group-hover:text-indigo-400" />
-                          {to12Hour(slot.time)}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-center text-xs text-gray-400">
-                      {slots.length} time{slots.length !== 1 ? "s" : ""}{" "}
-                      available
-                    </p>
-                  </>
-                )}
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 

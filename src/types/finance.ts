@@ -27,6 +27,7 @@ export interface AdSpend {
   date: string;
   amount: number;
   impressions: number;
+  reach: number;
   clicks: number;
   leads: number;
   spend_currency: string;
