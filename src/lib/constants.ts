@@ -21,6 +21,7 @@ export const NAV_ITEMS = [
   {
     group: "Communicate",
     items: [
+      { name: "Campaigns", href: "/campaigns", icon: "Megaphone", phase: 2 },
       { name: "WhatsApp", href: "/whatsapp/chat", icon: "MessageCircle", phase: 2 },
       { name: "Email", href: "/email", icon: "Mail", phase: 2 },
       { name: "Calendar", href: "/calendar", icon: "Calendar", phase: 2 },

@@ -224,3 +224,17 @@ export async function PATCH(request: NextRequest) {
   const { data } = await supabase.from("unified_campaigns").select("*").eq("id", id).single();
   return NextResponse.json(data);
 }
+
+export async function DELETE(request: NextRequest) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase = await createClient() as any;
+  const { searchParams } = new URL(request.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
+
+  // Steps are cascade-deleted via FK
+  const { error } = await supabase.from("unified_campaigns").delete().eq("id", id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ success: true });
+}
