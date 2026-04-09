@@ -62,7 +62,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ProspectForm } from "./prospect-form";
@@ -906,9 +908,52 @@ export function ProspectDetail({
                             {outcomeCfg.label}
                           </span>
                         )}
-                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium ${statusCfg.className}`}>
-                          {statusCfg.label}
-                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className={`rounded-full border px-2 py-0.5 text-[11px] font-medium cursor-pointer hover:opacity-80 ${statusCfg.className}`}>
+                              {statusCfg.label} ▾
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel className="text-[10px]">Status</DropdownMenuLabel>
+                            {(["confirmed", "completed", "no_show", "cancelled"] as const).map((s) => (
+                              <DropdownMenuItem
+                                key={s}
+                                disabled={booking.status === s}
+                                onClick={async () => {
+                                  const res = await safeFetch(`/api/bookings/${booking.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ status: s }),
+                                  });
+                                  if (res.ok) { toast.success(`Booking marked as ${s.replace("_", " ")}`); router.refresh(); }
+                                  else toast.error("Failed to update");
+                                }}
+                              >
+                                {statusConfig[s]?.label ?? s}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-[10px]">Outcome</DropdownMenuLabel>
+                            {(["qualified", "not_qualified", "needs_follow_up", "converted"] as const).map((o) => (
+                              <DropdownMenuItem
+                                key={o}
+                                disabled={booking.outcome === o}
+                                onClick={async () => {
+                                  const res = await safeFetch(`/api/bookings/${booking.id}`, {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ outcome: o }),
+                                  });
+                                  if (res.ok) { toast.success(`Outcome set to ${o.replace(/_/g, " ")}`); router.refresh(); }
+                                  else toast.error("Failed to update");
+                                }}
+                              >
+                                {outcomeConfig[o]?.label ?? o}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
                   </div>
