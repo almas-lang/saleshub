@@ -874,7 +874,7 @@ function FormFieldInput({
 
   // Conditional Ripple redirect for low-experience leads
   const [rippleDismissed, setRippleDismissed] = useState(false);
-  const isTargetPage = slug === "design-career-strategy-call" || slug === "career-strategy-call";
+  const isTargetPage = slug === "design-career-strategy-call";
   const isExperienceField = field.id === "f6" || field.label.toLowerCase().includes("experience");
   const isLowExperience = isTargetPage && isExperienceField && (value === "Fresher" || value === "< 2 years");
   const showRippleMessage = isLowExperience && !rippleDismissed;
