@@ -15,7 +15,10 @@ const VARIABLES = [
   { label: "Company", value: "company_name" },
   { label: "Email", value: "email" },
   { label: "Phone", value: "phone" },
-  { label: "Booking Link", value: "booking_link" },
+  { label: "Booking Date", value: "booking_date" },
+  { label: "Booking Time", value: "booking_time" },
+  { label: "Google Meet Link", value: "booking_meet_link" },
+  { label: "Reschedule Link", value: "booking_reschedule_link" },
   { label: "Unsubscribe Link", value: "unsubscribe_link" },
 ] as const;
 
