@@ -888,9 +888,19 @@ function FormFieldInput({
   const isLowExperience = isTargetPage && isExperienceField && (value === "Fresher" || value === "< 2 years" || value === "Less than 2 years");
   const showRippleMessage = isLowExperience && !rippleDismissed;
 
+  // Conditional explorer redirect for "researching" timeline leads
+  const [explorerDismissed, setExplorerDismissed] = useState(false);
+  const isTimelineField = field.id === "f12" || field.label.toLowerCase().includes("when would you want to start") || field.label.toLowerCase().includes("how soon");
+  const isResearching = isTargetPage && isTimelineField && value.toLowerCase().includes("researching");
+  const showExplorerMessage = isResearching && !explorerDismissed;
+
   useEffect(() => {
     if (!isLowExperience) setRippleDismissed(false);
   }, [isLowExperience]);
+
+  useEffect(() => {
+    if (!isResearching) setExplorerDismissed(false);
+  }, [isResearching]);
 
   const fireGA4 = (event: string) => {
     if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).gtag) {
@@ -1045,6 +1055,55 @@ function FormFieldInput({
                 >
                   I still want to book — I&rsquo;m serious about investing in my
                   career
+                </button>
+              </div>
+            </div>
+          )}
+          {showExplorerMessage && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p>
+                We totally understand. Our strategy call works best for
+                designers ready to take action soon. In the meantime, here are
+                some free resources:
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                <a
+                  href="https://xperiencewave.com/resources/blogs/ux-career-ladder-levels-india"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => fireGA4("booking_explorer_redirect")}
+                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+                >
+                  Read: The UX Career Ladder in India &rarr;
+                </a>
+                <a
+                  href="https://xperiencewave.com/resources/blogs/why-courses-dont-work"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => fireGA4("booking_explorer_redirect")}
+                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+                >
+                  Read: Why UX Courses Don&rsquo;t Work for Senior Roles &rarr;
+                </a>
+                <a
+                  href="https://xperiencewave.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => fireGA4("booking_explorer_redirect")}
+                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+                >
+                  Watch more success stories &rarr;
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    fireGA4("booking_explorer_override");
+                    setExplorerDismissed(true);
+                  }}
+                  className="text-left font-medium text-amber-700 underline underline-offset-2 hover:text-amber-800"
+                >
+                  I&rsquo;m actually more ready than I think — book the call
+                  anyway
                 </button>
               </div>
             </div>
