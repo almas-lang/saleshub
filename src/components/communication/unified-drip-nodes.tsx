@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import {
   Select,
-  SelectContent,
+  SelectContent as SelectContentBase,
   SelectGroup,
   SelectItem,
   SelectLabel,
@@ -43,6 +43,11 @@ import type { WizardTemplate } from "./campaign-wizard";
 
 export const UnifiedTemplatesContext = createContext<WizardTemplate[]>([]);
 
+// Wrap SelectContent to always render at z-[10000] so it appears above fullscreen overlay
+function SelectContent(props: React.ComponentProps<typeof SelectContentBase>) {
+  return <SelectContentBase {...props} className={`z-[10000] ${props.className ?? ""}`} />;
+}
+
 // ── Dynamic variable options ──
 
 const VARIABLE_OPTIONS = [
@@ -58,6 +63,8 @@ const VARIABLE_OPTIONS = [
     { value: "{{booking_time}}", label: "Booking Time" },
     { value: "{{booking_meet_link}}", label: "Google Meet Link" },
     { value: "{{booking_reschedule_link}}", label: "Reschedule Link" },
+    { value: "{{google_calendar_link}}", label: "Add to Google Cal" },
+    { value: "{{apple_calendar_link}}", label: "Add to Apple Cal" },
   ]},
 ];
 
@@ -133,6 +140,7 @@ interface EmailTemplatePick {
   id: string;
   name: string;
   subject: string;
+  preview_text: string | null;
   body_html: string;
 }
 
@@ -146,7 +154,7 @@ function EmailComposeOverlay({
   onClose: () => void;
 }) {
   return createPortal(
-    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+    <div className="fixed inset-0 z-[10001] flex flex-col bg-background">
       <div className="flex items-center justify-between border-b px-6 py-3">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
@@ -237,7 +245,7 @@ function TemplatePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[70vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[70vh] overflow-y-auto z-[10000]">
         <DialogHeader><DialogTitle className="text-base">Load from Template</DialogTitle></DialogHeader>
         {loading ? (
           <p className="text-sm text-muted-foreground py-4 text-center">Loading templates...</p>
@@ -431,7 +439,7 @@ function UnifiedSendNode({ id, data }: NodeProps) {
         <TemplatePickerDialog
           open={pickerOpen}
           onOpenChange={setPickerOpen}
-          onSelect={(tpl) => updateData({ subject: tpl.subject, bodyHtml: tpl.body_html })}
+          onSelect={(tpl) => updateData({ subject: tpl.subject, previewText: tpl.preview_text ?? "", bodyHtml: tpl.body_html })}
         />
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-primary" />
