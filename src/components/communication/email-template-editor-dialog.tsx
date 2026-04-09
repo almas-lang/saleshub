@@ -1,14 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Loader2, Braces } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch, throwOnError } from "@/lib/fetch";
 import type { EmailTemplate } from "@/types/email-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Sheet,
   SheetContent,
@@ -17,6 +23,24 @@ import {
 } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmailBlockEditor } from "./email-block-editor";
+
+const EMAIL_VARIABLES = [
+  { group: "Contact", items: [
+    { value: "first_name", label: "First Name" },
+    { value: "last_name", label: "Last Name" },
+    { value: "email", label: "Email" },
+    { value: "company_name", label: "Company Name" },
+  ]},
+  { group: "Booking", items: [
+    { value: "booking_date", label: "Booking Date" },
+    { value: "booking_time", label: "Booking Time" },
+    { value: "booking_meet_link", label: "Google Meet Link" },
+    { value: "booking_reschedule_link", label: "Reschedule Link" },
+  ]},
+  { group: "System", items: [
+    { value: "unsubscribe_link", label: "Unsubscribe Link" },
+  ]},
+];
 
 interface Props {
   open: boolean;
@@ -34,6 +58,7 @@ export function EmailTemplateEditorDialog({
 
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
+  const [previewText, setPreviewText] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -42,10 +67,12 @@ export function EmailTemplateEditorDialog({
     if (template) {
       setName(template.name);
       setSubject(template.subject);
+      setPreviewText(template.preview_text ?? "");
       setBodyHtml(template.body_html);
     } else {
       setName("");
       setSubject("");
+      setPreviewText("");
       setBodyHtml("");
     }
   }, [template, open]);
@@ -58,7 +85,7 @@ export function EmailTemplateEditorDialog({
 
     setSaving(true);
     try {
-      const payload = { name, subject, body_html: bodyHtml };
+      const payload = { name, subject, preview_text: previewText || null, body_html: bodyHtml };
 
       if (isEditing) {
         await throwOnError(
@@ -89,11 +116,25 @@ export function EmailTemplateEditorDialog({
     }
   }
 
+  const subjectRef = useRef<HTMLInputElement>(null);
+
+  function insertVariableInSubject(varName: string) {
+    const el = subjectRef.current;
+    const tag = `{{${varName}}}`;
+    if (el) {
+      const start = el.selectionStart ?? subject.length;
+      const end = el.selectionEnd ?? subject.length;
+      setSubject(subject.slice(0, start) + tag + subject.slice(end));
+    } else {
+      setSubject(subject + tag);
+    }
+  }
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-full flex-col sm:max-w-2xl"
+        className="flex w-full flex-col sm:max-w-lg"
       >
         <SheetHeader>
           <SheetTitle>
@@ -119,18 +160,88 @@ export function EmailTemplateEditorDialog({
 
             {/* Subject */}
             <div className="space-y-1.5">
-              <Label htmlFor="tpl-subject" className="text-sm font-medium">
-                Subject line
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="tpl-subject" className="text-sm font-medium">
+                  Subject line
+                </Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 text-[10px] gap-1">
+                      <Braces className="size-3" /> Insert Variable
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-2" align="end">
+                    {EMAIL_VARIABLES.map((group) => (
+                      <div key={group.group} className="mb-2 last:mb-0">
+                        <p className="text-[10px] font-medium text-muted-foreground px-2 py-1">{group.group}</p>
+                        {group.items.map((item) => (
+                          <button
+                            key={item.value}
+                            type="button"
+                            className="w-full text-left text-xs px-2 py-1.5 rounded hover:bg-muted/50"
+                            onClick={() => insertVariableInSubject(item.value)}
+                          >
+                            <span className="font-medium">{item.label}</span>
+                            <Badge variant="secondary" className="ml-2 text-[9px] font-mono">
+                              {`{{${item.value}}}`}
+                            </Badge>
+                          </button>
+                        ))}
+                      </div>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              </div>
               <Input
+                ref={subjectRef}
                 id="tpl-subject"
-                placeholder="e.g. Welcome to {{business_name}}"
+                placeholder="e.g. Welcome to {{company_name}}"
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
                 className="h-9"
               />
               <p className="text-[11px] text-muted-foreground">
                 Use {"{{variable}}"} for personalization
+              </p>
+            </div>
+
+            {/* Preview text */}
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-preview" className="text-sm font-medium">
+                Preview text
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (shown in inbox before opening)
+                </span>
+              </Label>
+              <Input
+                id="tpl-preview"
+                placeholder="Optional preview text..."
+                value={previewText}
+                onChange={(e) => setPreviewText(e.target.value)}
+                maxLength={150}
+                className="h-9"
+              />
+              {previewText && (
+                <p className="text-[11px] text-muted-foreground">
+                  {previewText.length}/150 characters
+                </p>
+              )}
+            </div>
+
+            {/* Variable reference */}
+            <div className="rounded-md border border-dashed p-3">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Available Variables</p>
+              <div className="flex flex-wrap gap-1.5">
+                {EMAIL_VARIABLES.flatMap((g) =>
+                  g.items.map((item) => (
+                    <Badge key={item.value} variant="secondary" className="text-[10px] font-mono cursor-default">
+                      {`{{${item.value}}}`}
+                    </Badge>
+                  ))
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-2">
+                Type these in the subject or body. They&apos;ll be replaced with real data when sent.
               </p>
             </div>
 

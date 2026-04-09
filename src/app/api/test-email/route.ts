@@ -55,6 +55,7 @@ export async function GET(request: Request) {
         firstName,
         date: "March 10, 2026",
         time: "2:00 PM",
+        timeZoneLabel: "IST",
         hostName: "Shaik Murad",
         meetLink: "https://meet.google.com/test",
       });

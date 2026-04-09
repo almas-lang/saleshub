@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useWaUnread } from "@/hooks/use-wa-unread";
 
 const TABS = [
-  { label: "Campaigns", href: "/whatsapp" },
+  { label: "Chat", href: "/whatsapp/chat" },
+  { label: "Campaigns", href: "/whatsapp/campaigns" },
   { label: "Templates", href: "/whatsapp/templates" },
 ];
 
@@ -15,10 +17,18 @@ export default function WhatsAppLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const { count: waUnread } = useWaUnread();
 
   // Hide tabs on campaign detail/new pages
   const showTabs =
-    pathname === "/whatsapp" || pathname === "/whatsapp/templates";
+    pathname === "/whatsapp/campaigns" ||
+    pathname === "/whatsapp/templates" ||
+    pathname.startsWith("/whatsapp/chat");
+
+  // Hide layout chrome on full-page editors
+  if (pathname === "/whatsapp/templates/new") {
+    return <>{children}</>;
+  }
 
   return (
     <div className="page-enter space-y-6">
@@ -32,10 +42,7 @@ export default function WhatsAppLayout({
       {showTabs && (
         <div className="flex gap-1 border-b">
           {TABS.map((tab) => {
-            const isActive =
-              tab.href === "/whatsapp"
-                ? pathname === "/whatsapp"
-                : pathname.startsWith(tab.href);
+            const isActive = pathname.startsWith(tab.href);
             return (
               <Link
                 key={tab.href}
@@ -48,6 +55,11 @@ export default function WhatsAppLayout({
                 )}
               >
                 {tab.label}
+                {tab.href === "/whatsapp/chat" && waUnread > 0 && (
+                  <span className="ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 text-[10px] font-bold text-white">
+                    {waUnread > 99 ? "99+" : waUnread}
+                  </span>
+                )}
                 {isActive && (
                   <span className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" />
                 )}

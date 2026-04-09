@@ -74,6 +74,7 @@ import { MobileFab } from "./mobile-fab";
 import { SendWhatsAppDialog } from "./send-whatsapp-dialog";
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
 import { ConvertToCustomerModal } from "@/components/customers/convert-to-customer-modal";
+import { ChatThread } from "@/components/whatsapp/chat-thread";
 
 interface FunnelOption {
   id: string;
@@ -122,6 +123,7 @@ const ACTIVITY_ICON_CONFIG: Record<
   wa_sent: { icon: Send, bg: "bg-emerald-50", fg: "text-emerald-500" },
   wa_delivered: { icon: Send, bg: "bg-emerald-50", fg: "text-emerald-500" },
   wa_read: { icon: Send, bg: "bg-emerald-50", fg: "text-emerald-500" },
+  wa_reply: { icon: MessageSquare, bg: "bg-emerald-50", fg: "text-emerald-500" },
   call: { icon: Phone, bg: "bg-amber-50", fg: "text-amber-500" },
   note: { icon: StickyNote, bg: "bg-muted", fg: "text-muted-foreground" },
   booking_created: { icon: Calendar, bg: "bg-primary/10", fg: "text-primary" },
@@ -571,6 +573,7 @@ export function ProspectDetail({
         <TabsList variant="line">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="communication">Communication</TabsTrigger>
           <TabsTrigger value="bookings">Bookings</TabsTrigger>
           <TabsTrigger value="invoices">Invoices</TabsTrigger>
@@ -784,6 +787,23 @@ export function ProspectDetail({
             activities={prospect.activities}
             firstName={prospect.first_name}
           />
+        </TabsContent>
+
+        {/* WhatsApp Chat Tab */}
+        <TabsContent value="whatsapp" className="mt-6">
+          {prospect.phone ? (
+            <ChatThread contactId={prospect.id} height="480px" />
+          ) : (
+            <div className="py-12 text-center">
+              <MessageSquare className="mx-auto mb-3 size-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-muted-foreground">
+                No phone number
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Add a phone number to this contact to enable WhatsApp chat.
+              </p>
+            </div>
+          )}
         </TabsContent>
 
         {/* Communication Tab */}

@@ -7,6 +7,7 @@
  */
 
 import { Resend } from "resend";
+import { logger } from "@/lib/logger";
 
 let _resend: Resend | null = null;
 
@@ -72,14 +73,23 @@ export async function sendEmail(
     });
 
     if (error) {
-      console.error("[Resend] send error:", error.message);
+      await logger.error("email", `Send failed: ${error.message}`, {
+        to: options.to,
+        subject: options.subject,
+        error: error.message,
+      });
       return { success: false, error: error.message };
     }
 
+    await logger.info("email", `Sent to ${Array.isArray(options.to) ? options.to.join(", ") : options.to}`, {
+      to: options.to,
+      subject: options.subject,
+      messageId: data?.id,
+    });
     return { success: true, messageId: data?.id };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Resend] send error:", message);
+    await logger.error("email", `Send exception: ${message}`, { to: options.to });
     return { success: false, error: message };
   }
 }
@@ -116,15 +126,16 @@ export async function sendBatchEmails(
     );
 
     if (error) {
-      console.error("[Resend] batch error:", error.message);
+      await logger.error("email", `Batch send failed: ${error.message}`, { count: emails.length, error: error.message });
       return { success: false, error: error.message };
     }
 
     const messageIds = data?.data?.map((d) => d.id) ?? [];
+    await logger.info("email", `Batch sent ${emails.length} emails`, { count: emails.length });
     return { success: true, messageIds };
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[Resend] batch error:", message);
+    await logger.error("email", `Batch exception: ${message}`, { count: emails.length });
     return { success: false, error: message };
   }
 }
@@ -140,4 +151,13 @@ export function renderVariables(
   return template.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return variables[key] ?? match;
   });
+}
+
+/**
+ * Generate an unsubscribe URL for a contact.
+ */
+export function getUnsubscribeUrl(contactId: string): string {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.xperiencewave.com";
+  const token = Buffer.from(contactId).toString("base64url");
+  return `${appUrl}/unsubscribe?token=${token}`;
 }

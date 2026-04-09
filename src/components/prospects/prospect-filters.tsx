@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { SlidersHorizontal } from "lucide-react";
 import {
   Select,
@@ -24,21 +25,32 @@ interface StageOption extends FilterOption {
   funnel_id: string;
 }
 
+type Filters = {
+  source: string;
+  funnel_id: string;
+  stage_id: string;
+  assigned_to: string;
+  booked: string;
+};
+
 interface ProspectFiltersProps {
   sources: string[];
   funnels: FilterOption[];
   stages: StageOption[];
   teamMembers: FilterOption[];
-  filters: {
-    source: string;
-    funnel_id: string;
-    stage_id: string;
-    assigned_to: string;
-    booked: string;
-  };
+  filters: Filters;
   onFilterChange: (key: string, value: string) => void;
+  onApplyFilters?: (filters: Record<string, string>) => void;
   onClearFilters: () => void;
 }
+
+const EMPTY_FILTERS: Filters = {
+  source: "",
+  funnel_id: "",
+  stage_id: "",
+  assigned_to: "",
+  booked: "",
+};
 
 export function ProspectFilters({
   sources,
@@ -47,17 +59,61 @@ export function ProspectFilters({
   teamMembers,
   filters,
   onFilterChange,
+  onApplyFilters,
   onClearFilters,
 }: ProspectFiltersProps) {
   const activeCount = Object.values(filters).filter(Boolean).length;
+  const [open, setOpen] = useState(false);
 
-  // Filter stages by selected funnel
-  const filteredStages = filters.funnel_id
-    ? stages.filter((s) => s.funnel_id === filters.funnel_id)
+  // Local draft state — only applied on "Apply"
+  const [draft, setDraft] = useState<Filters>(filters);
+
+  // Sync draft when popover opens
+  useEffect(() => {
+    if (open) setDraft(filters);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const updateDraft = (key: keyof Filters, value: string) => {
+    setDraft((prev) => {
+      const next = { ...prev, [key]: value };
+      // Clear stage when funnel changes
+      if (key === "funnel_id" && value !== prev.funnel_id) {
+        next.stage_id = "";
+      }
+      return next;
+    });
+  };
+
+  const handleApply = () => {
+    if (onApplyFilters) {
+      // Batch apply all filter values in a single navigation
+      onApplyFilters(draft);
+    } else {
+      // Fallback: apply one by one
+      for (const [key, value] of Object.entries(draft)) {
+        if (value !== filters[key as keyof Filters]) {
+          onFilterChange(key, value);
+        }
+      }
+    }
+    setOpen(false);
+  };
+
+  const handleClear = () => {
+    setDraft(EMPTY_FILTERS);
+    onClearFilters();
+    setOpen(false);
+  };
+
+  // Filter stages by selected funnel in draft
+  const filteredStages = draft.funnel_id
+    ? stages.filter((s) => s.funnel_id === draft.funnel_id)
     : [];
 
+  const draftCount = Object.values(draft).filter(Boolean).length;
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <SlidersHorizontal className="size-4" />
@@ -72,22 +128,14 @@ export function ProspectFilters({
       <PopoverContent align="start" className="w-80">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-sm font-medium">Filters</h4>
-          {activeCount > 0 && (
-            <button
-              className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={onClearFilters}
-            >
-              Clear all
-            </button>
-          )}
         </div>
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Source</label>
+            <label className="text-xs font-medium text-muted-foreground">Source</label>
             <Select
-              value={filters.source || "all"}
-              onValueChange={(v) => onFilterChange("source", v === "all" ? "" : v)}
+              value={draft.source || "all"}
+              onValueChange={(v) => updateDraft("source", v === "all" ? "" : v)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All Sources" />
@@ -104,15 +152,10 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Funnel</label>
+            <label className="text-xs font-medium text-muted-foreground">Funnel</label>
             <Select
-              value={filters.funnel_id || "all"}
-              onValueChange={(v) => {
-                onFilterChange("funnel_id", v === "all" ? "" : v);
-                if (v === "all" || v !== filters.funnel_id) {
-                  onFilterChange("stage_id", "");
-                }
-              }}
+              value={draft.funnel_id || "all"}
+              onValueChange={(v) => updateDraft("funnel_id", v === "all" ? "" : v)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All Funnels" />
@@ -129,11 +172,11 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Stage</label>
+            <label className="text-xs font-medium text-muted-foreground">Stage</label>
             <Select
-              value={filters.stage_id || "all"}
-              onValueChange={(v) => onFilterChange("stage_id", v === "all" ? "" : v)}
-              disabled={!filters.funnel_id}
+              value={draft.stage_id || "all"}
+              onValueChange={(v) => updateDraft("stage_id", v === "all" ? "" : v)}
+              disabled={!draft.funnel_id}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All Stages" />
@@ -150,10 +193,10 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Assigned To</label>
+            <label className="text-xs font-medium text-muted-foreground">Assigned To</label>
             <Select
-              value={filters.assigned_to || "all"}
-              onValueChange={(v) => onFilterChange("assigned_to", v === "all" ? "" : v)}
+              value={draft.assigned_to || "all"}
+              onValueChange={(v) => updateDraft("assigned_to", v === "all" ? "" : v)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All Members" />
@@ -170,10 +213,10 @@ export function ProspectFilters({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Call Booked</label>
+            <label className="text-xs font-medium text-muted-foreground">Call Booked</label>
             <Select
-              value={filters.booked || "all"}
-              onValueChange={(v) => onFilterChange("booked", v === "all" ? "" : v)}
+              value={draft.booked || "all"}
+              onValueChange={(v) => updateDraft("booked", v === "all" ? "" : v)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="All" />
@@ -184,6 +227,26 @@ export function ProspectFilters({
                 <SelectItem value="no">Not Booked</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center gap-2 pt-3 border-t">
+            {draftCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-muted-foreground"
+                onClick={handleClear}
+              >
+                Clear all
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={handleApply}
+            >
+              Apply filters
+            </Button>
           </div>
         </div>
       </PopoverContent>

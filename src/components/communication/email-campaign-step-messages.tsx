@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { EmailBlockEditor } from "./email-block-editor";
+import { SubjectInputWithVariables } from "./subject-input-with-variables";
 import type { EmailStepDraft, CampaignType } from "@/types/campaigns";
 
 interface EmailCampaignStepMessagesProps {
@@ -62,10 +63,10 @@ export function EmailCampaignStepMessages({
 
           <div className="space-y-2">
             <Label>Subject</Label>
-            <Input
-              placeholder="Email subject line..."
+            <SubjectInputWithVariables
               value={step.subject}
-              onChange={(e) => updateStep(i, { subject: e.target.value })}
+              onChange={(v) => updateStep(i, { subject: v })}
+              placeholder="Email subject line..."
             />
           </div>
 

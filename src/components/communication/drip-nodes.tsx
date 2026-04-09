@@ -6,16 +6,37 @@ import { Zap, Send, Clock, GitBranch, Square } from "lucide-react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+// ── Dynamic variable options for template parameters ──
+
+const VARIABLE_OPTIONS = [
+  { group: "Contact", items: [
+    { value: "{{first_name}}", label: "First Name" },
+    { value: "{{last_name}}", label: "Last Name" },
+    { value: "{{email}}", label: "Email" },
+    { value: "{{phone}}", label: "Phone" },
+    { value: "{{company_name}}", label: "Company Name" },
+  ]},
+  { group: "Booking", items: [
+    { value: "{{booking_date}}", label: "Booking Date" },
+    { value: "{{booking_time}}", label: "Booking Time" },
+    { value: "{{booking_meet_link}}", label: "Google Meet Link" },
+    { value: "{{booking_reschedule_link}}", label: "Reschedule Link" },
+  ]},
+];
 import type {
   TriggerNodeData,
   SendNodeData,
   DelayNodeData,
+  DelayUnit,
   ConditionNodeData,
   StopNodeData,
 } from "@/types/campaigns";
@@ -27,13 +48,12 @@ export const TemplatesContext = createContext<WizardTemplate[]>([]);
 
 // ── Helper: parse {{n}} params from body text ──
 
-function parseParams(bodyText: string | null): number[] {
+/** Parse template parameters — supports both positional ({{1}}) and named ({{customer_name}}) formats */
+function parseParams(bodyText: string | null): string[] {
   if (!bodyText) return [];
-  const matches = bodyText.match(/\{\{(\d+)\}\}/g);
+  const matches = bodyText.match(/\{\{(\w+)\}\}/g);
   if (!matches) return [];
-  return [...new Set(matches.map((m) => parseInt(m.replace(/\D/g, ""))))].sort(
-    (a, b) => a - b,
-  );
+  return [...new Set(matches.map((m) => m.replace(/\{|\}/g, "")))];
 }
 
 // ── Node wrapper ──
@@ -82,33 +102,15 @@ function NodeShell({
 
 // ── Trigger Node ──
 
-function TriggerNode({ id, data }: NodeProps) {
+function TriggerNode({ data }: NodeProps) {
   const d = data as unknown as TriggerNodeData;
-  const { setNodes } = useReactFlow();
 
-  const update = useCallback(
-    (event: TriggerNodeData["event"]) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, event } } : n,
-        ),
-      );
-    },
-    [id, setNodes],
-  );
+  const label = d.event === "lead_created" ? "New Lead Created" : "Manual Enrollment";
 
   return (
     <>
       <NodeShell color="emerald" icon={<Zap className="size-4" />} label="Trigger">
-        <Select value={d.event} onValueChange={update}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="manual">Manual</SelectItem>
-            <SelectItem value="lead_created">Lead Created</SelectItem>
-          </SelectContent>
-        </Select>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500" />
     </>
@@ -136,7 +138,9 @@ function SendNode({ id, data }: NodeProps) {
                   ...n.data,
                   templateId: tpl.id,
                   templateName: tpl.name,
+                  templateLanguage: tpl.language,
                   templateParams: paramSlots.map(() => ""),
+                  templateParamNames: paramSlots,
                 },
               }
             : n,
@@ -187,22 +191,60 @@ function SendNode({ id, data }: NodeProps) {
           </Select>
 
           {selectedTemplate?.body_text && (
-            <div className="rounded bg-muted/60 p-2">
-              <p className="line-clamp-3 text-[10px] leading-relaxed text-muted-foreground">
+            <div className="rounded bg-muted/60 p-1.5" title={selectedTemplate.body_text}>
+              <p className="line-clamp-1 text-[10px] leading-relaxed text-muted-foreground">
                 {selectedTemplate.body_text}
               </p>
             </div>
           )}
 
-          {paramSlots.map((paramNum, pi) => (
-            <Input
-              key={paramNum}
-              className="h-7 text-xs"
-              placeholder={`{{${paramNum}}}`}
-              value={d.templateParams?.[pi] ?? ""}
-              onChange={(e) => handleParamChange(pi, e.target.value)}
-            />
-          ))}
+          {paramSlots.map((paramName, pi) => {
+            const currentVal = d.templateParams?.[pi] ?? "";
+            const isDynamic = VARIABLE_OPTIONS.some((g) =>
+              g.items.some((i) => i.value === currentVal)
+            );
+            return (
+              <div key={paramName} className="space-y-1">
+                <p className="text-[10px] text-muted-foreground">{`{{${paramName}}}`}</p>
+                <Select
+                  value={isDynamic ? currentVal : "__custom__"}
+                  onValueChange={(v) =>
+                    handleParamChange(pi, v === "__custom__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Select field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VARIABLE_OPTIONS.map((group) => (
+                      <SelectGroup key={group.group}>
+                        <SelectLabel className="text-[10px]">{group.group}</SelectLabel>
+                        {group.items.map((item) => (
+                          <SelectItem key={item.value} value={item.value} className="text-xs">
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px]">Other</SelectLabel>
+                      <SelectItem value="__custom__" className="text-xs">
+                        Custom text...
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                {!isDynamic && (
+                  <Input
+                    className="h-7 text-xs"
+                    placeholder="Enter static value..."
+                    value={currentVal}
+                    onChange={(e) => handleParamChange(pi, e.target.value)}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-primary" />
@@ -212,15 +254,36 @@ function SendNode({ id, data }: NodeProps) {
 
 // ── Delay Node ──
 
+function toHours(value: number, unit: DelayUnit): number {
+  switch (unit) {
+    case "minutes": return value / 60;
+    case "days": return value * 24;
+    default: return value;
+  }
+}
+
 function DelayNode({ id, data }: NodeProps) {
   const d = data as unknown as DelayNodeData;
   const { setNodes } = useReactFlow();
 
+  const unit: DelayUnit = d.delayUnit ?? "hours";
+  const displayValue = d.delayValue ?? d.hours ?? 24;
+
   const update = useCallback(
-    (hours: number) => {
+    (value: number, newUnit: DelayUnit) => {
       setNodes((nds) =>
         nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, hours } } : n,
+          n.id === id
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  delayValue: value,
+                  delayUnit: newUnit,
+                  hours: toHours(value, newUnit),
+                },
+              }
+            : n,
         ),
       );
     },
@@ -236,10 +299,22 @@ function DelayNode({ id, data }: NodeProps) {
             type="number"
             min={1}
             className="h-8 w-20 text-xs"
-            value={d.hours}
-            onChange={(e) => update(Math.max(1, parseInt(e.target.value) || 1))}
+            value={displayValue}
+            onChange={(e) =>
+              update(Math.max(1, parseInt(e.target.value) || 1), unit)
+            }
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
           />
-          <span className="text-xs text-muted-foreground">hours</span>
+          <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
+            <SelectTrigger className="h-8 w-24 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">mins</SelectItem>
+              <SelectItem value="hours">hours</SelectItem>
+              <SelectItem value="days">days</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500" />

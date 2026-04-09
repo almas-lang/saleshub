@@ -1,7 +1,12 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { safeFetch } from "@/lib/fetch";
 import type {
   AudienceFilter,
   EmailStepDraft,
@@ -21,6 +26,7 @@ interface EmailCampaignStepReviewProps {
   audienceCount: number;
   saving: boolean;
   onSave: (activate: boolean) => void;
+  onBack?: () => void;
   funnels: FilterOption[];
   stages: { id: string; name: string; funnel_id: string }[];
   teamMembers: FilterOption[];
@@ -41,6 +47,7 @@ export function EmailCampaignStepReview({
   audienceCount,
   saving,
   onSave,
+  onBack,
   funnels,
   stages,
   teamMembers,
@@ -72,15 +79,33 @@ export function EmailCampaignStepReview({
       <div className="rounded-lg border p-4 space-y-2">
         <h3 className="text-sm font-semibold">Audience</h3>
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <span className="text-muted-foreground">Total recipients</span>
-          <span className="font-medium">
-            {audienceCount + (filter.extra_emails?.length ?? 0)}
-            {(filter.extra_emails?.length ?? 0) > 0 && (
-              <span className="text-xs text-muted-foreground font-normal ml-1">
-                ({audienceCount} from filters + {filter.extra_emails!.length} additional)
+          {type === "drip" && (
+            <>
+              <span className="text-muted-foreground">Enrollment</span>
+              <span className="font-medium">
+                {filter.enrollment_type === "existing"
+                  ? "Existing contacts only"
+                  : filter.enrollment_type === "both"
+                    ? "Existing contacts + new leads"
+                    : "New leads only"}
               </span>
-            )}
-          </span>
+            </>
+          )}
+          {(type !== "drip" || filter.enrollment_type !== "new_leads") && (
+            <>
+              <span className="text-muted-foreground">
+                {type === "drip" ? "Existing contacts" : "Total recipients"}
+              </span>
+              <span className="font-medium">
+                {audienceCount + (filter.extra_emails?.length ?? 0)}
+                {(filter.extra_emails?.length ?? 0) > 0 && (
+                  <span className="text-xs text-muted-foreground font-normal ml-1">
+                    ({audienceCount} from filters + {filter.extra_emails!.length} additional)
+                  </span>
+                )}
+              </span>
+            </>
+          )}
           {filter.source && (
             <>
               <span className="text-muted-foreground">Source</span>
@@ -132,9 +157,14 @@ export function EmailCampaignStepReview({
             </span>
             <div className="min-w-0 flex-1">
               <p className="font-medium">{s.subject || "(no subject)"}</p>
+              {s.preview_text && (
+                <p className="mt-0.5 text-xs text-muted-foreground italic">
+                  {s.preview_text}
+                </p>
+              )}
               {s.body_html && (
                 <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
-                  {s.body_html.replace(/<[^>]*>/g, "").slice(0, 120)}
+                  {s.body_html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").slice(0, 120)}
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
@@ -147,8 +177,16 @@ export function EmailCampaignStepReview({
         ))}
       </div>
 
+      {/* Test email */}
+      <TestEmailSection steps={steps} />
+
       {/* Actions */}
       <div className="flex gap-3">
+        {onBack && (
+          <Button variant="ghost" disabled={saving} onClick={onBack}>
+            Back
+          </Button>
+        )}
         <Button
           variant="outline"
           className="flex-1"
@@ -165,6 +203,74 @@ export function EmailCampaignStepReview({
         >
           {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
           Save &amp; Activate
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function TestEmailSection({ steps }: { steps: EmailStepDraft[] }) {
+  const [testEmail, setTestEmail] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function handleSendTest() {
+    if (!testEmail.trim()) {
+      toast.error("Enter an email address");
+      return;
+    }
+    if (steps.length === 0 || !steps[0].subject) {
+      toast.error("No steps to test");
+      return;
+    }
+
+    setSending(true);
+
+    // Send step 1 as a test
+    const s = steps[0];
+    const result = await safeFetch("/api/campaigns/email/test-send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        to: testEmail.trim(),
+        subject: s.subject,
+        body_html: s.body_html,
+        preview_text: s.preview_text,
+      }),
+    });
+
+    setSending(false);
+
+    if (!result.ok) {
+      toast.error(typeof result.error === "string" ? result.error : "Failed to send test email");
+      return;
+    }
+
+    toast.success(`Test email sent to ${testEmail}`);
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed p-4 space-y-3">
+      <h3 className="text-sm font-semibold">Send Test Email</h3>
+      <p className="text-xs text-muted-foreground">
+        Send step 1 to a test address to preview how it looks in an inbox.
+      </p>
+      <div className="flex gap-2">
+        <Input
+          type="email"
+          placeholder="test@example.com"
+          value={testEmail}
+          onChange={(e) => setTestEmail(e.target.value)}
+          className="flex-1"
+          onKeyDown={(e) => e.key === "Enter" && handleSendTest()}
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleSendTest}
+          disabled={sending || !testEmail.trim()}
+        >
+          {sending ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Send className="mr-1.5 size-4" />}
+          Send Test
         </Button>
       </div>
     </div>

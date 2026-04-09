@@ -9,6 +9,7 @@ interface MetaInsightRow {
   campaign_id: string;
   campaign_name: string;
   impressions: string;
+  reach: string;
   clicks: string;
   spend: string;
   actions?: { action_type: string; value: string }[];
@@ -33,7 +34,7 @@ export async function fetchMetaAdSpend(
 
   const params = new URLSearchParams({
     access_token: token,
-    fields: "campaign_id,campaign_name,impressions,clicks,spend,actions",
+    fields: "campaign_id,campaign_name,impressions,reach,clicks,spend,actions",
     time_range: JSON.stringify({ since: from, until: to }),
     level: "campaign",
     time_increment: "1", // daily
@@ -62,6 +63,7 @@ export async function fetchMetaAdSpend(
       date: row.date_start,
       amount: parseFloat(row.spend) || 0,
       impressions: parseInt(row.impressions) || 0,
+      reach: parseInt(row.reach) || 0,
       clicks: parseInt(row.clicks) || 0,
       leads: parseInt(leads) || 0,
       spend_currency: "INR",
@@ -100,6 +102,7 @@ export async function syncMetaAdsToDb(
       date: r.date,
       amount: r.amount,
       impressions: r.impressions,
+      reach: r.reach,
       clicks: r.clicks,
       leads: r.leads,
       spend_currency: r.spend_currency,

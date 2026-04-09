@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/client";
 import { renderBookingReminderEmail } from "@/lib/email/templates/booking-reminder";
-import { format } from "date-fns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export { GET as POST };
 
 export async function GET(request: Request) {
   // ── Auth (header or query param) ─────────────────
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
     // ── Query upcoming confirmed bookings in the 23–25h window ──
     const { data: bookings, error } = await supabaseAdmin
       .from("bookings")
-      .select("id, contact_id, starts_at, ends_at, meet_link")
+      .select("id, contact_id, starts_at, ends_at, meet_link, booking_page_id, booking_pages(availability_rules)")
       .eq("status", "confirmed")
       .gte("starts_at", windowStart)
       .lte("starts_at", windowEnd);
@@ -66,14 +67,35 @@ export async function GET(request: Request) {
       if (!contact?.email) continue;
 
       const startsAt = new Date(booking.starts_at);
-      const dateStr = format(startsAt, "MMMM d, yyyy");
-      const timeStr = format(startsAt, "h:mm a");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rules = (booking as any).booking_pages?.availability_rules as { timezone?: string } | null;
+      const tz = rules?.timezone ?? "Asia/Kolkata";
+
+      const dateStr = startsAt.toLocaleDateString("en-US", {
+        timeZone: tz,
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const timeStr = startsAt.toLocaleTimeString("en-US", {
+        timeZone: tz,
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
+      // Derive short timezone label (e.g. "IST", "EST")
+      const tzLabel = startsAt
+        .toLocaleTimeString("en-US", { timeZone: tz, timeZoneName: "short" })
+        .split(" ")
+        .pop() ?? "IST";
 
       try {
         const { subject, html } = await renderBookingReminderEmail({
           firstName: contact.first_name || "there",
           date: dateStr,
           time: timeStr,
+          timeZoneLabel: tzLabel,
           hostName: "Shaik Murad",
           meetLink: booking.meet_link || "#",
         });

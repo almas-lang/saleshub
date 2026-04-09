@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,6 +16,8 @@ import {
   Pencil,
   X,
   Check,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -44,9 +47,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { EmailBlockEditor } from "./email-block-editor";
+import { SubjectInputWithVariables } from "./subject-input-with-variables";
 
 const STATUS_STYLES: Record<CampaignStatus, { className: string }> = {
   draft: { className: "bg-muted text-muted-foreground" },
@@ -84,6 +94,7 @@ const SEND_STATUS_STYLES: Record<EmailSendStatus, string> = {
 interface EmailSendWithContact {
   id: string;
   contact_id: string;
+  step_id: string | null;
   status: EmailSendStatus;
   sent_at: string | null;
   opened_at: string | null;
@@ -127,8 +138,12 @@ export function EmailCampaignDetail({
   lookups,
 }: EmailCampaignDetailProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showDelete, setShowDelete] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("steps");
+  const [sendFilter, setSendFilter] = useState<"all" | "sent" | "opened" | "clicked" | "failed">("all");
+  const [viewingSend, setViewingSend] = useState<EmailSendWithContact | null>(null);
   const [editingStepId, setEditingStepId] = useState<string | null>(null);
   const [editSubject, setEditSubject] = useState("");
   const [editPreviewText, setEditPreviewText] = useState("");
@@ -137,6 +152,14 @@ export function EmailCampaignDetail({
   const [saving, setSaving] = useState(false);
 
   const canEdit = campaign.status === "draft" || campaign.status === "paused";
+
+  // Auto-open first step for editing when ?edit=true
+  useEffect(() => {
+    if (searchParams.get("edit") === "true" && canEdit && steps.length > 0 && !editingStepId) {
+      startEditing(steps[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function startEditing(step: EmailStep) {
     setEditingStepId(step.id);
@@ -183,6 +206,155 @@ export function EmailCampaignDetail({
     toast.success("Step updated");
     setEditingStepId(null);
     router.refresh();
+  }
+
+  function renderEditOverlay() {
+    if (!editingStepId) return null;
+    const step = steps.find((s) => s.id === editingStepId);
+    if (!step) return null;
+
+    return createPortal(
+      <div className="fixed inset-0 z-50 flex flex-col bg-background">
+        {/* Top bar */}
+        <div className="flex items-center justify-between border-b px-6 py-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" className="size-8" onClick={cancelEditing}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div>
+              <h1 className="text-lg font-semibold">Edit Step {step.order}</h1>
+              <p className="text-xs text-muted-foreground">
+                {editSubject || "Untitled email"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={cancelEditing} disabled={saving}>Cancel</Button>
+            <Button onClick={saveStep} disabled={saving}>
+              {saving && <Loader2 className="mr-1.5 size-4 animate-spin" />}
+              Save
+            </Button>
+          </div>
+        </div>
+
+        {/* Content: editor + preview */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_420px]">
+          {/* Left: scrollable editor */}
+          <div className="overflow-y-auto px-8 py-6">
+            <div className="mx-auto max-w-2xl space-y-6">
+              <div className="space-y-2">
+                <Label>Subject</Label>
+                <SubjectInputWithVariables
+                  value={editSubject}
+                  onChange={setEditSubject}
+                  placeholder="Email subject line..."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>
+                  Preview Text
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                    shown in inbox before opening
+                  </span>
+                </Label>
+                <Input
+                  placeholder="Optional preview text..."
+                  value={editPreviewText}
+                  onChange={(e) => setEditPreviewText(e.target.value)}
+                  maxLength={150}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Delay (hours)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={editDelayHours}
+                  onChange={(e) => setEditDelayHours(parseInt(e.target.value) || 0)}
+                  className="max-w-xs"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Body</Label>
+                <EmailBlockEditor
+                  key={editingStepId}
+                  content={editBody}
+                  onChange={setEditBody}
+                  placeholder="Write your email content..."
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Right: sticky email preview */}
+          <div className="hidden lg:flex flex-col border-l bg-muted/10 min-h-0">
+            <div className="flex items-center gap-2 border-b px-4 py-3">
+              <Eye className="size-3.5 text-muted-foreground" />
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Preview</p>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4">
+              {/* Inbox preview */}
+              <div className="mb-4 rounded-lg border p-3 space-y-0.5">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Inbox Preview</p>
+                <p className="text-sm font-semibold text-foreground truncate">
+                  {editSubject || "No subject"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {editPreviewText || (editBody
+                    ? editBody.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").slice(0, 100)
+                    : "No content yet..."
+                  )}
+                </p>
+              </div>
+
+              {/* Email body preview */}
+              <div className="rounded-lg border bg-white dark:bg-card">
+                <div className="border-b px-5 py-4">
+                  <p className="text-base font-semibold text-foreground">
+                    {editSubject || "No subject"}
+                  </p>
+                </div>
+                <div className="px-5 py-4">
+                  {editBody ? (
+                    <div
+                      className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                      dangerouslySetInnerHTML={{ __html: editBody }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground italic">
+                      Start writing to see the preview...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
+
+  async function handleActivate() {
+    setLoading(true);
+    const result = await safeFetch(
+      `/api/campaigns/email?id=${campaign.id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "active" }),
+      }
+    );
+    setLoading(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    router.refresh();
+    toast.success("Campaign activated");
   }
 
   async function handleTogglePause() {
@@ -255,6 +427,28 @@ export function EmailCampaignDetail({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+            >
+              <Link href={`/email/campaigns/${campaign.id}/edit`}>
+                <Pencil className="mr-2 size-4" />
+                Edit Campaign
+              </Link>
+            </Button>
+          )}
+          {campaign.status === "draft" && (
+            <Button
+              size="sm"
+              onClick={() => handleActivate()}
+              disabled={loading || steps.length === 0}
+            >
+              <Play className="mr-2 size-4" />
+              Activate
+            </Button>
+          )}
           {(campaign.status === "active" || campaign.status === "paused") && (
             <Button
               variant="outline"
@@ -288,53 +482,41 @@ export function EmailCampaignDetail({
         </div>
       </div>
 
-      {/* Stats row */}
+      {/* Stats row — clickable to filter Sends tab */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Recipients</p>
-          <p className="text-2xl font-semibold">{stats.recipient_count}</p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Sent</p>
-          <p className="text-2xl font-semibold">{stats.sent_count}</p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Opened</p>
-          <p className="text-2xl font-semibold">
-            {stats.opened_count}
-            {stats.sent_count > 0 && (
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                ({pct(stats.opened_count, stats.sent_count)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Clicked</p>
-          <p className="text-2xl font-semibold">
-            {stats.clicked_count}
-            {stats.sent_count > 0 && (
-              <span className="ml-1 text-sm font-normal text-muted-foreground">
-                ({pct(stats.clicked_count, stats.sent_count)})
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Failed</p>
-          <p
+        {([
+          { label: "Recipients", value: stats.recipient_count, filter: "all" as const, pctVal: null },
+          { label: "Sent", value: stats.sent_count, filter: "sent" as const, pctVal: null },
+          { label: "Opened", value: stats.opened_count, filter: "opened" as const, pctVal: stats.sent_count > 0 ? pct(stats.opened_count, stats.sent_count) : null },
+          { label: "Clicked", value: stats.clicked_count, filter: "clicked" as const, pctVal: stats.sent_count > 0 ? pct(stats.clicked_count, stats.sent_count) : null },
+          { label: "Failed", value: stats.failed_count, filter: "failed" as const, pctVal: null },
+        ]).map((card) => (
+          <button
+            key={card.label}
+            onClick={() => { setActiveTab("sends"); setSendFilter(card.filter); }}
             className={cn(
-              "text-2xl font-semibold",
-              stats.failed_count > 0 && "text-red-600 dark:text-red-400"
+              "rounded-xl border p-4 text-left transition-colors hover:bg-muted/50",
+              activeTab === "sends" && sendFilter === card.filter && "ring-2 ring-primary"
             )}
           >
-            {stats.failed_count}
-          </p>
-        </div>
+            <p className="text-sm text-muted-foreground">{card.label}</p>
+            <p className={cn(
+              "text-2xl font-semibold",
+              card.label === "Failed" && card.value > 0 && "text-red-600 dark:text-red-400"
+            )}>
+              {card.value}
+              {card.pctVal && (
+                <span className="ml-1 text-sm font-normal text-muted-foreground">
+                  ({card.pctVal})
+                </span>
+              )}
+            </p>
+          </button>
+        ))}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="steps">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); if (v !== "sends") setSendFilter("all"); }}>
         <TabsList>
           <TabsTrigger value="steps">
             <FileText className="mr-1.5 size-4" />
@@ -358,84 +540,8 @@ export function EmailCampaignDetail({
             </p>
           ) : (
             <div className="flex flex-col gap-3">
-              {steps.map((step) =>
-                editingStepId === step.id ? (
-                  <div
-                    key={step.id}
-                    className="flex flex-col gap-4 rounded-xl border border-primary/30 p-4"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-medium text-primary">
-                          {step.order}
-                        </div>
-                        <span className="text-sm font-medium">Editing step</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={cancelEditing}
-                          disabled={saving}
-                        >
-                          <X className="mr-1 size-4" />
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={saveStep}
-                          disabled={saving}
-                        >
-                          <Check className="mr-1 size-4" />
-                          {saving ? "Saving..." : "Save"}
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="edit-subject">Subject</Label>
-                      <Input
-                        id="edit-subject"
-                        value={editSubject}
-                        onChange={(e) => setEditSubject(e.target.value)}
-                        placeholder="Email subject"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="edit-preview">
-                        Preview Text
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          (shown in inbox before opening)
-                        </span>
-                      </Label>
-                      <Input
-                        id="edit-preview"
-                        value={editPreviewText}
-                        onChange={(e) => setEditPreviewText(e.target.value)}
-                        placeholder="Optional preview text..."
-                        maxLength={150}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label htmlFor="edit-delay">Delay (hours)</Label>
-                      <Input
-                        id="edit-delay"
-                        type="number"
-                        min={0}
-                        value={editDelayHours}
-                        onChange={(e) =>
-                          setEditDelayHours(parseInt(e.target.value) || 0)
-                        }
-                      />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Label>Body</Label>
-                      <EmailBlockEditor
-                        content={editBody}
-                        onChange={setEditBody}
-                      />
-                    </div>
-                  </div>
-                ) : (
+              {renderEditOverlay()}
+              {steps.map((step) => (
                   <div
                     key={step.id}
                     className="flex items-start gap-4 rounded-xl border p-4"
@@ -446,14 +552,18 @@ export function EmailCampaignDetail({
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <p className="font-medium">{step.subject}</p>
                       <p className="text-xs text-muted-foreground line-clamp-2">
-                        {step.body_html.replace(/<[^>]*>/g, "").slice(0, 150)}
+                        {step.body_html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").slice(0, 150)}
                       </p>
                       <div className="flex items-center gap-3 text-sm text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Clock className="size-3.5" />
                           {step.delay_hours === 0
                             ? "Send immediately"
-                            : `${step.delay_hours}h delay`}
+                            : step.delay_hours < 1
+                              ? `${Math.round(step.delay_hours * 60)}m delay`
+                              : step.delay_hours % 1 !== 0
+                                ? `${Math.round(step.delay_hours * 60)}m delay`
+                                : `${step.delay_hours}h delay`}
                         </span>
                       </div>
                     </div>
@@ -468,8 +578,7 @@ export function EmailCampaignDetail({
                       </Button>
                     )}
                   </div>
-                )
-              )}
+              ))}
             </div>
           )}
         </TabsContent>
@@ -544,6 +653,19 @@ export function EmailCampaignDetail({
 
         {/* Sends tab */}
         <TabsContent value="sends" className="mt-4">
+          {sendFilter !== "all" && (
+            <div className="mb-3 flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs capitalize">
+                Filtered: {sendFilter}
+              </Badge>
+              <button
+                onClick={() => setSendFilter("all")}
+                className="text-xs text-muted-foreground hover:text-foreground underline"
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
           {sends.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No sends yet. Messages will appear here once the campaign is
@@ -587,14 +709,21 @@ export function EmailCampaignDetail({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sends.map((send) => {
+                  {sends.filter((send) => {
+                    if (sendFilter === "all") return true;
+                    if (sendFilter === "sent") return send.status !== "queued" && send.status !== "failed";
+                    if (sendFilter === "opened") return send.status === "opened" || send.status === "clicked";
+                    if (sendFilter === "clicked") return send.status === "clicked";
+                    if (sendFilter === "failed") return send.status === "failed" || send.status === "bounced";
+                    return true;
+                  }).map((send) => {
                     const name = send.contacts
                       ? [send.contacts.first_name, send.contacts.last_name]
                           .filter(Boolean)
                           .join(" ") || "\u2014"
                       : "\u2014";
                     return (
-                      <TableRow key={send.id} className="h-12">
+                      <TableRow key={send.id} className="h-12 cursor-pointer hover:bg-muted/50" onClick={() => setViewingSend(send)}>
                         <TableCell className="font-medium">{name}</TableCell>
                         <TableCell className="text-muted-foreground">
                           {send.contacts?.email ?? "\u2014"}
@@ -631,6 +760,57 @@ export function EmailCampaignDetail({
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Send detail dialog */}
+      <Dialog open={viewingSend !== null} onOpenChange={(open) => !open && setViewingSend(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          {viewingSend && (() => {
+            const step = viewingSend.step_id ? steps.find((s) => s.id === viewingSend.step_id) : null;
+            const contactName = viewingSend.contacts
+              ? [viewingSend.contacts.first_name, viewingSend.contacts.last_name].filter(Boolean).join(" ") || viewingSend.contacts.email
+              : "Unknown";
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    Email to {contactName}
+                  </DialogTitle>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge className={cn("text-xs font-medium capitalize border-0", SEND_STATUS_STYLES[viewingSend.status])}>
+                      {viewingSend.status}
+                    </Badge>
+                    {viewingSend.sent_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Sent {formatDateTime(viewingSend.sent_at)}
+                      </span>
+                    )}
+                  </div>
+                </DialogHeader>
+                {step ? (
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Subject</p>
+                      <p className="text-sm font-medium">{step.subject}</p>
+                    </div>
+                    <div className="rounded-lg border bg-white dark:bg-card">
+                      <div className="p-4">
+                        <div
+                          className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                          dangerouslySetInnerHTML={{ __html: step.body_html }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">
+                    Email content not available.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <ConfirmDialog

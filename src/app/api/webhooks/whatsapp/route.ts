@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { markAsRead } from "@/lib/whatsapp/client";
+import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,8 +64,17 @@ export async function POST(request: NextRequest) {
 
         // Handle incoming messages
         if (value.messages) {
+          // Build a map of wa_id → profile name from the contacts array
+          const profileNames = new Map<string, string>();
+          for (const c of value.contacts ?? []) {
+            if (c.wa_id && c.profile?.name) {
+              profileNames.set(c.wa_id, c.profile.name);
+            }
+          }
+
           for (const message of value.messages) {
-            await handleIncomingMessage(message);
+            const profileName = profileNames.get(message.from) ?? null;
+            await handleIncomingMessage(message, profileName);
           }
         }
       }
@@ -108,15 +118,20 @@ async function handleStatusUpdate(status: {
   // Handle failed status
   if (newStatus === "failed") {
     const errorInfo = status.errors?.[0];
-    console.error(
-      `[WA Webhook] Message ${waMessageId} failed:`,
-      errorInfo?.title ?? "Unknown error",
-      `(code: ${errorInfo?.code ?? "?"})`
-    );
+    await logger.error("whatsapp-webhook", `Message ${waMessageId} failed: ${errorInfo?.title ?? "Unknown error"}`, {
+      wa_message_id: waMessageId,
+      contact_id: send.contact_id,
+      error_title: errorInfo?.title,
+      error_code: errorInfo?.code,
+      error_details: (errorInfo as Record<string, unknown>)?.error_data,
+    });
 
+    const errMsg = status.errors?.[0]
+      ? `${status.errors[0].title} (code: ${status.errors[0].code})`
+      : "Unknown error";
     await supabaseAdmin
       .from("wa_sends")
-      .update({ status: "failed" })
+      .update({ status: "failed", error_message: errMsg })
       .eq("id", send.id);
     return;
   }
@@ -162,16 +177,31 @@ async function handleIncomingMessage(message: {
   timestamp: string;
   type: string;
   text?: { body: string };
-}) {
+  image?: { caption?: string; id: string; mime_type: string };
+  video?: { caption?: string; id: string; mime_type: string };
+  document?: { caption?: string; filename?: string; id: string; mime_type: string };
+  audio?: { id: string; mime_type: string };
+}, profileName: string | null) {
   const senderPhone = formatForWA(message.from);
+  const senderPhonePlus = `+${senderPhone}`;
   const messageText =
     message.type === "text" ? message.text?.body ?? "" : `[${message.type}]`;
 
-  // Look up contact by phone
-  const { data: contact, error: contactErr } = await supabaseAdmin
+  // Build body: use caption for media if available, else text body
+  const body =
+    message.type === "text"
+      ? message.text?.body ?? ""
+      : message.image?.caption ??
+        message.video?.caption ??
+        message.document?.caption ??
+        null;
+
+  // Look up contact by phone (try both with and without + prefix)
+  // eslint-disable-next-line prefer-const
+  let { data: contact, error: contactErr } = await supabaseAdmin
     .from("contacts")
-    .select("id")
-    .eq("phone", senderPhone)
+    .select("id, first_name, last_name")
+    .or(`phone.eq.${senderPhone},phone.eq.${senderPhonePlus}`)
     .is("deleted_at", null)
     .maybeSingle();
 
@@ -187,19 +217,85 @@ async function handleIncomingMessage(message: {
     console.error("[WA Webhook] markAsRead failed:", err);
   }
 
+  // Auto-create contact for unknown senders
   if (!contact) {
-    console.log(`[WA Webhook] No contact found for phone ${senderPhone}`);
-    return;
+    console.log(`[WA Webhook] Auto-creating contact for phone ${senderPhone} (profile: ${profileName ?? "unknown"})`);
+
+    // Use WhatsApp profile name, or fall back to phone number
+    const firstName = profileName ?? `+${senderPhone}`;
+
+    const { data: newContact, error: createErr } = await supabaseAdmin
+      .from("contacts")
+      .insert({
+        first_name: firstName,
+        phone: senderPhonePlus,
+        source: "whatsapp",
+        type: "prospect",
+      })
+      .select("id, first_name, last_name")
+      .single();
+
+    if (createErr || !newContact) {
+      console.error("[WA Webhook] Failed to create contact:", createErr?.message);
+      return;
+    }
+
+    contact = newContact;
   }
+
+  // Store in wa_messages for chat inbox
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabaseAdmin as any).from("wa_messages").insert({
+    contact_id: contact.id,
+    direction: "inbound",
+    body,
+    message_type: message.type,
+    wa_message_id: message.id,
+    status: null,
+    metadata:
+      message.type !== "text"
+        ? {
+            media_id:
+              message.image?.id ??
+              message.video?.id ??
+              message.document?.id ??
+              message.audio?.id,
+            mime_type:
+              message.image?.mime_type ??
+              message.video?.mime_type ??
+              message.document?.mime_type ??
+              message.audio?.mime_type,
+            filename: message.document?.filename,
+          }
+        : null,
+  });
 
   // Log activity
   await supabaseAdmin.from("activities").insert({
     contact_id: contact.id,
-    type: "note",
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    type: "wa_reply" as any, // enum value added in migration, not yet in generated types
     title: "WhatsApp message received",
     body: messageText,
     metadata: { wa_message_id: message.id, from: senderPhone },
   });
+
+  // Create in-app notification for all active team members
+  const contactName = `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim() || senderPhone;
+  const { data: teamMembers } = await supabaseAdmin
+    .from("team_members")
+    .select("id")
+    .eq("is_active", true);
+
+  if (teamMembers && teamMembers.length > 0) {
+    const notifications = teamMembers.map((tm: { id: string }) => ({
+      user_id: tm.id,
+      title: `WhatsApp from ${contactName}`,
+      body: messageText.length > 100 ? messageText.slice(0, 100) + "…" : messageText,
+      link: `/whatsapp/chat?contact=${contact.id}`,
+    }));
+    await supabaseAdmin.from("notifications").insert(notifications);
+  }
 
   // If there's an unreplied wa_sends record, mark as replied
   const { data: unreplied } = await supabaseAdmin

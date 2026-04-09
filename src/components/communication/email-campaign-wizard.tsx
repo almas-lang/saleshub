@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/fetch";
@@ -28,11 +29,21 @@ interface StageOption extends FilterOption {
   order: number;
 }
 
+export interface EmailCampaignInitialData {
+  id: string;
+  name: string;
+  type: CampaignType;
+  audience_filter: AudienceFilter | null;
+  flow_data: FlowData | null;
+  steps: EmailStepDraft[];
+}
+
 interface EmailCampaignWizardProps {
   funnels: FilterOption[];
   stages: StageOption[];
   teamMembers: FilterOption[];
   sources: string[];
+  initialData?: EmailCampaignInitialData;
 }
 
 const STEPS = [
@@ -47,29 +58,44 @@ export function EmailCampaignWizard({
   stages,
   teamMembers,
   sources,
+  initialData,
 }: EmailCampaignWizardProps) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  const isEditing = !!initialData;
+
+  // Determine initial step: for editing, start at Review if all data is present
+  const getInitialStep = () => {
+    if (!initialData) return 0;
+    if (initialData.steps.length > 0 || initialData.flow_data) return 3;
+    if (initialData.audience_filter) return 2;
+    if (initialData.name) return 1;
+    return 0;
+  };
+  const [step, setStep] = useState(getInitialStep);
 
   // Step 1 -- Details
-  const [name, setName] = useState("");
-  const [type, setType] = useState<CampaignType>("one_time");
+  const [name, setName] = useState(initialData?.name ?? "");
+  const [type, setType] = useState<CampaignType>(initialData?.type ?? "one_time");
+
+  // Stop condition
+  const [stopCondition, setStopCondition] = useState<{ stage_id: string; stage_name?: string } | null>(null);
 
   // Step 2 -- Audience
-  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>({});
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>(initialData?.audience_filter ?? {});
   const [audienceCount, setAudienceCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
 
   // Step 3 -- Messages (one-time / newsletter)
-  const [campaignSteps, setCampaignSteps] = useState<EmailStepDraft[]>([
-    { subject: "", body_html: "", delay_hours: 0 },
-  ]);
+  const [campaignSteps, setCampaignSteps] = useState<EmailStepDraft[]>(
+    initialData?.steps.length ? initialData.steps : [{ subject: "", body_html: "", delay_hours: 0 }]
+  );
 
   // Step 3 -- Flow builder (drip only)
-  const [flowData, setFlowData] = useState<FlowData | null>(null);
+  const [flowData, setFlowData] = useState<FlowData | null>(initialData?.flow_data ?? null);
 
   // Step 4 -- Review / saving
   const [saving, setSaving] = useState(false);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(initialData?.id ?? null);
 
   // Reset steps when campaign type changes
   const handleTypeChange = (newType: CampaignType) => {
@@ -83,6 +109,19 @@ export function EmailCampaignWizard({
   const handleFilterChange = (filter: AudienceFilter) => {
     setAudienceFilter(filter);
     setCountLoading(true);
+
+    // Sync flow trigger node with enrollment type
+    if (type === "drip" && flowData && filter.enrollment_type !== audienceFilter.enrollment_type) {
+      const triggerEvent = (filter.enrollment_type ?? "new_leads") === "existing" ? "manual" : "lead_created";
+      setFlowData({
+        ...flowData,
+        nodes: flowData.nodes.map((n) =>
+          n.type === "trigger"
+            ? { ...n, data: { ...n.data, event: triggerEvent } }
+            : n
+        ),
+      });
+    }
   };
 
   // Audience count -- debounced
@@ -114,8 +153,13 @@ export function EmailCampaignWizard({
     switch (step) {
       case 0:
         return name.trim().length > 0;
-      case 1:
+      case 1: {
+        // For drip "new_leads" enrollment, no existing contacts needed
+        if (type === "drip" && (audienceFilter.enrollment_type ?? "new_leads") === "new_leads") {
+          return true;
+        }
         return (audienceCount + (audienceFilter.extra_emails?.length ?? 0)) > 0;
+      }
       case 2:
         if (type === "drip") {
           return flowData !== null && validateEmailFlow(flowData);
@@ -128,37 +172,31 @@ export function EmailCampaignWizard({
     }
   })();
 
-  const handleSave = useCallback(
-    async (activate: boolean) => {
-      setSaving(true);
-
+  const buildPayload = useCallback(
+    (activate: boolean) => {
       const isDrip = type === "drip";
 
-      // Extract trigger event from flow data
       let triggerEvent: string | undefined;
-      if (isDrip && flowData) {
-        const triggerNode = flowData.nodes.find((n) => n.type === "trigger");
-        if (triggerNode) {
-          const d = triggerNode.data as { event?: string };
-          triggerEvent = d.event;
-        }
+      if (isDrip) {
+        const enrollment = audienceFilter.enrollment_type ?? "new_leads";
+        triggerEvent = enrollment === "existing" ? "manual" : "lead_created";
       }
 
-      // Use branching-aware conversion for drip, linear for others
-      let payload;
       if (isDrip && flowData) {
         const { steps: branchingSteps, edges: branchingEdges } = flowToEmailStepsWithBranching(flowData);
-        payload = {
-          name: name.trim(),
+        return {
+          name: name.trim() || "Untitled Campaign",
           type,
           trigger_event: triggerEvent,
           audience_filter: audienceFilter,
+          stop_condition: stopCondition,
           flow_data: flowData,
           steps: branchingSteps.map((s, i) => ({
             node_id: s.node_id,
             order: i + 1,
             step_type: s.step_type,
             subject: s.subject,
+            preview_text: s.preview_text,
             body_html: s.body_html,
             delay_hours: s.delay_hours,
             ...(s.condition ? { condition: s.condition } : {}),
@@ -166,27 +204,59 @@ export function EmailCampaignWizard({
           branching_edges: branchingEdges,
           activate,
         };
-      } else {
-        payload = {
-          name: name.trim(),
-          type,
-          audience_filter: audienceFilter,
-          steps: campaignSteps.map((s, i) => ({
-            order: i + 1,
-            subject: s.subject,
-            body_html: s.body_html,
-            delay_hours: i === 0 ? 0 : s.delay_hours,
-            ...(s.condition ? { condition: s.condition } : {}),
-          })),
-          activate,
-        };
       }
 
-      const result = await safeFetch("/api/campaigns/email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // Non-drip or drip without flow data yet
+      const stepsToSave = isDrip ? [] : campaignSteps;
+      return {
+        name: name.trim() || "Untitled Campaign",
+        type,
+        audience_filter: audienceFilter,
+        stop_condition: stopCondition,
+        flow_data: flowData ?? undefined,
+        steps: stepsToSave.map((s, i) => ({
+          ...(s.id ? { id: s.id } : {}),
+          order: i + 1,
+          subject: s.subject,
+          preview_text: s.preview_text,
+          body_html: s.body_html,
+          delay_hours: i === 0 ? 0 : s.delay_hours,
+          ...(s.condition ? { condition: s.condition } : {}),
+        })),
+        activate,
+      };
+    },
+    [name, type, audienceFilter, campaignSteps, flowData],
+  );
+
+  const handleSave = useCallback(
+    async (activate: boolean) => {
+      setSaving(true);
+      const payload = buildPayload(activate);
+
+      let result;
+      if (savedCampaignId) {
+        result = await safeFetch(`/api/campaigns/email?id=${savedCampaignId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: payload.name,
+            audience_filter: payload.audience_filter,
+            flow_data: payload.flow_data,
+            steps: payload.steps,
+            ...(activate ? { status: "active" } : {}),
+          }),
+        });
+      } else {
+        result = await safeFetch("/api/campaigns/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (result.ok && result.data) {
+          setSavedCampaignId((result.data as { id: string }).id);
+        }
+      }
 
       setSaving(false);
 
@@ -196,12 +266,52 @@ export function EmailCampaignWizard({
       }
 
       toast.success(
-        activate ? "Campaign created and activated" : "Campaign saved as draft"
+        activate
+          ? isEditing ? "Campaign updated and activated" : "Campaign created and activated"
+          : isEditing ? "Campaign updated" : "Campaign saved as draft"
       );
-      router.push("/email");
+      router.push(isEditing ? `/email/campaigns/${savedCampaignId}` : "/email");
     },
-    [name, type, audienceFilter, campaignSteps, flowData, router]
+    [buildPayload, router, savedCampaignId],
   );
+
+  const handleQuickDraft = useCallback(async () => {
+    setSaving(true);
+    const payload = buildPayload(false);
+
+    let result;
+    if (savedCampaignId) {
+      // Update existing draft
+      result = await safeFetch(`/api/campaigns/email?id=${savedCampaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: payload.name,
+          audience_filter: payload.audience_filter,
+          flow_data: payload.flow_data,
+        }),
+      });
+    } else {
+      // Create new draft
+      result = await safeFetch("/api/campaigns/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (result.ok && result.data) {
+        setSavedCampaignId((result.data as { id: string }).id);
+      }
+    }
+
+    setSaving(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    toast.success("Campaign saved as draft");
+  }, [buildPayload, savedCampaignId]);
 
   return (
     <div className="space-y-8">
@@ -210,18 +320,21 @@ export function EmailCampaignWizard({
         {STEPS.map((s, i) => (
           <div key={s.label} className="flex items-center">
             <div className="flex flex-col items-center gap-1">
-              <div
+              <button
+                type="button"
+                disabled={i >= step}
+                onClick={() => i < step && setStep(i)}
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full border-2 text-xs font-semibold transition-colors",
                   i < step
-                    ? "border-primary bg-primary text-primary-foreground"
+                    ? "border-primary bg-primary text-primary-foreground cursor-pointer hover:opacity-80"
                     : i === step
                       ? "border-primary text-primary"
                       : "border-muted-foreground/30 text-muted-foreground/50"
                 )}
               >
                 {i < step ? "\u2713" : i + 1}
-              </div>
+              </button>
               <span
                 className={cn(
                   "text-[11px] font-medium",
@@ -256,6 +369,9 @@ export function EmailCampaignWizard({
             onNameChange={setName}
             type={type}
             onTypeChange={handleTypeChange}
+            stages={stages}
+            stopCondition={stopCondition}
+            onStopConditionChange={setStopCondition}
           />
         )}
 
@@ -298,6 +414,7 @@ export function EmailCampaignWizard({
             audienceCount={audienceCount}
             saving={saving}
             onSave={handleSave}
+            onBack={() => setStep(2)}
             funnels={funnels}
             stages={stages}
             teamMembers={teamMembers}
@@ -319,9 +436,25 @@ export function EmailCampaignWizard({
           ) : (
             <div />
           )}
-          <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
-            Continue
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={saving}
+              onClick={handleQuickDraft}
+              className="text-muted-foreground"
+            >
+              {saving ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : (
+                <Save className="mr-1.5 size-3.5" />
+              )}
+              Save Draft
+            </Button>
+            <Button disabled={!canProceed} onClick={() => setStep(step + 1)}>
+              Continue
+            </Button>
+          </div>
         </div>
       )}
     </div>

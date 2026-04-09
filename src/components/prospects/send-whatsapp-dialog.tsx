@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Send, ArrowLeft, Loader2, Check } from "lucide-react";
+import { Send, ArrowLeft, Loader2 } from "lucide-react";
 import { safeFetch } from "@/lib/fetch";
 import { cn } from "@/lib/utils";
 import {
@@ -26,6 +26,7 @@ interface WATemplate {
   status: string;
   language: string;
   category: string;
+  parameter_format?: string;
   components: WATemplateComponent[];
 }
 
@@ -82,8 +83,10 @@ export function SendWhatsAppDialog({
 
   function getPreviewText(template: WATemplate): string {
     const body = getBodyText(template);
-    // Replace {{1}} with contact name, leave others as-is
-    return body.replace(/\{\{1\}\}/g, contactFirstName);
+    // Replace both {{1}} positional and {{name}} named variables with contact name
+    return body
+      .replace(/\{\{1\}\}/g, contactFirstName)
+      .replace(/\{\{[a-zA-Z_]+\}\}/g, contactFirstName);
   }
 
   const handleSend = useCallback(async () => {
@@ -91,8 +94,22 @@ export function SendWhatsAppDialog({
     setSending(true);
 
     const bodyText = getBodyText(selected);
-    // Check if template has body parameters
-    const hasParams = /\{\{1\}\}/.test(bodyText);
+    const isNamed = selected.parameter_format === "NAMED";
+
+    // Extract parameter placeholders
+    const namedMatches = [...bodyText.matchAll(/\{\{([a-zA-Z_]+)\}\}/g)].map(m => m[1]);
+    const positionalMatches = [...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1]);
+    const uniqueNamed = [...new Set(namedMatches)];
+    const uniquePositional = [...new Set(positionalMatches)];
+
+    // Build params — first param is always contact name
+    const paramCount = Math.max(uniqueNamed.length, uniquePositional.length);
+    const params: string[] = [];
+    if (paramCount > 0) params.push(contactFirstName);
+    for (let i = 1; i < paramCount; i++) params.push("");
+
+    // For NAMED templates, also send parameter names
+    const paramNames = isNamed ? uniqueNamed : undefined;
 
     const result = await safeFetch("/api/whatsapp/send", {
       method: "POST",
@@ -100,7 +117,8 @@ export function SendWhatsAppDialog({
       body: JSON.stringify({
         contact_id: contactId,
         template_name: selected.name,
-        params: hasParams ? [contactFirstName] : [],
+        params,
+        param_names: paramNames,
         language: selected.language,
       }),
     });

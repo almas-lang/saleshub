@@ -15,10 +15,11 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { contact_id, template_name, params = [], language = "en" } = body as {
+  const { contact_id, template_name, params = [], param_names, language = "en" } = body as {
     contact_id: string;
     template_name: string;
     params?: string[];
+    param_names?: string[];
     language?: string;
   };
 
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Send via WhatsApp Cloud API
-  const result = await sendTemplate(contact.phone, template_name, params, language);
+  const result = await sendTemplate(contact.phone, template_name, params, language, param_names);
 
   if (!result.success) {
     return NextResponse.json(
@@ -53,12 +54,24 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Insert wa_sends record
+  // Insert wa_sends record — status is "sent" since Meta accepted it
   await supabaseAdmin.from("wa_sends").insert({
     contact_id,
     wa_message_id: result.messageId ?? null,
-    status: "queued",
+    status: "sent",
     sent_at: new Date().toISOString(),
+  });
+
+  // Store in wa_messages for chat inbox
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await (supabaseAdmin as any).from("wa_messages").insert({
+    contact_id,
+    direction: "outbound",
+    body: `[Template: ${template_name}]`,
+    message_type: "template",
+    wa_message_id: result.messageId ?? null,
+    status: "sent",
+    metadata: { template_name, params },
   });
 
   // Log activity

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ReactFlow,
   Controls,
@@ -16,7 +17,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Mail, Clock, GitBranch, Square } from "lucide-react";
+import { Mail, Clock, GitBranch, Square, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { emailNodeTypes } from "./email-drip-nodes";
 import type {
@@ -36,7 +37,7 @@ const DEFAULT_TRIGGER: Node = {
   id: "trigger-1",
   type: "trigger",
   position: { x: 250, y: 30 },
-  data: { nodeType: "trigger", event: "manual" },
+  data: { nodeType: "trigger", event: "lead_created" },
   deletable: false,
 };
 
@@ -130,6 +131,7 @@ export function flowToEmailSteps(flow: FlowData): EmailStepDraft[] {
       const d = node.data as unknown as EmailSendNodeData;
       steps.push({
         subject: d.subject ?? "",
+        preview_text: d.previewText || undefined,
         body_html: d.bodyHtml ?? "",
         delay_hours: accumulatedDelay,
       });
@@ -205,6 +207,7 @@ export function flowToEmailStepsWithBranching(flow: FlowData): {
         node_id: node.id,
         step_type: "send",
         subject: d.subject ?? "",
+        preview_text: d.previewText || undefined,
         body_html: d.bodyHtml ?? "",
         delay_hours: incomingDelay,
       });
@@ -355,10 +358,12 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
     [setNodes, screenToFlowPosition],
   );
 
-  return (
-    <div className="space-y-3">
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const content = (
+    <div className={fullscreen ? "fixed inset-0 z-[9999] flex flex-col bg-background" : "space-y-3"}>
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-2">
+      <div className={`flex flex-wrap gap-2 ${fullscreen ? "px-4 py-3 border-b" : ""}`}>
         <Button
           type="button"
           variant="outline"
@@ -367,6 +372,7 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
             addNode("email_send", {
               nodeType: "email_send",
               subject: "",
+              previewText: "",
               bodyHtml: "",
             })
           }
@@ -410,10 +416,21 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
           <Square className="mr-1.5 size-3.5" />
           Stop
         </Button>
+        <div className="ml-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setFullscreen((v) => !v)}
+          >
+            {fullscreen ? <Minimize2 className="mr-1.5 size-3.5" /> : <Maximize2 className="mr-1.5 size-3.5" />}
+            {fullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </Button>
+        </div>
       </div>
 
       {/* Canvas */}
-      <div className="h-[500px] rounded-lg border bg-muted/20">
+      <div className={fullscreen ? "flex-1 min-h-0" : "h-[calc(100vh-320px)] min-h-[400px] rounded-lg border bg-muted/20"}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -439,6 +456,8 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
       </div>
     </div>
   );
+
+  return fullscreen ? createPortal(content, document.body) : content;
 }
 
 // ── Main exported component ──

@@ -152,7 +152,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, type, audience_filter, steps, activate, flow_data, branching_edges } = parsed.data;
+  const { name, type, audience_filter, steps, activate, flow_data, branching_edges, stop_condition } = parsed.data;
 
   // 1. Insert campaign as draft
   const { data: campaign, error: campaignError } = await supabase
@@ -162,6 +162,7 @@ export async function POST(request: Request) {
       type,
       status: "draft" as const,
       audience_filter: audience_filter ?? null,
+      stop_condition: stop_condition ?? null,
       flow_data: flow_data ?? null,
     })
     .select()
@@ -177,21 +178,27 @@ export async function POST(request: Request) {
     order: s.order,
     step_type: s.step_type ?? "send",
     wa_template_name: s.wa_template_name,
+    wa_template_language: s.wa_template_language ?? "en",
     template_id: null, // wa_templates mirror not synced yet; store name only
     delay_hours: s.delay_hours,
     wa_template_params: s.wa_template_params,
+    wa_template_param_names: s.wa_template_param_names ?? [],
     condition: s.condition ?? null,
   }));
 
-  const { data: insertedSteps, error: stepsError } = await supabase
-    .from("wa_steps")
-    .insert(stepRows)
-    .select("id, order");
+  let insertedSteps: { id: string; order: number }[] = [];
 
-  if (stepsError || !insertedSteps) {
-    // Compensating cleanup — remove the campaign
-    await supabase.from("wa_campaigns").delete().eq("id", campaign.id);
-    return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
+  if (stepRows.length > 0) {
+    const { data, error: stepsError } = await supabase
+      .from("wa_steps")
+      .insert(stepRows)
+      .select("id, order");
+
+    if (stepsError || !data) {
+      await supabase.from("wa_campaigns").delete().eq("id", campaign.id);
+      return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
+    }
+    insertedSteps = data;
   }
 
   // 3. Pass 2: Set branching pointers if edges provided
@@ -263,7 +270,7 @@ export async function PATCH(request: NextRequest) {
     update.flow_data = body.flow_data;
   }
 
-  if (Object.keys(update).length === 0) {
+  if (Object.keys(update).length === 0 && !body.steps) {
     return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
@@ -285,6 +292,66 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Replace steps if provided
+  if (Array.isArray(body.steps) && body.steps.length > 0) {
+    // Delete existing steps
+    await supabase.from("wa_steps").delete().eq("campaign_id", id);
+
+    // Insert new steps
+    const stepRows = (body.steps as Array<Record<string, unknown>>).map((s) => ({
+      campaign_id: id,
+      order: s.order,
+      step_type: s.step_type ?? "send",
+      wa_template_name: s.wa_template_name,
+      wa_template_language: s.wa_template_language ?? "en",
+      template_id: null,
+      delay_hours: s.delay_hours,
+      wa_template_params: s.wa_template_params,
+      wa_template_param_names: s.wa_template_param_names ?? [],
+      condition: s.condition ?? null,
+    }));
+
+    const { data: insertedSteps, error: stepsError } = await supabase
+      .from("wa_steps")
+      .insert(stepRows)
+      .select("id, order");
+
+    if (stepsError) {
+      console.error("[WA Campaign PATCH] Steps insert error:", stepsError.message);
+    }
+
+    // Set branching pointers if edges provided
+    const branchingEdges = body.branching_edges as Array<{
+      source_node_id: string;
+      target_node_id: string;
+      branch: "yes" | "no" | null;
+    }> | undefined;
+
+    if (branchingEdges?.length && insertedSteps?.length) {
+      const steps = body.steps as Array<{ node_id?: string }>;
+      const nodeToDbId = new Map<string, string>();
+      for (let i = 0; i < steps.length; i++) {
+        const nodeId = steps[i].node_id;
+        const dbStep = insertedSteps[i];
+        if (nodeId && dbStep) {
+          nodeToDbId.set(nodeId, dbStep.id);
+        }
+      }
+
+      for (const edge of branchingEdges) {
+        const sourceDbId = nodeToDbId.get(edge.source_node_id);
+        const targetDbId = nodeToDbId.get(edge.target_node_id);
+        if (!sourceDbId || !targetDbId) continue;
+
+        const column = edge.branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
+        await supabase
+          .from("wa_steps")
+          .update({ [column]: targetDbId })
+          .eq("id", sourceDbId);
+      }
+    }
+  }
+
   // Auto-enroll audience when a drip campaign is activated
   if (
     update.status === "active" &&
@@ -292,11 +359,13 @@ export async function PATCH(request: NextRequest) {
     existing.status !== "active" &&
     existing.type === "drip"
   ) {
-    const enrolled = await enrollAudience(
-      id,
-      existing.audience_filter as AudienceFilter | null
-    );
-    return NextResponse.json({ ...data, enrolled });
+    const af = existing.audience_filter as AudienceFilter | null;
+    const enrollmentType = af?.enrollment_type ?? "new_leads";
+    // Only bulk-enroll for "existing" or "both" — "new_leads" are auto-enrolled via auto-enroll.ts
+    if (enrollmentType === "existing" || enrollmentType === "both") {
+      const enrolled = await enrollAudience(id, af);
+      return NextResponse.json({ ...data, enrolled });
+    }
   }
 
   return NextResponse.json(data);

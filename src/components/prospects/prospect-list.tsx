@@ -23,7 +23,8 @@ import {
   Columns3,
   Archive,
   ArchiveRestore,
-  CalendarCheck,
+  MessageCircle,
+  Mail,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch, throwOnError } from "@/lib/fetch";
@@ -80,6 +81,7 @@ interface ProspectListProps {
   totalPages: number;
   filterOptions: FilterOptions;
   lastActivityMap: Record<string, string>;
+  lastActivityTypeMap?: Record<string, string>;
   bookedContactIds?: string[];
   openForm?: boolean;
   tab?: "active" | "archived";
@@ -149,10 +151,10 @@ export function ProspectList({
   totalPages,
   filterOptions,
   lastActivityMap,
+  lastActivityTypeMap = {},
   bookedContactIds = [],
   openForm = false,
   tab = "active",
-  stats,
 }: ProspectListProps) {
   const bookedSet = new Set(bookedContactIds);
   const isArchived = tab === "archived";
@@ -243,6 +245,10 @@ export function ProspectList({
 
   function handleFilterChange(key: string, value: string) {
     updateParams({ [key]: value });
+  }
+
+  function handleApplyFilters(newFilters: Record<string, string>) {
+    updateParams(newFilters);
   }
 
   function handleClearFilters() {
@@ -430,6 +436,7 @@ export function ProspectList({
               teamMembers={filterOptions.teamMembers}
               filters={filters}
               onFilterChange={handleFilterChange}
+              onApplyFilters={handleApplyFilters}
               onClearFilters={handleClearFilters}
             />
           </div>
@@ -677,17 +684,22 @@ export function ProspectList({
                             </TableCell>
                           );
                         }
-                        case "last_activity":
+                        case "last_activity": {
+                          const actType = lastActivityTypeMap[prospect.id];
+                          const isWa = actType === "wa_reply" || actType === "wa_sent" || actType === "wa_delivered" || actType === "wa_read";
+                          const isEmail = actType === "email_sent" || actType === "email_opened";
                           return (
                             <TableCell key={col.key} suppressHydrationWarning>
                               {lastActivityMap[prospect.id] ? (
                                 <span
                                   suppressHydrationWarning
                                   className={cn(
-                                    "text-xs",
+                                    "flex items-center gap-1.5 text-xs",
                                     getActivityTimeColor(lastActivityMap[prospect.id])
                                   )}
                                 >
+                                  {isWa && <MessageCircle className="size-3.5 text-emerald-500" />}
+                                  {isEmail && <Mail className="size-3.5 text-blue-500" />}
                                   {timeAgo(lastActivityMap[prospect.id])}
                                 </span>
                               ) : (
@@ -695,6 +707,7 @@ export function ProspectList({
                               )}
                             </TableCell>
                           );
+                        }
                         default:
                           return null;
                       }
@@ -988,7 +1001,7 @@ export function ProspectList({
 
       {/* Bulk Action Bar — sticky bottom */}
       {selectedIds.size > 0 && (
-        <div className="fixed inset-x-0 bottom-16 z-40 border-t bg-card px-6 py-3 shadow-lg animate-in slide-in-from-bottom-4 lg:bottom-0">
+        <div className="sticky bottom-0 z-40 -mx-6 border-t bg-card px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.15)] animate-in slide-in-from-bottom-4">
           <div className="mx-auto flex max-w-screen-xl items-center gap-3">
             <span className="text-sm font-medium">
               {selectedIds.size} selected

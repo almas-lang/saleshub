@@ -21,8 +21,12 @@ export type CampaignType = Enums<"campaign_type">;     // "drip" | "one_time" | 
 export type CampaignStatus = Enums<"campaign_status">; // "draft" | "active" | "paused" | "completed"
 export type WASendStatus = Enums<"wa_send_status">;    // "queued" | "sent" | "delivered" | "read" | "failed"
 
+// Enrollment type for drip campaigns
+export type EnrollmentType = "new_leads" | "existing" | "both";
+
 // Audience filter for campaign targeting
 export interface AudienceFilter {
+  enrollment_type?: EnrollmentType;
   source?: string;
   funnel_id?: string;
   stage_id?: string;
@@ -36,8 +40,10 @@ export interface AudienceFilter {
 export interface CampaignStepDraft {
   template_id: string;
   wa_template_name: string;
+  wa_template_language?: string;
   delay_hours: number;
   wa_template_params: string[];
+  wa_template_param_names?: string[];
   condition?: { check: string; value?: string };
 }
 
@@ -47,8 +53,10 @@ export interface WAStepDraftWithBranching {
   step_type: "send" | "condition";
   template_id: string;
   wa_template_name: string;
+  wa_template_language?: string;
   delay_hours: number;
   wa_template_params: string[];
+  wa_template_param_names?: string[];
   condition?: { check: string; value?: string };
 }
 
@@ -63,12 +71,18 @@ export interface SendNodeData {
   nodeType: "send";
   templateId: string;
   templateName: string;
+  templateLanguage?: string;
   templateParams: string[];
+  templateParamNames: string[];
 }
+
+export type DelayUnit = "minutes" | "hours" | "days";
 
 export interface DelayNodeData {
   nodeType: "delay";
   hours: number;
+  delayValue?: number;
+  delayUnit?: DelayUnit;
 }
 
 export interface ConditionNodeData {
@@ -139,6 +153,7 @@ export type EmailSendStatus = Enums<"email_send_status">;
 
 // Draft step shape used in the email campaign wizard (linear)
 export interface EmailStepDraft {
+  id?: string;
   subject: string;
   preview_text?: string;
   body_html: string;
@@ -168,7 +183,45 @@ export interface BranchingEdge {
 export interface EmailSendNodeData {
   nodeType: "email_send";
   subject: string;
+  previewText: string;
   bodyHtml: string;
+}
+
+// ── Unified campaign types (mixed Email + WhatsApp) ──
+
+export type SendChannel = "email" | "whatsapp";
+
+export interface UnifiedSendNodeData {
+  nodeType: "unified_send";
+  channel: SendChannel;
+  // Email fields
+  subject?: string;
+  previewText?: string;
+  bodyHtml?: string;
+  // WhatsApp fields
+  templateId?: string;
+  templateName?: string;
+  templateLanguage?: string;
+  templateParams?: string[];
+  templateParamNames?: string[];
+}
+
+export interface UnifiedStepDraftWithBranching {
+  node_id: string;
+  step_type: "send" | "condition";
+  channel: SendChannel;
+  delay_hours: number;
+  // Email payload
+  subject?: string;
+  preview_text?: string;
+  body_html?: string;
+  // WhatsApp payload
+  wa_template_name?: string;
+  wa_template_language?: string;
+  wa_template_params?: string[];
+  wa_template_param_names?: string[];
+  // Condition
+  condition?: { check: string; value?: string };
 }
 
 // Joined types for communication history

@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, type, audience_filter, steps, activate, flow_data, trigger_event, branching_edges } = parsed.data;
+  const { name, type, audience_filter, steps, activate, flow_data, trigger_event, branching_edges, stop_condition } = parsed.data;
 
   const { data: campaign, error: campaignError } = await supabase
     .from("email_campaigns")
@@ -163,6 +163,7 @@ export async function POST(request: Request) {
       type,
       status: "draft" as const,
       audience_filter: audience_filter ?? null,
+      stop_condition: stop_condition ?? null,
       trigger_event: trigger_event ?? null,
       flow_data: flow_data ?? null,
     })
@@ -185,14 +186,19 @@ export async function POST(request: Request) {
     condition: s.condition ?? null,
   }));
 
-  const { data: insertedSteps, error: stepsError } = await supabase
-    .from("email_steps")
-    .insert(stepRows)
-    .select("id, order");
+  let insertedSteps: { id: string; order: number }[] = [];
 
-  if (stepsError || !insertedSteps) {
-    await supabase.from("email_campaigns").delete().eq("id", campaign.id);
-    return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
+  if (stepRows.length > 0) {
+    const { data, error: stepsError } = await supabase
+      .from("email_steps")
+      .insert(stepRows)
+      .select("id, order");
+
+    if (stepsError || !data) {
+      await supabase.from("email_campaigns").delete().eq("id", campaign.id);
+      return NextResponse.json({ error: stepsError?.message ?? "Failed to insert steps" }, { status: 500 });
+    }
+    insertedSteps = data;
   }
 
   // Pass 2: Set branching pointers if edges provided
@@ -228,9 +234,14 @@ export async function POST(request: Request) {
       .eq("id", campaign.id);
 
     // For one-time/newsletter: queue email_sends for all audience contacts
-    // For drip: only enroll extra_emails (if any) — new leads are auto-enrolled via auto-enroll.ts
+    // For drip: enrollment depends on enrollment_type
     if (type === "drip") {
-      if (audience_filter?.extra_emails?.length) {
+      const enrollmentType = audience_filter?.enrollment_type ?? "new_leads";
+      if (enrollmentType === "existing" || enrollmentType === "both") {
+        // Bulk-enroll all matching existing contacts
+        await enrollEmailAudience(campaign.id, audience_filter ?? null);
+      } else if (audience_filter?.extra_emails?.length) {
+        // new_leads only — just enroll extra_emails if any
         const extraOnly: AudienceFilter = { source: "__custom_only__", extra_emails: audience_filter.extra_emails };
         await enrollEmailAudience(campaign.id, extraOnly);
       }

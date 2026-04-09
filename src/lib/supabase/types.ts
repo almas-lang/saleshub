@@ -415,6 +415,7 @@ export type Database = {
           current_stage_id: string | null
           deleted_at: string | null
           email: string | null
+          email_unsubscribed_at: string | null
           first_name: string
           funnel_id: string | null
           id: string
@@ -443,6 +444,7 @@ export type Database = {
           current_stage_id?: string | null
           deleted_at?: string | null
           email?: string | null
+          email_unsubscribed_at?: string | null
           first_name: string
           funnel_id?: string | null
           id?: string
@@ -471,6 +473,7 @@ export type Database = {
           current_stage_id?: string | null
           deleted_at?: string | null
           email?: string | null
+          email_unsubscribed_at?: string | null
           first_name?: string
           funnel_id?: string | null
           id?: string
@@ -804,6 +807,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          preview_text: string | null
           subject: string
           updated_at: string
         }
@@ -812,6 +816,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          preview_text?: string | null
           subject: string
           updated_at?: string
         }
@@ -820,6 +825,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          preview_text?: string | null
           subject?: string
           updated_at?: string
         }

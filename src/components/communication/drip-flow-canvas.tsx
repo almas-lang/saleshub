@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ReactFlow,
   Controls,
@@ -16,7 +17,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Send, Clock, GitBranch, Square } from "lucide-react";
+import { Send, Clock, GitBranch, Square, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { nodeTypes, TemplatesContext } from "./drip-nodes";
 import type {
@@ -37,7 +38,7 @@ const DEFAULT_TRIGGER: Node = {
   id: "trigger-1",
   type: "trigger",
   position: { x: 250, y: 30 },
-  data: { nodeType: "trigger", event: "manual" },
+  data: { nodeType: "trigger", event: "lead_created" },
   deletable: false,
 };
 
@@ -69,16 +70,30 @@ function serializeFlow(nodes: Node[], edges: Edge[]): FlowData {
 // ── Validate flow ──
 
 export function validateFlow(flow: FlowData): boolean {
+  return getFlowErrors(flow).length === 0;
+}
+
+/** Returns a list of human-readable validation errors for the flow. Empty = valid. */
+export function getFlowErrors(flow: FlowData): string[] {
+  const errors: string[] = [];
+
   const triggerNodes = flow.nodes.filter((n) => n.type === "trigger");
-  if (triggerNodes.length !== 1) return false;
+  if (triggerNodes.length !== 1) {
+    errors.push("Flow must have exactly one Trigger node.");
+    return errors;
+  }
 
   const sendNodes = flow.nodes.filter((n) => n.type === "send");
-  if (sendNodes.length === 0) return false;
+  if (sendNodes.length === 0) {
+    errors.push("Add at least one Send node with a template selected.");
+    return errors;
+  }
 
-  // All send nodes must have a template selected
   for (const n of sendNodes) {
     const d = n.data as SendNodeData;
-    if (!d.templateName) return false;
+    if (!d.templateName) {
+      errors.push(`Send node is missing a template selection.`);
+    }
   }
 
   // Check graph is connected (all nodes reachable from trigger)
@@ -100,7 +115,12 @@ export function validateFlow(flow: FlowData): boolean {
     }
   }
 
-  return visited.size === flow.nodes.length;
+  if (visited.size !== flow.nodes.length) {
+    const disconnected = flow.nodes.length - visited.size;
+    errors.push(`${disconnected} node(s) are not connected to the flow. Connect all nodes with edges.`);
+  }
+
+  return errors;
 }
 
 // ── flowToSteps: walk graph to derive linear CampaignStepDraft[] ──
@@ -132,8 +152,10 @@ export function flowToSteps(flow: FlowData): CampaignStepDraft[] {
       steps.push({
         template_id: d.templateId ?? "",
         wa_template_name: d.templateName ?? "",
+        wa_template_language: d.templateLanguage ?? "en",
         delay_hours: accumulatedDelay,
         wa_template_params: d.templateParams ?? [],
+        wa_template_param_names: d.templateParamNames ?? [],
       });
       accumulatedDelay = 0; // reset after emitting
     } else if (node.type === "delay") {
@@ -250,8 +272,10 @@ export function flowToWaStepsWithBranching(
         step_type: "send",
         template_id: d.templateId ?? "",
         wa_template_name: d.templateName ?? "",
+        wa_template_language: d.templateLanguage ?? "en",
         delay_hours: delayBefore.get(nodeId) ?? 0,
         wa_template_params: d.templateParams ?? [],
+        wa_template_param_names: d.templateParamNames ?? [],
       });
 
       // Find the next non-delay actionable node for edges
@@ -407,10 +431,12 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
     [setNodes, screenToFlowPosition],
   );
 
-  return (
-    <div className="space-y-3">
+  const [fullscreen, setFullscreen] = useState(false);
+
+  const content = (
+    <div className={fullscreen ? "fixed inset-0 z-[9999] flex flex-col bg-background" : "space-y-3"}>
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-2">
+      <div className={`flex flex-wrap gap-2 ${fullscreen ? "px-4 py-3 border-b" : ""}`}>
         <Button
           type="button"
           variant="outline"
@@ -463,10 +489,21 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
           <Square className="mr-1.5 size-3.5" />
           Stop
         </Button>
+        <div className="ml-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setFullscreen((v) => !v)}
+          >
+            {fullscreen ? <Minimize2 className="mr-1.5 size-3.5" /> : <Maximize2 className="mr-1.5 size-3.5" />}
+            {fullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </Button>
+        </div>
       </div>
 
       {/* Canvas */}
-      <div className="h-[500px] rounded-lg border bg-muted/20">
+      <div className={fullscreen ? "flex-1 min-h-0" : "h-[calc(100vh-20rem)] min-h-[400px] rounded-lg border bg-muted/20"}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -492,6 +529,8 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
       </div>
     </div>
   );
+
+  return fullscreen ? createPortal(content, document.body) : content;
 }
 
 // ── Main exported component (wraps with ReactFlowProvider) ──

@@ -9,6 +9,7 @@ import {
   MoreVertical,
   Trash2,
   Eye,
+  Pencil,
   Pause,
   Play,
   ArrowUpDown,
@@ -18,7 +19,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDateTime, timeAgo } from "@/lib/utils";
 import type { WACampaignWithStats, CampaignStatus, CampaignType } from "@/types/campaigns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -379,7 +380,7 @@ export function WACampaignList({
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(campaign.created_at)}
+                      <span title={formatDateTime(campaign.created_at)}>{timeAgo(campaign.created_at)}</span>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -398,6 +399,17 @@ export function WACampaignList({
                             <Eye className="mr-2 size-4" />
                             View
                           </DropdownMenuItem>
+                          {(campaign.status === "draft" || campaign.status === "paused") && (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/whatsapp/campaigns/${campaign.id}?edit=true`);
+                              }}
+                            >
+                              <Pencil className="mr-2 size-4" />
+                              Edit
+                            </DropdownMenuItem>
+                          )}
                           {(campaign.status === "active" || campaign.status === "paused") && (
                             <DropdownMenuItem
                               onClick={(e) => {
@@ -467,7 +479,7 @@ export function WACampaignList({
                       {TYPE_LABELS[campaign.type] ?? campaign.type}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      {formatDate(campaign.created_at)}
+                      <span title={formatDateTime(campaign.created_at)}>{timeAgo(campaign.created_at)}</span>
                     </span>
                   </div>
 
@@ -497,6 +509,17 @@ export function WACampaignList({
                           <Eye className="mr-2 size-4" />
                           View
                         </DropdownMenuItem>
+                        {(campaign.status === "draft" || campaign.status === "paused") && (
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/whatsapp/campaigns/${campaign.id}?edit=true`);
+                            }}
+                          >
+                            <Pencil className="mr-2 size-4" />
+                            Edit
+                          </DropdownMenuItem>
+                        )}
                         {(campaign.status === "active" || campaign.status === "paused") && (
                           <DropdownMenuItem
                             onClick={(e) => {

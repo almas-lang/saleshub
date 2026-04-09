@@ -18,12 +18,13 @@ import type { EmailTemplate } from "@/types/email-templates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
-import { EmailTemplateEditorDialog } from "./email-template-editor-dialog";
 
 export function EmailTemplateGrid({
   templates,
@@ -41,10 +41,6 @@ export function EmailTemplateGrid({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(
-    null
-  );
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -83,6 +79,7 @@ export function EmailTemplateGrid({
           body: JSON.stringify({
             name: `${template.name} (copy)`,
             subject: template.subject,
+            preview_text: template.preview_text,
             body_html: template.body_html,
           }),
         })
@@ -108,13 +105,13 @@ export function EmailTemplateGrid({
             className="h-9 pl-9 text-sm"
           />
         </div>
-        <Button onClick={() => setEditorOpen(true)} size="sm">
+        <Button onClick={() => router.push("/email/templates/new")} size="sm">
           <Plus className="mr-2 size-4" />
           New template
         </Button>
       </div>
 
-      {/* Grid */}
+      {/* Table */}
       {templates.length === 0 ? (
         <EmptyState
           icon={Mail}
@@ -122,7 +119,7 @@ export function EmailTemplateGrid({
           description="Create reusable email templates for your campaigns and drip sequences."
           action={{
             label: "Create template",
-            onClick: () => setEditorOpen(true),
+            onClick: () => router.push("/email/templates/new"),
           }}
         />
       ) : filtered.length === 0 ? (
@@ -132,89 +129,88 @@ export function EmailTemplateGrid({
           </p>
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((template, index) => (
-            <Card
-              key={template.id}
-              className="cursor-pointer shadow-sm transition-all duration-150 hover:border-foreground/20 hover:shadow-md"
-              style={{
-                animation: `fadeInUp 350ms cubic-bezier(0.16, 1, 0.3, 1) ${index * 50}ms both`,
-              }}
-              onClick={() => {
-                setEditingTemplate(template);
-                setEditorOpen(true);
-              }}
-            >
-              <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
-                <div className="min-w-0 flex-1 space-y-1">
-                  <CardTitle className="text-base">{template.name}</CardTitle>
-                  <CardDescription className="line-clamp-1">
-                    {template.subject}
-                  </CardDescription>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger
-                    asChild
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button variant="ghost" size="icon" className="size-8">
-                      <MoreVertical className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingTemplate(template);
-                        setEditorOpen(true);
-                      }}
-                    >
-                      <Pencil className="mr-2 size-4" />
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDuplicate(template);
-                      }}
-                    >
-                      <Copy className="mr-2 size-4" />
-                      Duplicate
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteId(template.id);
-                      }}
-                    >
-                      <Trash2 className="mr-2 size-4" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardHeader>
-              <CardContent>
-                <p className="text-[11px] text-muted-foreground">
-                  Updated {formatDateTime(template.updated_at)}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead className="hidden md:table-cell">Updated</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((template) => (
+                <TableRow
+                  key={template.id}
+                  className="cursor-pointer hover:bg-muted/50"
+                  onClick={() =>
+                    router.push(`/email/templates/${template.id}/edit`)
+                  }
+                >
+                  <TableCell>
+                    <span className="font-medium">{template.name}</span>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm text-muted-foreground line-clamp-1">
+                      {template.subject}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <span className="text-sm text-muted-foreground whitespace-nowrap">
+                      {formatDateTime(template.updated_at)}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        asChild
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button variant="ghost" size="icon" className="size-8">
+                          <MoreVertical className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(
+                              `/email/templates/${template.id}/edit`
+                            );
+                          }}
+                        >
+                          <Pencil className="mr-2 size-4" />
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicate(template);
+                          }}
+                        >
+                          <Copy className="mr-2 size-4" />
+                          Duplicate
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteId(template.id);
+                          }}
+                        >
+                          <Trash2 className="mr-2 size-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
-
-      {/* Editor dialog */}
-      <EmailTemplateEditorDialog
-        open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditorOpen(false);
-            setEditingTemplate(null);
-          }
-        }}
-        template={editingTemplate}
-      />
 
       {/* Delete confirmation */}
       <ConfirmDialog

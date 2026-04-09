@@ -73,8 +73,26 @@ export function CampaignStepReview({
       <div className="rounded-lg border p-4 space-y-2">
         <h3 className="text-sm font-semibold">Audience</h3>
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <span className="text-muted-foreground">Matching contacts</span>
-          <span className="font-medium">{audienceCount}</span>
+          {type === "drip" && (
+            <>
+              <span className="text-muted-foreground">Enrollment</span>
+              <span className="font-medium">
+                {filter.enrollment_type === "existing"
+                  ? "Existing contacts only"
+                  : filter.enrollment_type === "both"
+                    ? "Existing contacts + new leads"
+                    : "New leads only"}
+              </span>
+            </>
+          )}
+          {(type !== "drip" || filter.enrollment_type !== "new_leads") && (
+            <>
+              <span className="text-muted-foreground">
+                {type === "drip" ? "Existing contacts" : "Matching contacts"}
+              </span>
+              <span className="font-medium">{audienceCount}</span>
+            </>
+          )}
           {filter.source && (
             <>
               <span className="text-muted-foreground">Source</span>

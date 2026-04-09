@@ -2,6 +2,13 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { CampaignType } from "@/types/campaigns";
 
@@ -23,11 +30,19 @@ const CAMPAIGN_TYPES: { value: CampaignType; label: string; description: string 
   },
 ];
 
+export interface StopCondition {
+  stage_id: string;
+  stage_name?: string;
+}
+
 interface CampaignStepDetailsProps {
   name: string;
   onNameChange: (name: string) => void;
   type: CampaignType;
   onTypeChange: (type: CampaignType) => void;
+  stages?: { id: string; name: string }[];
+  stopCondition?: StopCondition | null;
+  onStopConditionChange?: (sc: StopCondition | null) => void;
 }
 
 export function CampaignStepDetails({
@@ -35,6 +50,9 @@ export function CampaignStepDetails({
   onNameChange,
   type,
   onTypeChange,
+  stages,
+  stopCondition,
+  onStopConditionChange,
 }: CampaignStepDetailsProps) {
   return (
     <div className="space-y-6">
@@ -72,6 +90,39 @@ export function CampaignStepDetails({
           ))}
         </div>
       </div>
+
+      {/* Stop condition — only for drip campaigns */}
+      {type === "drip" && stages && stages.length > 0 && onStopConditionChange && (
+        <div className="space-y-2">
+          <Label>Auto-stop when contact reaches stage</Label>
+          <Select
+            value={stopCondition?.stage_id ?? "__none__"}
+            onValueChange={(v) => {
+              if (v === "__none__") {
+                onStopConditionChange(null);
+              } else {
+                const stage = stages.find((s) => s.id === v);
+                onStopConditionChange({ stage_id: v, stage_name: stage?.name });
+              }
+            }}
+          >
+            <SelectTrigger className="max-w-xs">
+              <SelectValue placeholder="No auto-stop" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">No auto-stop</SelectItem>
+              {stages.map((s) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-[11px] text-muted-foreground">
+            Active enrollments will stop immediately when a contact moves to this stage.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

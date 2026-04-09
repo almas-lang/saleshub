@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
-import { Zap, Mail, Clock, GitBranch, Square } from "lucide-react";
+import { Zap, Mail, Clock, GitBranch, Square, Pencil, ArrowLeft, Eye, FileDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -10,15 +11,33 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { EmailBlockEditor } from "./email-block-editor";
+import { SubjectInputWithVariables } from "./subject-input-with-variables";
+import { safeFetch } from "@/lib/fetch";
 import type {
   TriggerNodeData,
   EmailSendNodeData,
   DelayNodeData,
+  DelayUnit,
   ConditionNodeData,
   StopNodeData,
 } from "@/types/campaigns";
+
+interface EmailTemplatePick {
+  id: string;
+  name: string;
+  subject: string;
+  body_html: string;
+}
 
 // ── Node wrapper ──
 
@@ -66,33 +85,15 @@ function NodeShell({
 
 // ── Trigger Node ──
 
-function TriggerNode({ id, data }: NodeProps) {
+function TriggerNode({ data }: NodeProps) {
   const d = data as unknown as TriggerNodeData;
-  const { setNodes } = useReactFlow();
 
-  const update = useCallback(
-    (event: TriggerNodeData["event"]) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, event } } : n,
-        ),
-      );
-    },
-    [id, setNodes],
-  );
+  const label = d.event === "lead_created" ? "New Lead Created" : "Manual Enrollment";
 
   return (
     <>
       <NodeShell color="emerald" icon={<Zap className="size-4" />} label="Trigger">
-        <Select value={d.event} onValueChange={update}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="manual">Manual</SelectItem>
-            <SelectItem value="lead_created">Lead Created</SelectItem>
-          </SelectContent>
-        </Select>
+        <p className="text-xs text-muted-foreground">{label}</p>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500" />
     </>
@@ -101,63 +102,261 @@ function TriggerNode({ id, data }: NodeProps) {
 
 // ── Email Send Node ──
 
+function EmailComposeOverlay({
+  data,
+  onUpdate,
+  onClose,
+}: {
+  data: EmailSendNodeData;
+  onUpdate: (partial: Partial<EmailSendNodeData>) => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
+      {/* Top bar */}
+      <div className="flex items-center justify-between border-b px-6 py-3">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" className="size-8" onClick={onClose}>
+            <ArrowLeft className="size-4" />
+          </Button>
+          <div>
+            <h1 className="text-lg font-semibold">Compose Email</h1>
+            <p className="text-xs text-muted-foreground">
+              {data.subject || "Untitled email"}
+            </p>
+          </div>
+        </div>
+        <Button onClick={onClose}>Done</Button>
+      </div>
+
+      {/* Content: editor + preview */}
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_420px]">
+        {/* Left: scrollable editor */}
+        <div className="overflow-y-auto px-8 py-6">
+          <div className="mx-auto max-w-2xl space-y-6">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <SubjectInputWithVariables
+                value={data.subject ?? ""}
+                onChange={(v) => onUpdate({ subject: v })}
+                placeholder="Email subject line..."
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>
+                Preview Text
+                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  shown in inbox before opening
+                </span>
+              </Label>
+              <Input
+                placeholder="Optional preview text..."
+                value={data.previewText ?? ""}
+                onChange={(e) => onUpdate({ previewText: e.target.value || "" })}
+                maxLength={150}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Body</Label>
+              <EmailBlockEditor
+                content={data.bodyHtml ?? ""}
+                onChange={(html) => onUpdate({ bodyHtml: html })}
+                placeholder="Write your email content..."
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right: sticky email preview */}
+        <div className="hidden lg:flex flex-col border-l bg-muted/10 min-h-0">
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <Eye className="size-3.5 text-muted-foreground" />
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email Preview</p>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {/* Inbox preview */}
+            <div className="mb-4 rounded-lg border p-3 space-y-0.5">
+              <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">Inbox Preview</p>
+              <p className="text-sm font-semibold text-foreground truncate">
+                {data.subject || "No subject"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {data.previewText || (data.bodyHtml
+                  ? data.bodyHtml.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").slice(0, 100)
+                  : "No content yet..."
+                )}
+              </p>
+            </div>
+
+            {/* Email body preview */}
+            <div className="rounded-lg border bg-white dark:bg-card">
+              {/* Email header */}
+              <div className="border-b px-5 py-4">
+                <p className="text-base font-semibold text-foreground">
+                  {data.subject || "No subject"}
+                </p>
+              </div>
+
+              {/* Email body */}
+              <div className="px-5 py-4">
+                {data.bodyHtml ? (
+                  <div
+                    className="prose prose-sm dark:prose-invert max-w-none text-sm"
+                    dangerouslySetInnerHTML={{ __html: data.bodyHtml }}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    Start writing to see the preview...
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function TemplatePickerDialog({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSelect: (tpl: EmailTemplatePick) => void;
+}) {
+  const [templates, setTemplates] = useState<EmailTemplatePick[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    safeFetch<EmailTemplatePick[]>("/api/email-templates").then((res) => {
+      if (res.ok && res.data) setTemplates(res.data);
+      setLoading(false);
+    });
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[70vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base">Load from Template</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Loading templates...</p>
+        ) : templates.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No email templates found. Create one under Email → Templates first.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {templates.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                className="w-full text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                onClick={() => {
+                  onSelect(tpl);
+                  onOpenChange(false);
+                }}
+              >
+                <p className="text-sm font-medium truncate">{tpl.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{tpl.subject}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EmailSendNode({ id, data }: NodeProps) {
   const d = data as unknown as EmailSendNodeData;
   const { setNodes } = useReactFlow();
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
-  const handleSubjectChange = useCallback(
-    (subject: string) => {
+  const updateData = useCallback(
+    (partial: Partial<EmailSendNodeData>) => {
       setNodes((nds) =>
         nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, subject } } : n,
+          n.id === id ? { ...n, data: { ...n.data, ...partial } } : n,
         ),
       );
     },
     [id, setNodes],
   );
 
-  const handleBodyChange = useCallback(
-    (bodyHtml: string) => {
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, bodyHtml } } : n,
-        ),
-      );
-    },
-    [id, setNodes],
-  );
+  const hasContent = !!(d.subject || d.bodyHtml);
 
   return (
     <>
       <Handle type="target" position={Position.Top} className="!bg-primary" />
       <NodeShell color="blue" icon={<Mail className="size-4" />} label="Send Email">
-        <div className="space-y-2">
-          <div className="space-y-1">
-            <Label className="text-[10px]">Subject</Label>
-            <Input
-              className="h-7 text-xs"
-              placeholder="Email subject..."
-              value={d.subject ?? ""}
-              onChange={(e) => handleSubjectChange(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-[10px]">Body</Label>
-            <textarea
-              className="w-full rounded border bg-background px-2 py-1.5 text-xs min-h-[60px] resize-y focus:outline-none focus:ring-1 focus:ring-primary"
-              placeholder="Email body HTML..."
-              value={d.bodyHtml ?? ""}
-              onChange={(e) => handleBodyChange(e.target.value)}
-            />
-          </div>
-          {d.subject && (
-            <div className="rounded bg-muted/60 p-2">
-              <p className="line-clamp-2 text-[10px] leading-relaxed text-muted-foreground">
-                {d.subject}
+        <div className="space-y-1.5">
+          {hasContent ? (
+            <>
+              <p className="text-xs font-medium line-clamp-1">
+                {d.subject || "(no subject)"}
               </p>
-            </div>
+              {d.previewText && (
+                <p className="text-[10px] text-muted-foreground line-clamp-1">
+                  {d.previewText}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">No content yet</p>
           )}
+          <div className="flex gap-1.5 mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 flex-1 text-xs"
+              onClick={() => setEditorOpen(true)}
+            >
+              <Pencil className="mr-1.5 size-3" />
+              {hasContent ? "Edit" : "Compose"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPickerOpen(true)}
+            >
+              <FileDown className="mr-1.5 size-3" />
+              Template
+            </Button>
+          </div>
         </div>
+
+        {editorOpen && (
+          <EmailComposeOverlay
+            data={d}
+            onUpdate={updateData}
+            onClose={() => setEditorOpen(false)}
+          />
+        )}
+
+        <TemplatePickerDialog
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelect={(tpl) =>
+            updateData({
+              subject: tpl.subject,
+              bodyHtml: tpl.body_html,
+            })
+          }
+        />
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-primary" />
     </>
@@ -166,15 +365,36 @@ function EmailSendNode({ id, data }: NodeProps) {
 
 // ── Delay Node ──
 
+function toHours(value: number, unit: DelayUnit): number {
+  switch (unit) {
+    case "minutes": return value / 60;
+    case "days": return value * 24;
+    default: return value;
+  }
+}
+
 function DelayNode({ id, data }: NodeProps) {
   const d = data as unknown as DelayNodeData;
   const { setNodes } = useReactFlow();
 
+  const unit: DelayUnit = d.delayUnit ?? "hours";
+  const displayValue = d.delayValue ?? d.hours ?? 24;
+
   const update = useCallback(
-    (hours: number) => {
+    (value: number, newUnit: DelayUnit) => {
       setNodes((nds) =>
         nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, hours } } : n,
+          n.id === id
+            ? {
+                ...n,
+                data: {
+                  ...n.data,
+                  delayValue: value,
+                  delayUnit: newUnit,
+                  hours: toHours(value, newUnit),
+                },
+              }
+            : n,
         ),
       );
     },
@@ -190,10 +410,22 @@ function DelayNode({ id, data }: NodeProps) {
             type="number"
             min={1}
             className="h-8 w-20 text-xs"
-            value={d.hours}
-            onChange={(e) => update(Math.max(1, parseInt(e.target.value) || 1))}
+            value={displayValue}
+            onChange={(e) =>
+              update(Math.max(1, parseInt(e.target.value) || 1), unit)
+            }
+            onWheel={(e) => (e.target as HTMLInputElement).blur()}
           />
-          <span className="text-xs text-muted-foreground">hours</span>
+          <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
+            <SelectTrigger className="h-8 w-24 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="minutes">mins</SelectItem>
+              <SelectItem value="hours">hours</SelectItem>
+              <SelectItem value="days">days</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500" />
@@ -236,8 +468,8 @@ function ConditionNode({ id, data }: NodeProps) {
           </SelectContent>
         </Select>
         <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
-          <span>Yes ↙</span>
-          <span>↘ No</span>
+          <span>Yes &#x21D9;</span>
+          <span>&#x21D8; No</span>
         </div>
       </NodeShell>
       <Handle

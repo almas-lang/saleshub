@@ -40,6 +40,7 @@ export default async function EmailCampaignDetailPage({
   const sends = (sendsRes.data ?? []) as Array<{
     id: string;
     contact_id: string;
+    step_id: string | null;
     status: EmailSendStatus;
     sent_at: string | null;
     opened_at: string | null;
