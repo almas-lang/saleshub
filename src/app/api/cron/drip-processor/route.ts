@@ -282,6 +282,45 @@ export async function GET(request: Request) {
             company_name: contact.company_name || "your company",
             unsubscribe_link: unsubscribeUrl,
           };
+
+          // Add booking variables if referenced
+          const emailContent = `${currentStep.subject} ${currentStep.body_html} ${currentStep.preview_text ?? ""}`;
+          if (emailContent.includes("{{booking_")) {
+            // Prefer next upcoming booking; fall back to most recent
+            const { data: emailUpcoming } = await supabaseAdmin
+              .from("bookings")
+              .select("starts_at, meet_link, booking_pages(slug)")
+              .eq("contact_id", contact.id)
+              .eq("status", "confirmed")
+              .gte("starts_at", now)
+              .order("starts_at", { ascending: true })
+              .limit(1)
+              .single();
+            const { data: emailFallback } = !emailUpcoming
+              ? await supabaseAdmin
+                  .from("bookings")
+                  .select("starts_at, meet_link, booking_pages(slug)")
+                  .eq("contact_id", contact.id)
+                  .eq("status", "confirmed")
+                  .order("starts_at", { ascending: false })
+                  .limit(1)
+                  .single()
+              : { data: null };
+            const booking = emailUpcoming || emailFallback;
+            if (booking) {
+              const dt = new Date(booking.starts_at);
+              variables.booking_date = dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+              variables.booking_time = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+              variables.booking_meet_link = booking.meet_link || "";
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const slug = (booking as any).booking_pages?.slug;
+              if (slug) {
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL
+                  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app";
+                variables.booking_reschedule_link = `${baseUrl}/book/${slug}`;
+              }
+            }
+          }
           const rawSubject = renderVariables(currentStep.subject, variables);
           const rawBody = renderVariables(currentStep.body_html, variables);
 
@@ -513,7 +552,7 @@ export async function GET(request: Request) {
           // ── Fetch contact ──
           const { data: contact } = await supabaseAdmin
             .from("contacts")
-            .select("id, phone, first_name, company_name, deleted_at")
+            .select("id, phone, email, first_name, last_name, company_name, deleted_at")
             .eq("id", enrollment.contact_id)
             .single();
 
@@ -536,10 +575,61 @@ export async function GET(request: Request) {
           // ── Send WhatsApp template ──
           const rawParams = (currentStep.wa_template_params ?? []) as string[];
           const paramNames = (currentStep.wa_template_param_names ?? []) as string[];
+
+          // Fetch next upcoming confirmed booking if any booking variables are used
+          const needsBooking = rawParams.some((p) => p.includes("{{booking_"));
+          let bookingDate = "";
+          let bookingTime = "";
+          let bookingMeetLink = "";
+          let bookingRescheduleLink = "";
+          if (needsBooking) {
+            // Prefer next upcoming booking; fall back to most recent
+            const { data: upcoming } = await supabaseAdmin
+              .from("bookings")
+              .select("starts_at, meet_link, booking_pages(slug)")
+              .eq("contact_id", contact.id)
+              .eq("status", "confirmed")
+              .gte("starts_at", now)
+              .order("starts_at", { ascending: true })
+              .limit(1)
+              .single();
+            const { data: fallback } = !upcoming
+              ? await supabaseAdmin
+                  .from("bookings")
+                  .select("starts_at, meet_link, booking_pages(slug)")
+                  .eq("contact_id", contact.id)
+                  .eq("status", "confirmed")
+                  .order("starts_at", { ascending: false })
+                  .limit(1)
+                  .single()
+              : { data: null };
+            const booking = upcoming || fallback;
+            if (booking) {
+              const dt = new Date(booking.starts_at);
+              bookingDate = dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+              bookingTime = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+              bookingMeetLink = booking.meet_link || "";
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const slug = (booking as any).booking_pages?.slug;
+              if (slug) {
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL
+                  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app";
+                bookingRescheduleLink = `${baseUrl}/book/${slug}`;
+              }
+            }
+          }
+
           const resolvedParams = rawParams.map((p) =>
             p
               .replace(/\{\{first_name\}\}/g, contact.first_name || "there")
+              .replace(/\{\{last_name\}\}/g, contact.last_name || "")
+              .replace(/\{\{email\}\}/g, contact.email || "")
+              .replace(/\{\{phone\}\}/g, contact.phone || "")
               .replace(/\{\{company_name\}\}/g, contact.company_name || "your company")
+              .replace(/\{\{booking_date\}\}/g, bookingDate)
+              .replace(/\{\{booking_time\}\}/g, bookingTime)
+              .replace(/\{\{booking_meet_link\}\}/g, bookingMeetLink)
+              .replace(/\{\{booking_reschedule_link\}\}/g, bookingRescheduleLink)
           );
 
           const result = await sendTemplate(

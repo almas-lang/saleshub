@@ -6,12 +6,32 @@ import { Zap, Send, Clock, GitBranch, Square } from "lucide-react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+// ── Dynamic variable options for template parameters ──
+
+const VARIABLE_OPTIONS = [
+  { group: "Contact", items: [
+    { value: "{{first_name}}", label: "First Name" },
+    { value: "{{last_name}}", label: "Last Name" },
+    { value: "{{email}}", label: "Email" },
+    { value: "{{phone}}", label: "Phone" },
+    { value: "{{company_name}}", label: "Company Name" },
+  ]},
+  { group: "Booking", items: [
+    { value: "{{booking_date}}", label: "Booking Date" },
+    { value: "{{booking_time}}", label: "Booking Time" },
+    { value: "{{booking_meet_link}}", label: "Google Meet Link" },
+    { value: "{{booking_reschedule_link}}", label: "Reschedule Link" },
+  ]},
+];
 import type {
   TriggerNodeData,
   SendNodeData,
@@ -178,15 +198,53 @@ function SendNode({ id, data }: NodeProps) {
             </div>
           )}
 
-          {paramSlots.map((paramName, pi) => (
-            <Input
-              key={paramName}
-              className="h-7 text-xs"
-              placeholder={`{{${paramName}}} e.g. {{first_name}}`}
-              value={d.templateParams?.[pi] ?? ""}
-              onChange={(e) => handleParamChange(pi, e.target.value)}
-            />
-          ))}
+          {paramSlots.map((paramName, pi) => {
+            const currentVal = d.templateParams?.[pi] ?? "";
+            const isDynamic = VARIABLE_OPTIONS.some((g) =>
+              g.items.some((i) => i.value === currentVal)
+            );
+            return (
+              <div key={paramName} className="space-y-1">
+                <p className="text-[10px] text-muted-foreground">{`{{${paramName}}}`}</p>
+                <Select
+                  value={isDynamic ? currentVal : "__custom__"}
+                  onValueChange={(v) =>
+                    handleParamChange(pi, v === "__custom__" ? "" : v)
+                  }
+                >
+                  <SelectTrigger className="h-7 text-xs">
+                    <SelectValue placeholder="Select field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VARIABLE_OPTIONS.map((group) => (
+                      <SelectGroup key={group.group}>
+                        <SelectLabel className="text-[10px]">{group.group}</SelectLabel>
+                        {group.items.map((item) => (
+                          <SelectItem key={item.value} value={item.value} className="text-xs">
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px]">Other</SelectLabel>
+                      <SelectItem value="__custom__" className="text-xs">
+                        Custom text...
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                {!isDynamic && (
+                  <Input
+                    className="h-7 text-xs"
+                    placeholder="Enter static value..."
+                    value={currentVal}
+                    onChange={(e) => handleParamChange(pi, e.target.value)}
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-primary" />
