@@ -7,7 +7,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function evaluateCondition(
   check: string,
   contactId: string,
-  campaignId: string
+  campaignId: string,
+  conditionValue?: string
 ): Promise<boolean> {
   switch (check) {
     case "booking_created": {
@@ -16,6 +17,16 @@ export async function evaluateCondition(
         .select("id", { count: "exact", head: true })
         .eq("contact_id", contactId);
       return (count ?? 0) > 0;
+    }
+
+    case "stage_is": {
+      if (!conditionValue) return false;
+      const { data } = await supabaseAdmin
+        .from("contacts")
+        .select("current_stage_id")
+        .eq("id", contactId)
+        .single();
+      return data?.current_stage_id === conditionValue;
     }
 
     case "booking_noshow": {

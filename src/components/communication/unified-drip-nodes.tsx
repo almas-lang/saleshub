@@ -4,7 +4,7 @@ import { createContext, useContext, useCallback, useEffect, useState } from "rea
 import { createPortal } from "react-dom";
 import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import {
-  Zap, Send, Mail, Clock, GitBranch, Square, Pencil, ArrowLeft, Eye, FileDown,
+  Zap, Send, Mail, Clock, GitBranch, Square, Pencil, ArrowLeft, Eye, FileDown, ArrowRightLeft, Tag,
 } from "lucide-react";
 import {
   Select,
@@ -37,12 +37,15 @@ import type {
   DelayMode,
   ConditionNodeData,
   StopNodeData,
+  MoveStageNodeData,
+  AddTagNodeData,
 } from "@/types/campaigns";
 import type { WizardTemplate } from "./campaign-wizard";
 
 // ── Templates Context ──
 
 export const UnifiedTemplatesContext = createContext<WizardTemplate[]>([]);
+export const UnifiedStagesContext = createContext<{ id: string; name: string }[]>([]);
 
 // Wrap SelectContent to always render at z-[10000] so it appears above fullscreen overlay
 function SelectContent(props: React.ComponentProps<typeof SelectContentBase>) {
@@ -533,11 +536,19 @@ function DelayNode({ id, data }: NodeProps) {
 function ConditionNode({ id, data }: NodeProps) {
   const d = data as unknown as ConditionNodeData;
   const { setNodes } = useReactFlow();
+  const stages = useContext(UnifiedStagesContext);
   const update = useCallback(
     (check: ConditionNodeData["check"]) => {
       setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, check } } : n)));
     },
     [id, setNodes],
+  );
+  const updateStage = useCallback(
+    (stageId: string) => {
+      const stage = stages.find((s) => s.id === stageId);
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, stageId, stageName: stage?.name ?? "" } } : n)));
+    },
+    [id, setNodes, stages],
   );
   return (
     <>
@@ -549,9 +560,20 @@ function ConditionNode({ id, data }: NodeProps) {
             <SelectItem value="booking_created">Has Booking</SelectItem>
             <SelectItem value="booking_noshow">No-show (missed call)</SelectItem>
             <SelectItem value="booking_completed">Call completed</SelectItem>
+            <SelectItem value="stage_is">Stage is</SelectItem>
             <SelectItem value="replied">Replied</SelectItem>
           </SelectContent>
         </Select>
+        {d.check === "stage_is" && (
+          <Select value={d.stageId ?? ""} onValueChange={updateStage}>
+            <SelectTrigger className="h-7 text-[10px] mt-1"><SelectValue placeholder="Select stage..." /></SelectTrigger>
+            <SelectContent>
+              {stages.map((s) => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <div className="mt-2 flex justify-between text-[10px] text-muted-foreground">
           <span>Yes &#x21D9;</span><span>&#x21D8; No</span>
         </div>
@@ -589,6 +611,60 @@ function StopNode({ id, data }: NodeProps) {
   );
 }
 
+// ── Move Stage Node ──
+
+function MoveStageNode({ id, data }: NodeProps) {
+  const d = data as unknown as MoveStageNodeData;
+  const { setNodes } = useReactFlow();
+  const stages = useContext(UnifiedStagesContext);
+  const update = useCallback(
+    (stageId: string) => {
+      const stage = stages.find((s) => s.id === stageId);
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, stageId, stageName: stage?.name ?? "" } } : n)));
+    },
+    [id, setNodes, stages],
+  );
+  return (
+    <>
+      <Handle type="target" position={Position.Top} className="!bg-teal-500" />
+      <NodeShell color="emerald" icon={<ArrowRightLeft className="size-4" />} label="Move Stage">
+        <Select value={d.stageId || undefined} onValueChange={update}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select stage..." /></SelectTrigger>
+          <SelectContent>
+            {stages.map((s) => (
+              <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {d.stageName && <p className="text-[9px] text-muted-foreground mt-1">→ {d.stageName}</p>}
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-teal-500" />
+    </>
+  );
+}
+
+// ── Add Tag Node ──
+
+function AddTagNode({ id, data }: NodeProps) {
+  const d = data as unknown as AddTagNodeData;
+  const { setNodes } = useReactFlow();
+  const update = useCallback(
+    (tag: string) => {
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, tag } } : n)));
+    },
+    [id, setNodes],
+  );
+  return (
+    <>
+      <Handle type="target" position={Position.Top} className="!bg-sky-500" />
+      <NodeShell color="blue" icon={<Tag className="size-4" />} label="Add Tag">
+        <Input className="h-8 text-xs" placeholder="e.g. training-watched" value={d.tag ?? ""} onChange={(e) => update(e.target.value)} />
+      </NodeShell>
+      <Handle type="source" position={Position.Bottom} className="!bg-sky-500" />
+    </>
+  );
+}
+
 // ── Export node types ──
 
 export const unifiedNodeTypes = {
@@ -597,4 +673,6 @@ export const unifiedNodeTypes = {
   delay: DelayNode,
   condition: ConditionNode,
   stop: StopNode,
+  move_stage: MoveStageNode,
+  add_tag: AddTagNode,
 };

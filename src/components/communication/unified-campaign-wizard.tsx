@@ -354,6 +354,7 @@ export function UnifiedCampaignWizard({
             <UnifiedDripFlowCanvas
               templates={templates}
               templatesLoading={templatesLoading}
+              stages={stages}
               flowData={flowData}
               onFlowChange={isActive ? () => {} : setFlowData}
               onBack={() => setStep((s) => s - 1)}

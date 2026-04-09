@@ -449,7 +449,8 @@ export async function GET(request: Request) {
             const conditionMet = await evaluateCondition(
               currentStep.condition.check,
               enrollment.contact_id,
-              enrollment.campaign_id
+              enrollment.campaign_id,
+              currentStep.condition.value
             );
 
             const nextStepId = conditionMet
@@ -502,7 +503,8 @@ export async function GET(request: Request) {
             const conditionMet = await evaluateCondition(
               currentStep.condition.check,
               enrollment.contact_id,
-              enrollment.campaign_id
+              enrollment.campaign_id,
+              currentStep.condition.value
             );
 
             if (conditionMet) {
@@ -801,7 +803,8 @@ export async function GET(request: Request) {
             const conditionMet = await evaluateCondition(
               currentStep.condition.check,
               enrollment.contact_id,
-              enrollment.campaign_id
+              enrollment.campaign_id,
+              currentStep.condition.value
             );
 
             const nextStepId = conditionMet
@@ -851,7 +854,8 @@ export async function GET(request: Request) {
             const conditionMet = await evaluateCondition(
               currentStep.condition.check,
               enrollment.contact_id,
-              enrollment.campaign_id
+              enrollment.campaign_id,
+              currentStep.condition.value
             );
 
             if (conditionMet) {

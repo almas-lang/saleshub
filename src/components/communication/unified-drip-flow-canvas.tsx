@@ -17,9 +17,9 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Send, Mail, Clock, GitBranch, Square, Maximize2, Minimize2, ArrowLeft, ArrowRight, Save, Loader2 } from "lucide-react";
+import { Send, Mail, Clock, GitBranch, Square, Maximize2, Minimize2, ArrowLeft, ArrowRight, Save, Loader2, ArrowRightLeft, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { unifiedNodeTypes, UnifiedTemplatesContext } from "./unified-drip-nodes";
+import { unifiedNodeTypes, UnifiedTemplatesContext, UnifiedStagesContext } from "./unified-drip-nodes";
 import type {
   FlowData,
   FlowNodeData,
@@ -232,7 +232,7 @@ export function flowToUnifiedStepsWithBranching(
         step_type: "condition",
         channel: "whatsapp", // placeholder, conditions are channel-agnostic
         delay_hours: delayBefore.get(nodeId) ?? 0,
-        condition: { check: d.check },
+        condition: { check: d.check, ...(d.stageId ? { value: d.stageId } : {}) },
       });
 
       for (const edge of outgoing.get(nodeId) ?? []) {
@@ -314,21 +314,19 @@ function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue, 
 
   const addNode = useCallback(
     (type: string, data: Record<string, unknown>) => {
-      setNodes((nds) => {
-        // Position below the lowest existing node
-        let maxY = 0;
-        let lastX = 400;
-        for (const n of nds) {
-          if (n.position.y > maxY) {
-            maxY = n.position.y;
-            lastX = n.position.x;
-          }
-        }
-        const position = { x: lastX, y: maxY + 160 };
-        return [...nds, { id: nextId(type), type, position, data }];
+      // Place node at center of current viewport
+      const center = screenToFlowPosition({
+        x: window.innerWidth / 2,
+        y: window.innerHeight / 2,
       });
+      // Slight random offset so multiple additions don't stack exactly
+      const position = {
+        x: center.x - 130 + Math.random() * 40 - 20,
+        y: center.y - 40 + Math.random() * 40 - 20,
+      };
+      setNodes((nds) => [...nds, { id: nextId(type), type, position, data }]);
     },
-    [setNodes],
+    [setNodes, screenToFlowPosition],
   );
 
   const [fullscreen, setFullscreen] = useState(false);
@@ -352,6 +350,14 @@ function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue, 
         <Button type="button" variant="outline" size="sm"
           onClick={() => addNode("condition", { nodeType: "condition", check: "booking_created" })}>
           <GitBranch className="mr-1.5 size-3.5" />Condition
+        </Button>
+        <Button type="button" variant="outline" size="sm"
+          onClick={() => addNode("move_stage", { nodeType: "move_stage", stageId: "", stageName: "" })}>
+          <ArrowRightLeft className="mr-1.5 size-3.5" />Move Stage
+        </Button>
+        <Button type="button" variant="outline" size="sm"
+          onClick={() => addNode("add_tag", { nodeType: "add_tag", tag: "" })}>
+          <Tag className="mr-1.5 size-3.5" />Add Tag
         </Button>
         <Button type="button" variant="outline" size="sm"
           onClick={() => addNode("stop", { nodeType: "stop", reason: "completed" })}>
@@ -408,6 +414,7 @@ function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue, 
 interface UnifiedDripFlowCanvasProps {
   templates: WizardTemplate[];
   templatesLoading: boolean;
+  stages?: { id: string; name: string }[];
   flowData: FlowData | null;
   onFlowChange: (flow: FlowData) => void;
   onBack?: () => void;
@@ -420,6 +427,7 @@ interface UnifiedDripFlowCanvasProps {
 export function UnifiedDripFlowCanvas({
   templates,
   templatesLoading,
+  stages = [],
   flowData,
   onFlowChange,
   onBack,
@@ -438,9 +446,11 @@ export function UnifiedDripFlowCanvas({
 
   return (
     <UnifiedTemplatesContext.Provider value={templates}>
-      <ReactFlowProvider>
-        <InnerCanvas flowData={flowData} onFlowChange={onFlowChange} onBack={onBack} onContinue={onContinue} canContinue={canContinue} onSaveDraft={onSaveDraft} saving={saving} />
-      </ReactFlowProvider>
+      <UnifiedStagesContext.Provider value={stages}>
+        <ReactFlowProvider>
+          <InnerCanvas flowData={flowData} onFlowChange={onFlowChange} onBack={onBack} onContinue={onContinue} canContinue={canContinue} onSaveDraft={onSaveDraft} saving={saving} />
+        </ReactFlowProvider>
+      </UnifiedStagesContext.Provider>
     </UnifiedTemplatesContext.Provider>
   );
 }

@@ -89,7 +89,9 @@ export interface DelayNodeData {
 
 export interface ConditionNodeData {
   nodeType: "condition";
-  check: "booking_created" | "booking_noshow" | "booking_completed" | "replied";
+  check: "booking_created" | "booking_noshow" | "booking_completed" | "replied" | "stage_is";
+  stageId?: string;
+  stageName?: string;
 }
 
 export interface StopNodeData {
@@ -97,12 +99,25 @@ export interface StopNodeData {
   reason: "completed" | "booked";
 }
 
+export interface MoveStageNodeData {
+  nodeType: "move_stage";
+  stageId: string;
+  stageName: string;
+}
+
+export interface AddTagNodeData {
+  nodeType: "add_tag";
+  tag: string;
+}
+
 export type FlowNodeData =
   | TriggerNodeData
   | SendNodeData
   | DelayNodeData
   | ConditionNodeData
-  | StopNodeData;
+  | StopNodeData
+  | MoveStageNodeData
+  | AddTagNodeData;
 
 export interface FlowNode {
   id: string;
