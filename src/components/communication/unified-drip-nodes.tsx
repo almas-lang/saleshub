@@ -107,7 +107,7 @@ function NodeShell({
   };
 
   return (
-    <div className={`min-w-[240px] rounded-lg border-2 p-3 shadow-sm ${colorMap[color] ?? ""}`}>
+    <div className={`w-[260px] rounded-lg border-2 p-3 shadow-sm ${colorMap[color] ?? ""}`}>
       <div className="mb-2 flex items-center gap-2">
         <span className={iconColorMap[color] ?? ""}>{icon}</span>
         <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

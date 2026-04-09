@@ -310,13 +310,21 @@ function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue, 
 
   const addNode = useCallback(
     (type: string, data: Record<string, unknown>) => {
-      const position = screenToFlowPosition({
-        x: window.innerWidth / 2,
-        y: window.innerHeight / 2,
+      setNodes((nds) => {
+        // Position below the lowest existing node
+        let maxY = 0;
+        let lastX = 400;
+        for (const n of nds) {
+          if (n.position.y > maxY) {
+            maxY = n.position.y;
+            lastX = n.position.x;
+          }
+        }
+        const position = { x: lastX, y: maxY + 160 };
+        return [...nds, { id: nextId(type), type, position, data }];
       });
-      setNodes((nds) => [...nds, { id: nextId(type), type, position, data }]);
     },
-    [setNodes, screenToFlowPosition],
+    [setNodes],
   );
 
   const [fullscreen, setFullscreen] = useState(false);
