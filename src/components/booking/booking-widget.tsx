@@ -754,6 +754,22 @@ function FormFieldInput({
   const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
   const inputBase = `h-11 rounded-lg bg-white shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
 
+  // Conditional Ripple redirect for low-experience leads
+  const [rippleDismissed, setRippleDismissed] = useState(false);
+  const isExperienceField = field.id === "f6" || field.label.toLowerCase().includes("experience");
+  const isLowExperience = isExperienceField && (value === "Fresher" || value === "< 2 years");
+  const showRippleMessage = isLowExperience && !rippleDismissed;
+
+  useEffect(() => {
+    if (!isLowExperience) setRippleDismissed(false);
+  }, [isLowExperience]);
+
+  const fireGA4 = (event: string) => {
+    if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).gtag) {
+      (window as unknown as Record<string, ((...args: unknown[]) => void)>).gtag("event", event);
+    }
+  };
+
   return (
     <div id={id} className="space-y-1.5">
       <Label
@@ -850,28 +866,62 @@ function FormFieldInput({
       )}
 
       {field.type === "radio" && (
-        <RadioGroup
-          value={value}
-          onValueChange={onChange}
-          className="space-y-1.5"
-        >
-          {(field.options ?? []).map((opt) => (
-            <label
-              key={opt}
-              htmlFor={`${id}-${opt}`}
-              className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.995] has-[[data-state=checked]]:border-indigo-300 has-[[data-state=checked]]:bg-indigo-50 has-[[data-state=checked]]:shadow-none"
-            >
-              <RadioGroupItem
-                value={opt}
-                id={`${id}-${opt}`}
-                className="mt-0.5"
-              />
-              <span className="text-sm leading-snug text-gray-700">
-                {opt}
-              </span>
-            </label>
-          ))}
-        </RadioGroup>
+        <>
+          <RadioGroup
+            value={value}
+            onValueChange={onChange}
+            className="space-y-1.5"
+          >
+            {(field.options ?? []).map((opt) => (
+              <label
+                key={opt}
+                htmlFor={`${id}-${opt}`}
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.995] has-[[data-state=checked]]:border-indigo-300 has-[[data-state=checked]]:bg-indigo-50 has-[[data-state=checked]]:shadow-none"
+              >
+                <RadioGroupItem
+                  value={opt}
+                  id={`${id}-${opt}`}
+                  className="mt-0.5"
+                />
+                <span className="text-sm leading-snug text-gray-700">
+                  {opt}
+                </span>
+              </label>
+            ))}
+          </RadioGroup>
+          {showRippleMessage && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p>
+                This strategy call is designed for designers with 2+ years who
+                want to move into senior &amp; leadership roles. But we have
+                something for you — our <strong>Ripple</strong> program is built
+                specifically for designers early in their career.
+              </p>
+              <div className="mt-3 flex flex-col gap-2">
+                <a
+                  href="/programs/career-transition-ux-mentorship"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => fireGA4("booking_ripple_redirect")}
+                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
+                >
+                  Learn about Ripple &rarr;
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    fireGA4("booking_override_continue");
+                    setRippleDismissed(true);
+                  }}
+                  className="text-left font-medium text-amber-700 underline underline-offset-2 hover:text-amber-800"
+                >
+                  I still want to book — I&rsquo;m serious about investing in my
+                  career
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
