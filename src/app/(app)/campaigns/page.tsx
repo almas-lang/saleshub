@@ -13,7 +13,7 @@ export default async function CampaignsPage() {
 
   // Fetch enrollment stats per campaign
   const campaignIds = (campaigns ?? []).map((c: { id: string }) => c.id);
-  let statsMap: Record<string, { enrolled: number; active: number; completed: number; stopped: number }> = {};
+  const statsMap: Record<string, { enrolled: number; active: number; completed: number; stopped: number }> = {};
 
   if (campaignIds.length > 0) {
     const { data: enrollments } = await supabaseAdmin
@@ -34,7 +34,7 @@ export default async function CampaignsPage() {
   }
 
   // Count steps per campaign
-  let stepCounts: Record<string, number> = {};
+  const stepCounts: Record<string, number> = {};
   if (campaignIds.length > 0) {
     const { data: steps } = await supabaseAdmin
       .from("unified_steps")
