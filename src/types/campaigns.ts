@@ -77,12 +77,14 @@ export interface SendNodeData {
 }
 
 export type DelayUnit = "minutes" | "hours" | "days";
+export type DelayMode = "after_previous" | "before_booking";
 
 export interface DelayNodeData {
   nodeType: "delay";
   hours: number;
   delayValue?: number;
   delayUnit?: DelayUnit;
+  delayMode?: DelayMode;
 }
 
 export interface ConditionNodeData {
@@ -211,6 +213,7 @@ export interface UnifiedStepDraftWithBranching {
   step_type: "send" | "condition";
   channel: SendChannel;
   delay_hours: number;
+  delay_mode?: DelayMode;
   // Email payload
   subject?: string;
   preview_text?: string;

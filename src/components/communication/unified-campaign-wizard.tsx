@@ -208,6 +208,7 @@ export function UnifiedCampaignWizard({
           step_type: s.step_type,
           channel: s.channel,
           delay_hours: i === 0 ? 0 : s.delay_hours,
+          delay_mode: s.delay_mode ?? "after_previous",
           // Email
           subject: s.subject,
           preview_text: s.preview_text,

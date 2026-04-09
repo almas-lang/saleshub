@@ -84,6 +84,7 @@ export async function POST(request: Request) {
     step_type: s.step_type ?? "send",
     channel: s.channel,
     delay_hours: s.delay_hours,
+    delay_mode: s.delay_mode ?? "after_previous",
     // Email fields
     subject: s.subject ?? null,
     body_html: s.body_html ?? null,
@@ -234,6 +235,7 @@ export async function PATCH(request: NextRequest) {
       step_type: s.step_type ?? "send",
       channel: s.channel,
       delay_hours: s.delay_hours,
+      delay_mode: (s.delay_mode as string) ?? "after_previous",
       subject: s.subject ?? null,
       body_html: s.body_html ?? null,
       preview_text: s.preview_text ?? null,

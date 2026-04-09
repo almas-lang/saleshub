@@ -141,9 +141,10 @@ export function flowToUnifiedStepsWithBranching(
 
   const nodeMap = new Map(flow.nodes.map((n) => [n.id, n]));
 
-  // Compute delays
+  // Compute delays and delay modes
   const delayBefore = new Map<string, number>();
-  function walkDelays(nodeId: string, accumulated: number, seen: Set<string>) {
+  const delayModeBefore = new Map<string, string>();
+  function walkDelays(nodeId: string, accumulated: number, lastMode: string, seen: Set<string>) {
     if (seen.has(nodeId)) return;
     seen.add(nodeId);
     const node = nodeMap.get(nodeId);
@@ -151,17 +152,19 @@ export function flowToUnifiedStepsWithBranching(
 
     if (node.type === "delay") {
       const d = node.data as unknown as DelayNodeData;
-      const newAcc = accumulated + (d.hours ?? 0);
-      for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, newAcc, seen);
+      const mode = d.delayMode ?? "after_previous";
+      const newAcc = mode === "before_booking" ? (d.hours ?? 0) : accumulated + (d.hours ?? 0);
+      for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, newAcc, mode, seen);
     } else if (node.type === "unified_send" || node.type === "condition") {
       delayBefore.set(nodeId, accumulated);
-      for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, 0, seen);
+      delayModeBefore.set(nodeId, lastMode);
+      for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, 0, "after_previous", seen);
     } else if (node.type !== "stop") {
-      for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, accumulated, seen);
+      for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, accumulated, lastMode, seen);
     }
   }
   for (const edge of outgoing.get(triggerNode.id) ?? []) {
-    walkDelays(edge.target, 0, new Set([triggerNode.id]));
+    walkDelays(edge.target, 0, "after_previous", new Set([triggerNode.id]));
   }
 
   // Helper: resolve through delays
@@ -201,6 +204,7 @@ export function flowToUnifiedStepsWithBranching(
         step_type: "send",
         channel,
         delay_hours: delayBefore.get(nodeId) ?? 0,
+        delay_mode: (delayModeBefore.get(nodeId) ?? "after_previous") as "after_previous" | "before_booking",
         // Email fields
         ...(channel === "email" ? {
           subject: d.subject ?? "",

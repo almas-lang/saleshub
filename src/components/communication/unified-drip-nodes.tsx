@@ -34,6 +34,7 @@ import type {
   SendChannel,
   DelayNodeData,
   DelayUnit,
+  DelayMode,
   ConditionNodeData,
   StopNodeData,
 } from "@/types/campaigns";
@@ -462,14 +463,26 @@ function DelayNode({ id, data }: NodeProps) {
   const { setNodes } = useReactFlow();
   const unit: DelayUnit = d.delayUnit ?? "hours";
   const displayValue = d.delayValue ?? d.hours ?? 24;
+  const mode: DelayMode = d.delayMode ?? "after_previous";
 
   const update = useCallback(
-    (value: number, newUnit: DelayUnit) => {
+    (value: number, newUnit: DelayUnit, newMode?: DelayMode) => {
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id
-            ? { ...n, data: { ...n.data, delayValue: value, delayUnit: newUnit, hours: toHours(value, newUnit) } }
+            ? { ...n, data: { ...n.data, delayValue: value, delayUnit: newUnit, delayMode: newMode ?? mode, hours: toHours(value, newUnit) } }
             : n,
+        ),
+      );
+    },
+    [id, setNodes, mode],
+  );
+
+  const setMode = useCallback(
+    (newMode: DelayMode) => {
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, delayMode: newMode } } : n,
         ),
       );
     },
@@ -480,22 +493,34 @@ function DelayNode({ id, data }: NodeProps) {
     <>
       <Handle type="target" position={Position.Top} className="!bg-amber-500" />
       <NodeShell color="amber" icon={<Clock className="size-4" />} label="Wait">
-        <div className="flex items-center gap-2">
-          <Input type="number" min={1} className="h-8 w-20 text-xs" value={displayValue || ""}
-            onChange={(e) => {
-              const raw = e.target.value;
-              update(raw === "" ? 0 : parseInt(raw) || 0, unit);
-            }}
-            onBlur={() => { if (!displayValue || displayValue < 1) update(1, unit); }}
-            onWheel={(e) => (e.target as HTMLInputElement).blur()} />
-          <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
-            <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+        <div className="space-y-2">
+          <Select value={mode} onValueChange={(v: DelayMode) => setMode(v)}>
+            <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="minutes">mins</SelectItem>
-              <SelectItem value="hours">hours</SelectItem>
-              <SelectItem value="days">days</SelectItem>
+              <SelectItem value="after_previous">After previous step</SelectItem>
+              <SelectItem value="before_booking">Before booking</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-2">
+            <Input type="number" min={1} className="h-8 w-20 text-xs" value={displayValue || ""}
+              onChange={(e) => {
+                const raw = e.target.value;
+                update(raw === "" ? 0 : parseInt(raw) || 0, unit);
+              }}
+              onBlur={() => { if (!displayValue || displayValue < 1) update(1, unit); }}
+              onWheel={(e) => (e.target as HTMLInputElement).blur()} />
+            <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
+              <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="minutes">mins</SelectItem>
+                <SelectItem value="hours">hours</SelectItem>
+                <SelectItem value="days">days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {mode === "before_booking" && (
+            <p className="text-[9px] text-muted-foreground">Sends {displayValue || "?"} {unit} before the booked call</p>
+          )}
         </div>
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-amber-500" />

@@ -68,6 +68,7 @@ interface UnifiedStepRow {
   wa_template_params: string[] | null;
   wa_template_param_names: string[] | null;
   delay_hours: number;
+  delay_mode: string | null;
   condition: { check: string; value?: string } | null;
   next_step_id_yes: string | null;
   next_step_id_no: string | null;
@@ -329,7 +330,30 @@ export async function GET(request: Request) {
           }
 
           if (nextStep) {
-            const nextSendAt = new Date(Date.now() + (nextStep.delay_hours ?? 0) * 3600_000).toISOString();
+            let nextSendAt: string;
+            if (nextStep.delay_mode === "before_booking") {
+              // Calculate send time relative to booking start
+              const { data: booking } = await supabaseAdmin
+                .from("bookings")
+                .select("starts_at")
+                .eq("contact_id", contact.id)
+                .eq("status", "confirmed")
+                .gte("starts_at", now)
+                .order("starts_at", { ascending: true })
+                .limit(1)
+                .single();
+              if (booking) {
+                const bookingTime = new Date(booking.starts_at).getTime();
+                const sendTime = bookingTime - (nextStep.delay_hours ?? 0) * 3600_000;
+                // If the computed time is in the past, send immediately
+                nextSendAt = new Date(Math.max(sendTime, Date.now())).toISOString();
+              } else {
+                // No upcoming booking — use normal delay as fallback
+                nextSendAt = new Date(Date.now() + (nextStep.delay_hours ?? 0) * 3600_000).toISOString();
+              }
+            } else {
+              nextSendAt = new Date(Date.now() + (nextStep.delay_hours ?? 0) * 3600_000).toISOString();
+            }
             await supabaseAdmin.from("drip_enrollments")
               .update({
                 current_step_id: nextStep.id,

@@ -275,6 +275,7 @@ export const createUnifiedCampaignSchema = z.object({
     step_type: z.enum(["send", "condition"]).default("send"),
     channel: z.enum(["email", "whatsapp"]),
     delay_hours: z.number().min(0),
+    delay_mode: z.enum(["after_previous", "before_booking"]).optional().default("after_previous"),
     // Email
     subject: z.string().optional(),
     preview_text: z.string().optional(),
