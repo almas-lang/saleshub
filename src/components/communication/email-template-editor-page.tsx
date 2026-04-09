@@ -331,7 +331,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
                 <div className="px-6 py-5">
                   {bodyHtml ? (
                     <div
-                      className="prose prose-sm max-w-none text-foreground dark:text-zinc-800 [&_a]:text-blue-600 [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+                      className="prose prose-sm max-w-none text-foreground dark:text-zinc-800 break-words [&_a]:text-blue-600 [&_a]:break-all [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
                       dangerouslySetInnerHTML={{
                         __html: replaceVariables(bodyHtml),
                       }}
