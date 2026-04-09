@@ -126,17 +126,6 @@ export function UnifiedCampaignWizard({
   const handleFilterChange = (filter: AudienceFilter) => {
     setAudienceFilter(filter);
     setCountLoading(true);
-
-    // Sync flow trigger node
-    if (flowData && filter.enrollment_type !== audienceFilter.enrollment_type) {
-      const triggerEvent = (filter.enrollment_type ?? "new_leads") === "existing" ? "manual" : "lead_created";
-      setFlowData({
-        ...flowData,
-        nodes: flowData.nodes.map((n) =>
-          n.type === "trigger" ? { ...n, data: { ...n.data, event: triggerEvent } } : n
-        ),
-      });
-    }
   };
 
   // Audience count
@@ -176,14 +165,19 @@ export function UnifiedCampaignWizard({
 
   const buildPayload = useCallback(
     (activate: boolean) => {
-      const enrollment = audienceFilter.enrollment_type ?? "new_leads";
-      const triggerEvent = enrollment === "existing" ? "manual" : "lead_created";
+      // Read trigger event from the flow's trigger node (user-selected)
+      const triggerNode = flowData?.nodes.find((n) => n.type === "trigger");
+      const triggerData = triggerNode?.data as Record<string, unknown> | undefined;
+      const triggerEvent = (triggerData?.event as string) ?? "lead_created";
+      const triggerStageId = (triggerData?.stageId as string) ?? undefined;
 
       if (!flowData) {
         // Early save with no flow data yet — save name/audience/stop condition only
         return {
           name: name.trim() || "Untitled Campaign",
           type: "drip" as const,
+          trigger_event: triggerEvent,
+          trigger_stage_id: triggerStageId,
           audience_filter: audienceFilter,
           stop_condition: stopCondition,
           steps: [],
@@ -193,12 +187,8 @@ export function UnifiedCampaignWizard({
         };
       }
 
-      const syncedFlowData: FlowData = {
-        ...flowData,
-        nodes: flowData.nodes.map((n) =>
-          n.type === "trigger" ? { ...n, data: { ...n.data, event: triggerEvent } } : n
-        ),
-      };
+      // Just use flow data as-is — trigger event is set by the user in the trigger node
+      const syncedFlowData = flowData;
 
       const { steps: branchingSteps, edges: branchingEdges } =
         flowToUnifiedStepsWithBranching(syncedFlowData);
@@ -206,6 +196,8 @@ export function UnifiedCampaignWizard({
       return {
         name: name.trim() || "Untitled Campaign",
         type: "drip" as const,
+        trigger_event: triggerEvent,
+        trigger_stage_id: triggerStageId,
         audience_filter: audienceFilter,
         stop_condition: stopCondition,
         steps: branchingSteps.map((s, i) => ({

@@ -62,9 +62,20 @@ export interface WAStepDraftWithBranching {
 
 // ── Flow builder node data types ──
 
+export type TriggerEvent =
+  | "lead_created"
+  | "manual"
+  | "booking_confirmed"
+  | "booking_no_show"
+  | "booking_completed"
+  | "booking_cancelled"
+  | "stage_changed";
+
 export interface TriggerNodeData {
   nodeType: "trigger";
-  event: "manual" | "lead_created";
+  event: TriggerEvent;
+  stageId?: string;
+  stageName?: string;
 }
 
 export interface SendNodeData {

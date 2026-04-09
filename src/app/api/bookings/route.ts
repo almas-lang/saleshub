@@ -4,6 +4,7 @@ import { createEvent } from "@/lib/google/calendar";
 import { sendEmail } from "@/lib/email/client";
 import { renderWelcomeEmail } from "@/lib/email/templates/welcome";
 import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
+import { enrollContactByTrigger } from "@/lib/campaigns/trigger-enroll";
 import { logger } from "@/lib/logger";
 import type { AvailabilityRules } from "@/types/bookings";
 
@@ -447,6 +448,9 @@ export async function POST(request: Request) {
       booked_at: startDate.toISOString(),
     },
   });
+
+  // ── Step 6b: Trigger campaign enrollment for "booking_confirmed" ──
+  await enrollContactByTrigger(contactId, "booking_confirmed").catch(() => {});
 
   // ── Step 7: Send confirmation email ────────────
   if (page.confirmation_email && email) {

@@ -256,6 +256,8 @@ export type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
 export const createUnifiedCampaignSchema = z.object({
   name: z.string().min(1, "Campaign name is required").max(100),
   type: z.enum(["drip", "one_time", "newsletter"]),
+  trigger_event: z.string().optional(),
+  trigger_stage_id: z.string().optional(),
   audience_filter: z.object({
     enrollment_type: z.enum(["new_leads", "existing", "both"]).optional(),
     source: z.string().optional(),

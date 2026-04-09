@@ -125,13 +125,60 @@ function NodeShell({
 
 // ── Trigger Node ──
 
-function TriggerNode({ data }: NodeProps) {
+const TRIGGER_LABELS: Record<string, string> = {
+  lead_created: "New Lead Created",
+  manual: "Manual Enrollment",
+  booking_confirmed: "Booking Confirmed",
+  booking_no_show: "Booking No-show",
+  booking_completed: "Call Completed",
+  booking_cancelled: "Booking Cancelled",
+  stage_changed: "Stage Changed To",
+};
+
+function TriggerNode({ id, data }: NodeProps) {
   const d = data as unknown as TriggerNodeData;
-  const label = d.event === "lead_created" ? "New Lead Created" : "Manual Enrollment";
+  const { setNodes } = useReactFlow();
+  const stages = useContext(UnifiedStagesContext);
+
+  const updateEvent = useCallback(
+    (event: string) => {
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, event } } : n)));
+    },
+    [id, setNodes],
+  );
+  const updateStage = useCallback(
+    (stageId: string) => {
+      const stage = stages.find((s) => s.id === stageId);
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, stageId, stageName: stage?.name ?? "" } } : n)));
+    },
+    [id, setNodes, stages],
+  );
+
   return (
     <>
       <NodeShell color="emerald" icon={<Zap className="size-4" />} label="Trigger">
-        <p className="text-xs text-muted-foreground">{label}</p>
+        <Select value={d.event ?? "lead_created"} onValueChange={updateEvent}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="lead_created">New Lead Created</SelectItem>
+            <SelectItem value="booking_confirmed">Booking Confirmed</SelectItem>
+            <SelectItem value="booking_no_show">Booking No-show</SelectItem>
+            <SelectItem value="booking_completed">Call Completed</SelectItem>
+            <SelectItem value="booking_cancelled">Booking Cancelled</SelectItem>
+            <SelectItem value="stage_changed">Stage Changed To</SelectItem>
+            <SelectItem value="manual">Manual Enrollment</SelectItem>
+          </SelectContent>
+        </Select>
+        {d.event === "stage_changed" && (
+          <Select value={d.stageId ?? ""} onValueChange={updateStage}>
+            <SelectTrigger className="h-7 text-[10px] mt-1"><SelectValue placeholder="Select stage..." /></SelectTrigger>
+            <SelectContent>
+              {stages.map((s) => (
+                <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500" />
     </>

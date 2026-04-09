@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { enrollContactByTrigger } from "@/lib/campaigns/trigger-enroll";
 
 export async function PATCH(
   request: Request,
@@ -24,11 +26,26 @@ export async function PATCH(
     .from("bookings")
     .update(update)
     .eq("id", id)
-    .select()
+    .select("*, contacts(id)")
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Trigger campaign enrollment based on booking status change
+  if (body.status && data.contacts) {
+    const contactId = (data.contacts as { id: string }).id;
+    const triggerMap: Record<string, string> = {
+      confirmed: "booking_confirmed",
+      no_show: "booking_no_show",
+      completed: "booking_completed",
+      cancelled: "booking_cancelled",
+    };
+    const triggerEvent = triggerMap[body.status];
+    if (triggerEvent && contactId) {
+      await enrollContactByTrigger(contactId, triggerEvent).catch(() => {});
+    }
   }
 
   return NextResponse.json(data);

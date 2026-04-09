@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, type, audience_filter, steps, activate, flow_data, branching_edges, stop_condition } = parsed.data;
+  const { name, type, audience_filter, steps, activate, flow_data, branching_edges, stop_condition, trigger_event, trigger_stage_id } = parsed.data;
 
   // 1. Insert campaign as draft
   const { data: campaign, error: campaignError } = await supabase
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       name,
       type,
       status: "draft" as const,
+      trigger_event: trigger_event ?? "lead_created",
       audience_filter: audience_filter ?? null,
       stop_condition: stop_condition ?? null,
       flow_data: flow_data ?? null,
@@ -214,6 +215,7 @@ export async function PATCH(request: NextRequest) {
 
   const update: Record<string, unknown> = {};
   if (body.name !== undefined) update.name = body.name;
+  if (body.trigger_event !== undefined) update.trigger_event = body.trigger_event;
   if (body.audience_filter !== undefined) update.audience_filter = body.audience_filter;
   if (body.stop_condition !== undefined) update.stop_condition = body.stop_condition;
   if (body.flow_data !== undefined) update.flow_data = body.flow_data;

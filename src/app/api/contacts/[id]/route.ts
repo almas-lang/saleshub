@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { contactSchema } from "@/lib/validations";
+import { enrollContactByTrigger } from "@/lib/campaigns/trigger-enroll";
 
 export async function GET(
   _request: Request,
@@ -165,6 +166,9 @@ export async function PATCH(
           }
         }
       }
+
+      // Trigger enrollment for "stage_changed" campaigns
+      await enrollContactByTrigger(id, "stage_changed", newStageId).catch(() => {});
     }
   }
 
