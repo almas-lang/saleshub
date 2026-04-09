@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
-import { Zap, Mail, Clock, GitBranch, Square, Pencil, ArrowLeft, Eye } from "lucide-react";
+import { Zap, Mail, Clock, GitBranch, Square, Pencil, ArrowLeft, Eye, FileDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -11,11 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { EmailBlockEditor } from "./email-block-editor";
 import { SubjectInputWithVariables } from "./subject-input-with-variables";
+import { safeFetch } from "@/lib/fetch";
 import type {
   TriggerNodeData,
   EmailSendNodeData,
@@ -24,6 +31,13 @@ import type {
   ConditionNodeData,
   StopNodeData,
 } from "@/types/campaigns";
+
+interface EmailTemplatePick {
+  id: string;
+  name: string;
+  subject: string;
+  body_html: string;
+}
 
 // ── Node wrapper ──
 
@@ -207,10 +221,67 @@ function EmailComposeOverlay({
   );
 }
 
+function TemplatePickerDialog({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSelect: (tpl: EmailTemplatePick) => void;
+}) {
+  const [templates, setTemplates] = useState<EmailTemplatePick[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    safeFetch<EmailTemplatePick[]>("/api/email-templates").then((res) => {
+      if (res.ok && res.data) setTemplates(res.data);
+      setLoading(false);
+    });
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md max-h-[70vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base">Load from Template</DialogTitle>
+        </DialogHeader>
+        {loading ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Loading templates...</p>
+        ) : templates.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No email templates found. Create one under Email → Templates first.
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {templates.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                className="w-full text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                onClick={() => {
+                  onSelect(tpl);
+                  onOpenChange(false);
+                }}
+              >
+                <p className="text-sm font-medium truncate">{tpl.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{tpl.subject}</p>
+              </button>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function EmailSendNode({ id, data }: NodeProps) {
   const d = data as unknown as EmailSendNodeData;
   const { setNodes } = useReactFlow();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const updateData = useCallback(
     (partial: Partial<EmailSendNodeData>) => {
@@ -244,16 +315,28 @@ function EmailSendNode({ id, data }: NodeProps) {
           ) : (
             <p className="text-xs text-muted-foreground italic">No content yet</p>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-1 h-7 w-full text-xs"
-            onClick={() => setEditorOpen(true)}
-          >
-            <Pencil className="mr-1.5 size-3" />
-            {hasContent ? "Edit Email" : "Compose Email"}
-          </Button>
+          <div className="flex gap-1.5 mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 flex-1 text-xs"
+              onClick={() => setEditorOpen(true)}
+            >
+              <Pencil className="mr-1.5 size-3" />
+              {hasContent ? "Edit" : "Compose"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setPickerOpen(true)}
+            >
+              <FileDown className="mr-1.5 size-3" />
+              Template
+            </Button>
+          </div>
         </div>
 
         {editorOpen && (
@@ -263,6 +346,17 @@ function EmailSendNode({ id, data }: NodeProps) {
             onClose={() => setEditorOpen(false)}
           />
         )}
+
+        <TemplatePickerDialog
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          onSelect={(tpl) =>
+            updateData({
+              subject: tpl.subject,
+              bodyHtml: tpl.body_html,
+            })
+          }
+        />
       </NodeShell>
       <Handle type="source" position={Position.Bottom} className="!bg-primary" />
     </>

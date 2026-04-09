@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import {
   ReactFlow,
   Controls,
@@ -16,7 +16,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Mail, Clock, GitBranch, Square } from "lucide-react";
+import { Mail, Clock, GitBranch, Square, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { emailNodeTypes } from "./email-drip-nodes";
 import type {
@@ -357,10 +357,12 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
     [setNodes, screenToFlowPosition],
   );
 
+  const [fullscreen, setFullscreen] = useState(false);
+
   return (
-    <div className="space-y-3">
+    <div className={fullscreen ? "fixed inset-0 z-50 flex flex-col bg-background" : "space-y-3"}>
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-2">
+      <div className={`flex flex-wrap gap-2 ${fullscreen ? "px-4 py-3 border-b" : ""}`}>
         <Button
           type="button"
           variant="outline"
@@ -413,10 +415,21 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
           <Square className="mr-1.5 size-3.5" />
           Stop
         </Button>
+        <div className="ml-auto">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setFullscreen((v) => !v)}
+          >
+            {fullscreen ? <Minimize2 className="mr-1.5 size-3.5" /> : <Maximize2 className="mr-1.5 size-3.5" />}
+            {fullscreen ? "Exit Fullscreen" : "Fullscreen"}
+          </Button>
+        </div>
       </div>
 
       {/* Canvas */}
-      <div className="h-[calc(100vh-320px)] min-h-[400px] rounded-lg border bg-muted/20">
+      <div className={fullscreen ? "flex-1 min-h-0" : "h-[calc(100vh-320px)] min-h-[400px] rounded-lg border bg-muted/20"}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
