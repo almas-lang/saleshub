@@ -43,11 +43,22 @@ function normalizeTemplates(meta: MetaTemplate[]): WizardTemplate[] {
 interface FilterOption { id: string; name: string }
 interface StageOption { id: string; name: string; funnel_id: string; order: number }
 
+interface ExistingCampaign {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  audience_filter: AudienceFilter | null;
+  stop_condition: StopCondition | null;
+  flow_data: FlowData | null;
+}
+
 interface UnifiedCampaignWizardProps {
   funnels: FilterOption[];
   stages: StageOption[];
   teamMembers: FilterOption[];
   sources: string[];
+  existingCampaign?: ExistingCampaign;
 }
 
 const STEPS = [
@@ -62,6 +73,7 @@ export function UnifiedCampaignWizard({
   stages,
   teamMembers,
   sources,
+  existingCampaign,
 }: UnifiedCampaignWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -82,23 +94,23 @@ export function UnifiedCampaignWizard({
   }, []);
 
   // Step 1 — Details
-  const [name, setName] = useState("");
+  const [name, setName] = useState(existingCampaign?.name ?? "");
   const type: CampaignType = "drip"; // Unified is always drip
 
   // Stop condition
-  const [stopCondition, setStopCondition] = useState<StopCondition | null>(null);
+  const [stopCondition, setStopCondition] = useState<StopCondition | null>(existingCampaign?.stop_condition ?? null);
 
   // Step 2 — Audience
-  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>({});
+  const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>(existingCampaign?.audience_filter ?? {});
   const [audienceCount, setAudienceCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
 
   // Step 3 — Flow builder
-  const [flowData, setFlowData] = useState<FlowData | null>(null);
+  const [flowData, setFlowData] = useState<FlowData | null>(existingCampaign?.flow_data ?? null);
 
   // Step 4 — Saving
   const [saving, setSaving] = useState(false);
-  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(null);
+  const [savedCampaignId, setSavedCampaignId] = useState<string | null>(existingCampaign?.id ?? null);
 
   const handleFilterChange = (filter: AudienceFilter) => {
     setAudienceFilter(filter);
@@ -241,8 +253,12 @@ export function UnifiedCampaignWizard({
       setSaving(false);
       if (!result.ok) { toast.error(result.error); return; }
 
-      toast.success(activate ? "Campaign created and activated" : "Campaign saved as draft");
-      router.push("/campaigns");
+      if (activate) {
+        toast.success("Campaign created and activated");
+        router.push("/campaigns");
+      } else {
+        toast.success("Draft saved");
+      }
     },
     [buildPayload, router, savedCampaignId],
   );
