@@ -76,7 +76,13 @@ export function UnifiedCampaignWizard({
   existingCampaign,
 }: UnifiedCampaignWizardProps) {
   const router = useRouter();
-  const [step, setStep] = useState(0);
+  // Resume at the furthest completed step
+  const initialStep = existingCampaign
+    ? existingCampaign.flow_data ? 2  // Has flow data → Messages step
+    : existingCampaign.audience_filter && Object.keys(existingCampaign.audience_filter).length > 0 ? 1  // Has audience → Audience step
+    : 0
+    : 0;
+  const [step, setStep] = useState(initialStep);
 
   // Templates — fetched client-side from Meta API (for WA nodes)
   const [templates, setTemplates] = useState<WizardTemplate[]>([]);
