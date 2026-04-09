@@ -289,7 +289,7 @@ export async function GET(request: Request) {
             // Prefer next upcoming booking; fall back to most recent
             const { data: emailUpcoming } = await supabaseAdmin
               .from("bookings")
-              .select("starts_at, meet_link, booking_pages(slug)")
+              .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
               .eq("contact_id", contact.id)
               .eq("status", "confirmed")
               .gte("starts_at", now)
@@ -299,7 +299,7 @@ export async function GET(request: Request) {
             const { data: emailFallback } = !emailUpcoming
               ? await supabaseAdmin
                   .from("bookings")
-                  .select("starts_at, meet_link, booking_pages(slug)")
+                  .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
                   .eq("contact_id", contact.id)
                   .eq("status", "confirmed")
                   .order("starts_at", { ascending: false })
@@ -309,16 +309,26 @@ export async function GET(request: Request) {
             const booking = emailUpcoming || emailFallback;
             if (booking) {
               const dt = new Date(booking.starts_at);
-              variables.booking_date = dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-              variables.booking_time = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-              variables.booking_meet_link = booking.meet_link || "";
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const slug = (booking as any).booking_pages?.slug;
+              const bpData = (booking as any).booking_pages;
+              const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
+              variables.booking_date = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
+              variables.booking_time = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+              variables.booking_meet_link = booking.meet_link || "Not available";
+              const slug = bpData?.slug;
               if (slug) {
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL
-                  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app";
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                  || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
                 variables.booking_reschedule_link = `${baseUrl}/book/${slug}`;
               }
+            } else {
+              // No confirmed booking found — skip this email send
+              await logger.info("drip-processor", `Skipping email for ${contact.id}: booking variables used but no confirmed booking found`, {
+                enrollment_id: enrollment.id,
+                contact_id: contact.id,
+              });
+              failed++;
+              continue;
             }
           }
           const rawSubject = renderVariables(currentStep.subject, variables);
@@ -586,7 +596,7 @@ export async function GET(request: Request) {
             // Prefer next upcoming booking; fall back to most recent
             const { data: upcoming } = await supabaseAdmin
               .from("bookings")
-              .select("starts_at, meet_link, booking_pages(slug)")
+              .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
               .eq("contact_id", contact.id)
               .eq("status", "confirmed")
               .gte("starts_at", now)
@@ -596,7 +606,7 @@ export async function GET(request: Request) {
             const { data: fallback } = !upcoming
               ? await supabaseAdmin
                   .from("bookings")
-                  .select("starts_at, meet_link, booking_pages(slug)")
+                  .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
                   .eq("contact_id", contact.id)
                   .eq("status", "confirmed")
                   .order("starts_at", { ascending: false })
@@ -604,18 +614,31 @@ export async function GET(request: Request) {
                   .single()
               : { data: null };
             const booking = upcoming || fallback;
-            if (booking) {
-              const dt = new Date(booking.starts_at);
-              bookingDate = dt.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-              bookingTime = dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-              bookingMeetLink = booking.meet_link || "";
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const slug = (booking as any).booking_pages?.slug;
-              if (slug) {
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL
-                  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app";
-                bookingRescheduleLink = `${baseUrl}/book/${slug}`;
-              }
+            if (!booking) {
+              // No confirmed booking — stop enrollment instead of sending broken message
+              await logger.error("drip-processor", `No confirmed booking for contact ${contact.id}, stopping enrollment`, {
+                enrollment_id: enrollment.id,
+                contact_id: contact.id,
+                template: currentStep.wa_template_name,
+              });
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "no_booking_found" })
+                .eq("id", enrollment.id);
+              stopped++;
+              continue;
+            }
+            const dt = new Date(booking.starts_at);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const bpData = (booking as any).booking_pages;
+            const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
+            bookingDate = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
+            bookingTime = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+            bookingMeetLink = booking.meet_link || "Not available";
+            const slug = bpData?.slug;
+            if (slug) {
+              const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+              bookingRescheduleLink = `${baseUrl}/book/${slug}`;
             }
           }
 
