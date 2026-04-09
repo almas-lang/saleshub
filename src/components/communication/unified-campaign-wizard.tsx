@@ -153,10 +153,23 @@ export function UnifiedCampaignWizard({
 
   const buildPayload = useCallback(
     (activate: boolean) => {
-      if (!flowData) return null;
-
       const enrollment = audienceFilter.enrollment_type ?? "new_leads";
       const triggerEvent = enrollment === "existing" ? "manual" : "lead_created";
+
+      if (!flowData) {
+        // Early save with no flow data yet — save name/audience/stop condition only
+        return {
+          name: name.trim() || "Untitled Campaign",
+          type: "drip" as const,
+          audience_filter: audienceFilter,
+          stop_condition: stopCondition,
+          steps: [],
+          branching_edges: [],
+          activate: false,
+          flow_data: null,
+        };
+      }
+
       const syncedFlowData: FlowData = {
         ...flowData,
         nodes: flowData.nodes.map((n) =>
@@ -298,6 +311,8 @@ export function UnifiedCampaignWizard({
               onBack={() => setStep((s) => s - 1)}
               onContinue={() => setStep((s) => s + 1)}
               canContinue={canProceed}
+              onSaveDraft={() => handleSave(false)}
+              saving={saving}
             />
             {flowData && !validateUnifiedFlow(flowData) && (
               <div className="mt-2 space-y-1">
@@ -360,9 +375,18 @@ export function UnifiedCampaignWizard({
           <Button variant="outline" onClick={() => setStep((s) => s - 1)} disabled={step === 0}>
             Back
           </Button>
-          <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed}>
-            Continue
-          </Button>
+          <div className="flex items-center gap-2">
+            {name.trim() && (
+              <Button variant="outline" onClick={() => handleSave(false)} disabled={saving}>
+                {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
+                <Save className="mr-2 size-4" />
+                Save Draft
+              </Button>
+            )}
+            <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed}>
+              Continue
+            </Button>
+          </div>
         </div>
       )}
     </div>

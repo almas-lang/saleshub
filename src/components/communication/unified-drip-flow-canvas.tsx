@@ -17,7 +17,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Send, Mail, Clock, GitBranch, Square, Maximize2, Minimize2, ArrowLeft, ArrowRight } from "lucide-react";
+import { Send, Mail, Clock, GitBranch, Square, Maximize2, Minimize2, ArrowLeft, ArrowRight, Save, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { unifiedNodeTypes, UnifiedTemplatesContext } from "./unified-drip-nodes";
 import type {
@@ -266,9 +266,11 @@ interface InnerCanvasProps {
   onBack?: () => void;
   onContinue?: () => void;
   canContinue?: boolean;
+  onSaveDraft?: () => void;
+  saving?: boolean;
 }
 
-function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue }: InnerCanvasProps) {
+function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue, onSaveDraft, saving }: InnerCanvasProps) {
   const initialNodes = flowData?.nodes?.length
     ? flowData.nodes.map((n) => ({ ...n, data: n.data as unknown as Record<string, unknown> }))
     : [DEFAULT_TRIGGER];
@@ -344,6 +346,12 @@ function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue }
           <Square className="mr-1.5 size-3.5" />Stop
         </Button>
         <div className="ml-auto flex items-center gap-2">
+          {fullscreen && onSaveDraft && (
+            <Button type="button" variant="outline" size="sm" onClick={onSaveDraft} disabled={saving}>
+              {saving ? <Loader2 className="mr-1.5 size-3.5 animate-spin" /> : <Save className="mr-1.5 size-3.5" />}
+              Save Draft
+            </Button>
+          )}
           {fullscreen && onBack && (
             <Button type="button" variant="outline" size="sm" onClick={() => { setFullscreen(false); onBack(); }}>
               <ArrowLeft className="mr-1.5 size-3.5" />Back
@@ -393,6 +401,8 @@ interface UnifiedDripFlowCanvasProps {
   onBack?: () => void;
   onContinue?: () => void;
   canContinue?: boolean;
+  onSaveDraft?: () => void;
+  saving?: boolean;
 }
 
 export function UnifiedDripFlowCanvas({
@@ -403,6 +413,8 @@ export function UnifiedDripFlowCanvas({
   onBack,
   onContinue,
   canContinue = true,
+  onSaveDraft,
+  saving,
 }: UnifiedDripFlowCanvasProps) {
   if (templatesLoading) {
     return (
@@ -415,7 +427,7 @@ export function UnifiedDripFlowCanvas({
   return (
     <UnifiedTemplatesContext.Provider value={templates}>
       <ReactFlowProvider>
-        <InnerCanvas flowData={flowData} onFlowChange={onFlowChange} onBack={onBack} onContinue={onContinue} canContinue={canContinue} />
+        <InnerCanvas flowData={flowData} onFlowChange={onFlowChange} onBack={onBack} onContinue={onContinue} canContinue={canContinue} onSaveDraft={onSaveDraft} saving={saving} />
       </ReactFlowProvider>
     </UnifiedTemplatesContext.Provider>
   );
