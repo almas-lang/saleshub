@@ -89,7 +89,7 @@ export interface DelayNodeData {
 
 export interface ConditionNodeData {
   nodeType: "condition";
-  check: "booking_created" | "replied";
+  check: "booking_created" | "booking_noshow" | "booking_completed" | "replied";
 }
 
 export interface StopNodeData {

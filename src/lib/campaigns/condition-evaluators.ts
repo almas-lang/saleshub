@@ -18,6 +18,24 @@ export async function evaluateCondition(
       return (count ?? 0) > 0;
     }
 
+    case "booking_noshow": {
+      const { count } = await supabaseAdmin
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", contactId)
+        .eq("status", "no_show");
+      return (count ?? 0) > 0;
+    }
+
+    case "booking_completed": {
+      const { count } = await supabaseAdmin
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", contactId)
+        .eq("status", "completed");
+      return (count ?? 0) > 0;
+    }
+
     case "replied": {
       const { count } = await supabaseAdmin
         .from("wa_sends")

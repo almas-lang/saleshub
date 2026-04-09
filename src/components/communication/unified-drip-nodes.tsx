@@ -547,6 +547,8 @@ function ConditionNode({ id, data }: NodeProps) {
           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="booking_created">Has Booking</SelectItem>
+            <SelectItem value="booking_noshow">No-show (missed call)</SelectItem>
+            <SelectItem value="booking_completed">Call completed</SelectItem>
             <SelectItem value="replied">Replied</SelectItem>
           </SelectContent>
         </Select>
