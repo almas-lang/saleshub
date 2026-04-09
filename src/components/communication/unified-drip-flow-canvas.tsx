@@ -17,7 +17,7 @@ import {
   BackgroundVariant,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Send, Mail, Clock, GitBranch, Square, Maximize2, Minimize2 } from "lucide-react";
+import { Send, Mail, Clock, GitBranch, Square, Maximize2, Minimize2, ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { unifiedNodeTypes, UnifiedTemplatesContext } from "./unified-drip-nodes";
 import type {
@@ -263,9 +263,12 @@ function isValidConnection(connection: Connection, nodes: Node[]): boolean {
 interface InnerCanvasProps {
   flowData: FlowData | null;
   onFlowChange: (flow: FlowData) => void;
+  onBack?: () => void;
+  onContinue?: () => void;
+  canContinue?: boolean;
 }
 
-function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
+function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue }: InnerCanvasProps) {
   const initialNodes = flowData?.nodes?.length
     ? flowData.nodes.map((n) => ({ ...n, data: n.data as unknown as Record<string, unknown> }))
     : [DEFAULT_TRIGGER];
@@ -340,7 +343,17 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
           onClick={() => addNode("stop", { nodeType: "stop", reason: "completed" })}>
           <Square className="mr-1.5 size-3.5" />Stop
         </Button>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {fullscreen && onBack && (
+            <Button type="button" variant="outline" size="sm" onClick={() => { setFullscreen(false); onBack(); }}>
+              <ArrowLeft className="mr-1.5 size-3.5" />Back
+            </Button>
+          )}
+          {fullscreen && onContinue && (
+            <Button type="button" size="sm" onClick={() => { setFullscreen(false); onContinue(); }} disabled={!canContinue}>
+              Continue<ArrowRight className="ml-1.5 size-3.5" />
+            </Button>
+          )}
           <Button type="button" variant="ghost" size="sm" onClick={() => setFullscreen((v) => !v)}>
             {fullscreen ? <Minimize2 className="mr-1.5 size-3.5" /> : <Maximize2 className="mr-1.5 size-3.5" />}
             {fullscreen ? "Exit Fullscreen" : "Fullscreen"}
@@ -377,6 +390,9 @@ interface UnifiedDripFlowCanvasProps {
   templatesLoading: boolean;
   flowData: FlowData | null;
   onFlowChange: (flow: FlowData) => void;
+  onBack?: () => void;
+  onContinue?: () => void;
+  canContinue?: boolean;
 }
 
 export function UnifiedDripFlowCanvas({
@@ -384,6 +400,9 @@ export function UnifiedDripFlowCanvas({
   templatesLoading,
   flowData,
   onFlowChange,
+  onBack,
+  onContinue,
+  canContinue = true,
 }: UnifiedDripFlowCanvasProps) {
   if (templatesLoading) {
     return (
@@ -396,7 +415,7 @@ export function UnifiedDripFlowCanvas({
   return (
     <UnifiedTemplatesContext.Provider value={templates}>
       <ReactFlowProvider>
-        <InnerCanvas flowData={flowData} onFlowChange={onFlowChange} />
+        <InnerCanvas flowData={flowData} onFlowChange={onFlowChange} onBack={onBack} onContinue={onContinue} canContinue={canContinue} />
       </ReactFlowProvider>
     </UnifiedTemplatesContext.Provider>
   );

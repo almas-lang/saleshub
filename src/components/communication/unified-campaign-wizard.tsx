@@ -295,6 +295,9 @@ export function UnifiedCampaignWizard({
               templatesLoading={templatesLoading}
               flowData={flowData}
               onFlowChange={setFlowData}
+              onBack={() => setStep((s) => s - 1)}
+              onContinue={() => setStep((s) => s + 1)}
+              canContinue={canProceed}
             />
             {flowData && !validateUnifiedFlow(flowData) && (
               <div className="mt-2 space-y-1">
