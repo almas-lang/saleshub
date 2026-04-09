@@ -84,6 +84,7 @@ export type Database = {
           leads: number
           metadata: Json | null
           platform: string
+          reach: number
           spend_currency: string
           updated_at: string
         }
@@ -99,6 +100,7 @@ export type Database = {
           leads?: number
           metadata?: Json | null
           platform: string
+          reach?: number
           spend_currency?: string
           updated_at?: string
         }
@@ -114,6 +116,7 @@ export type Database = {
           leads?: number
           metadata?: Json | null
           platform?: string
+          reach?: number
           spend_currency?: string
           updated_at?: string
         }
@@ -132,6 +135,7 @@ export type Database = {
           google_calendar_id: string | null
           id: string
           is_active: boolean
+          redirect_url: string | null
           slug: string
           title: string
           updated_at: string
@@ -148,6 +152,7 @@ export type Database = {
           google_calendar_id?: string | null
           id?: string
           is_active?: boolean
+          redirect_url?: string | null
           slug: string
           title: string
           updated_at?: string
@@ -164,6 +169,7 @@ export type Database = {
           google_calendar_id?: string | null
           id?: string
           is_active?: boolean
+          redirect_url?: string | null
           slug?: string
           title?: string
           updated_at?: string
@@ -793,6 +799,20 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "email_steps_next_step_id_no_fkey"
+            columns: ["next_step_id_no"]
+            isOneToOne: false
+            referencedRelation: "email_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_steps_next_step_id_yes_fkey"
+            columns: ["next_step_id_yes"]
+            isOneToOne: false
+            referencedRelation: "email_steps"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "email_steps_template_id_fkey"
             columns: ["template_id"]
             isOneToOne: false
@@ -1159,6 +1179,80 @@ export type Database = {
           },
         ]
       }
+      paid_traffic_overrides: {
+        Row: {
+          created_at: string
+          date: string
+          field: string
+          id: string
+          note: string | null
+          original_value: number | null
+          override_value: number
+          platform: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          field: string
+          id?: string
+          note?: string | null
+          original_value?: number | null
+          override_value: number
+          platform?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          field?: string
+          id?: string
+          note?: string | null
+          original_value?: number | null
+          override_value?: number
+          platform?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "paid_traffic_overrides_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_logs: {
+        Row: {
+          created_at: string
+          id: string
+          level: string
+          message: string
+          metadata: Json | null
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: string
+          message: string
+          metadata?: Json | null
+          source: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: string
+          message?: string
+          metadata?: Json | null
+          source?: string
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           assigned_to: string | null
@@ -1336,6 +1430,153 @@ export type Database = {
           },
         ]
       }
+      unified_campaigns: {
+        Row: {
+          audience_filter: Json | null
+          created_at: string
+          flow_data: Json | null
+          id: string
+          name: string
+          status: Database["public"]["Enums"]["campaign_status"]
+          stop_condition: Json | null
+          trigger_event: string | null
+          type: Database["public"]["Enums"]["campaign_type"]
+          updated_at: string
+        }
+        Insert: {
+          audience_filter?: Json | null
+          created_at?: string
+          flow_data?: Json | null
+          id?: string
+          name: string
+          status?: Database["public"]["Enums"]["campaign_status"]
+          stop_condition?: Json | null
+          trigger_event?: string | null
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Update: {
+          audience_filter?: Json | null
+          created_at?: string
+          flow_data?: Json | null
+          id?: string
+          name?: string
+          status?: Database["public"]["Enums"]["campaign_status"]
+          stop_condition?: Json | null
+          trigger_event?: string | null
+          type?: Database["public"]["Enums"]["campaign_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      unified_steps: {
+        Row: {
+          body_html: string | null
+          campaign_id: string
+          channel: string
+          condition: Json | null
+          created_at: string
+          delay_hours: number
+          id: string
+          next_step_id_no: string | null
+          next_step_id_yes: string | null
+          order: number
+          preview_text: string | null
+          step_type: string
+          subject: string | null
+          wa_template_language: string | null
+          wa_template_name: string | null
+          wa_template_param_names: Json | null
+          wa_template_params: Json | null
+        }
+        Insert: {
+          body_html?: string | null
+          campaign_id: string
+          channel: string
+          condition?: Json | null
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          next_step_id_no?: string | null
+          next_step_id_yes?: string | null
+          order: number
+          preview_text?: string | null
+          step_type?: string
+          subject?: string | null
+          wa_template_language?: string | null
+          wa_template_name?: string | null
+          wa_template_param_names?: Json | null
+          wa_template_params?: Json | null
+        }
+        Update: {
+          body_html?: string | null
+          campaign_id?: string
+          channel?: string
+          condition?: Json | null
+          created_at?: string
+          delay_hours?: number
+          id?: string
+          next_step_id_no?: string | null
+          next_step_id_yes?: string | null
+          order?: number
+          preview_text?: string | null
+          step_type?: string
+          subject?: string | null
+          wa_template_language?: string | null
+          wa_template_name?: string | null
+          wa_template_param_names?: Json | null
+          wa_template_params?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "unified_steps_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "unified_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unified_steps_next_step_id_no_fkey"
+            columns: ["next_step_id_no"]
+            isOneToOne: false
+            referencedRelation: "unified_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "unified_steps_next_step_id_yes_fkey"
+            columns: ["next_step_id_yes"]
+            isOneToOne: false
+            referencedRelation: "unified_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wa_archived_chats: {
+        Row: {
+          archived_at: string
+          contact_id: string
+          id: string
+        }
+        Insert: {
+          archived_at?: string
+          contact_id: string
+          id?: string
+        }
+        Update: {
+          archived_at?: string
+          contact_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_archived_chats_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: true
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_campaigns: {
         Row: {
           audience_filter: Json | null
@@ -1375,12 +1616,60 @@ export type Database = {
         }
         Relationships: []
       }
+      wa_messages: {
+        Row: {
+          body: string | null
+          contact_id: string
+          created_at: string
+          deleted_at: string | null
+          direction: Database["public"]["Enums"]["wa_message_direction"]
+          id: string
+          message_type: string
+          metadata: Json | null
+          status: string | null
+          wa_message_id: string | null
+        }
+        Insert: {
+          body?: string | null
+          contact_id: string
+          created_at?: string
+          deleted_at?: string | null
+          direction: Database["public"]["Enums"]["wa_message_direction"]
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          status?: string | null
+          wa_message_id?: string | null
+        }
+        Update: {
+          body?: string | null
+          contact_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          direction?: Database["public"]["Enums"]["wa_message_direction"]
+          id?: string
+          message_type?: string
+          metadata?: Json | null
+          status?: string | null
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wa_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wa_sends: {
         Row: {
           campaign_id: string | null
           contact_id: string
           created_at: string
           delivered_at: string | null
+          error_message: string | null
           id: string
           read_at: string | null
           replied: boolean | null
@@ -1394,6 +1683,7 @@ export type Database = {
           contact_id: string
           created_at?: string
           delivered_at?: string | null
+          error_message?: string | null
           id?: string
           read_at?: string | null
           replied?: boolean | null
@@ -1407,6 +1697,7 @@ export type Database = {
           contact_id?: string
           created_at?: string
           delivered_at?: string | null
+          error_message?: string | null
           id?: string
           read_at?: string | null
           replied?: boolean | null
@@ -1446,9 +1737,14 @@ export type Database = {
           created_at: string
           delay_hours: number
           id: string
+          next_step_id_no: string | null
+          next_step_id_yes: string | null
           order: number
+          step_type: string
           template_id: string | null
+          wa_template_language: string | null
           wa_template_name: string
+          wa_template_param_names: string[] | null
           wa_template_params: Json | null
         }
         Insert: {
@@ -1457,9 +1753,14 @@ export type Database = {
           created_at?: string
           delay_hours?: number
           id?: string
+          next_step_id_no?: string | null
+          next_step_id_yes?: string | null
           order: number
+          step_type?: string
           template_id?: string | null
+          wa_template_language?: string | null
           wa_template_name: string
+          wa_template_param_names?: string[] | null
           wa_template_params?: Json | null
         }
         Update: {
@@ -1468,9 +1769,14 @@ export type Database = {
           created_at?: string
           delay_hours?: number
           id?: string
+          next_step_id_no?: string | null
+          next_step_id_yes?: string | null
           order?: number
+          step_type?: string
           template_id?: string | null
+          wa_template_language?: string | null
           wa_template_name?: string
+          wa_template_param_names?: string[] | null
           wa_template_params?: Json | null
         }
         Relationships: [
@@ -1479,6 +1785,20 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "wa_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_steps_next_step_id_no_fkey"
+            columns: ["next_step_id_no"]
+            isOneToOne: false
+            referencedRelation: "wa_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "wa_steps_next_step_id_yes_fkey"
+            columns: ["next_step_id_yes"]
+            isOneToOne: false
+            referencedRelation: "wa_steps"
             referencedColumns: ["id"]
           },
           {
@@ -1558,6 +1878,7 @@ export type Database = {
         | "invoice_sent"
         | "form_submitted"
         | "installment_reminder"
+        | "wa_reply"
       booking_outcome:
         | "qualified"
         | "not_qualified"
@@ -1593,6 +1914,7 @@ export type Database = {
       team_role: "admin" | "sales" | "marketing" | "viewer"
       transaction_type: "income" | "expense"
       urgency_level: "right_now" | "within_90_days" | "more_than_90_days"
+      wa_message_direction: "inbound" | "outbound"
       wa_send_status: "queued" | "sent" | "delivered" | "read" | "failed"
       work_experience:
         | "fresher"
@@ -1742,6 +2064,7 @@ export const Constants = {
         "invoice_sent",
         "form_submitted",
         "installment_reminder",
+        "wa_reply",
       ],
       booking_outcome: [
         "qualified",
@@ -1781,6 +2104,7 @@ export const Constants = {
       team_role: ["admin", "sales", "marketing", "viewer"],
       transaction_type: ["income", "expense"],
       urgency_level: ["right_now", "within_90_days", "more_than_90_days"],
+      wa_message_direction: ["inbound", "outbound"],
       wa_send_status: ["queued", "sent", "delivered", "read", "failed"],
       work_experience: [
         "fresher",

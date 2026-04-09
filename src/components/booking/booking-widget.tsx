@@ -62,6 +62,7 @@ interface BookingWidgetProps {
   formFields: FormField[];
   availability: AvailabilityRules | null;
   trackingParams?: Record<string, string>;
+  redirectUrl?: string | null;
 }
 
 type Step = "date" | "time" | "datetime" | "form" | "confirmed";
@@ -78,6 +79,7 @@ export function BookingWidget({
   formFields,
   availability,
   trackingParams = {},
+  redirectUrl: redirectUrlProp,
 }: BookingWidgetProps) {
   // Detect desktop (md breakpoint = 768px) for combined date+time view
   const [isDesktop, setIsDesktop] = useState(false);
@@ -140,16 +142,21 @@ export function BookingWidget({
 
   // Build redirect URL with tracking params
   const redirectUrl = (() => {
-    const base = "https://ld.xperiencewave.com/congratulations";
-    const params = new URLSearchParams({ booked: "true" });
-    for (const [k, v] of Object.entries(trackingParams)) {
-      if (v) params.set(k, v);
+    if (!redirectUrlProp) return null;
+    try {
+      const url = new URL(redirectUrlProp);
+      url.searchParams.set("booked", "true");
+      for (const [k, v] of Object.entries(trackingParams)) {
+        if (v) url.searchParams.set(k, v);
+      }
+      return url.toString();
+    } catch {
+      return null;
     }
-    return `${base}?${params.toString()}`;
   })();
 
   useEffect(() => {
-    if (step !== "confirmed") return;
+    if (step !== "confirmed" || !redirectUrl) return;
     const interval = setInterval(() => {
       setCountdown((n) => {
         if (n <= 1) {
@@ -747,26 +754,28 @@ export function BookingWidget({
                 </div>
 
                 {/* Redirect countdown */}
-                <div className="w-full max-w-sm space-y-2.5">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">
-                      Redirecting in{" "}
-                      <span className="font-semibold tabular-nums text-gray-700">
-                        {countdown}s
+                {redirectUrl && (
+                  <div className="w-full max-w-sm space-y-2.5">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-500">
+                        Redirecting in{" "}
+                        <span className="font-semibold tabular-nums text-gray-700">
+                          {countdown}s
+                        </span>
                       </span>
-                    </span>
-                    <a
-                      href={redirectUrl}
-                      className="font-medium text-indigo-600 underline-offset-2 hover:underline"
-                    >
-                      Continue now
-                    </a>
+                      <a
+                        href={redirectUrl}
+                        className="font-medium text-indigo-600 underline-offset-2 hover:underline"
+                      >
+                        Continue now
+                      </a>
+                    </div>
+                    <Progress
+                      value={((5 - countdown) / 5) * 100}
+                      className="h-1.5 bg-gray-100"
+                    />
                   </div>
-                  <Progress
-                    value={((5 - countdown) / 5) * 100}
-                    className="h-1.5 bg-gray-100"
-                  />
-                </div>
+                )}
               </div>
             )}
           </div>

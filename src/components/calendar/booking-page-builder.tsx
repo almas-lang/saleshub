@@ -70,6 +70,9 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
     (page.form_fields as unknown as FormField[]) ?? []
   );
 
+  // Redirect URL after booking
+  const [redirectUrl, setRedirectUrl] = useState(page.redirect_url ?? "");
+
   // Confirmation toggles
   const [confirmEmail, setConfirmEmail] = useState(page.confirmation_email ?? false);
   const [confirmWa, setConfirmWa] = useState(page.confirmation_wa ?? false);
@@ -113,6 +116,7 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
         assigned_to: assignedTo.length > 0 ? assignedTo : null,
         availability_rules: availability,
         form_fields: formFields,
+        redirect_url: redirectUrl.trim() || null,
         confirmation_email: confirmEmail,
         confirmation_wa: confirmWa,
       }),
@@ -130,7 +134,7 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
     router.refresh();
   }, [
     title, slug, description, durationMinutes, isActive,
-    assignedTo, availability, formFields, confirmEmail, confirmWa,
+    assignedTo, availability, formFields, redirectUrl, confirmEmail, confirmWa,
     page.id, router,
   ]);
 
@@ -307,6 +311,26 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
         {/* Confirmation */}
         <section className="space-y-4">
           <h2 className="text-lg font-medium">Confirmation</h2>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="redirect-url" className="text-sm font-medium">
+                Redirect URL after booking
+              </Label>
+              <Input
+                id="redirect-url"
+                type="url"
+                value={redirectUrl}
+                onChange={(e) => {
+                  setRedirectUrl(e.target.value);
+                  markDirty();
+                }}
+                placeholder="https://example.com/congratulations"
+              />
+              <p className="text-xs text-muted-foreground">
+                Where to send the user after a successful booking. UTM params are appended automatically.
+              </p>
+            </div>
+          </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between rounded-lg border bg-card p-3">
               <div>

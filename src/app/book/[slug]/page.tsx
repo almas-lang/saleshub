@@ -36,7 +36,7 @@ export default async function PublicBookingPage({
 
   const { data: page, error } = await supabaseAdmin
     .from("booking_pages")
-    .select("id, title, slug, description, duration_minutes, form_fields, availability_rules, is_active")
+    .select("id, title, slug, description, duration_minutes, form_fields, availability_rules, redirect_url, is_active")
     .eq("slug", slug)
     .eq("is_active", true)
     .single();
@@ -65,6 +65,7 @@ export default async function PublicBookingPage({
         formFields={formFields}
         availability={availability}
         trackingParams={trackingParams}
+        redirectUrl={page.redirect_url}
       />
     </div>
   );
