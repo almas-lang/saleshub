@@ -481,8 +481,12 @@ function DelayNode({ id, data }: NodeProps) {
       <Handle type="target" position={Position.Top} className="!bg-amber-500" />
       <NodeShell color="amber" icon={<Clock className="size-4" />} label="Wait">
         <div className="flex items-center gap-2">
-          <Input type="number" min={1} className="h-8 w-20 text-xs" value={displayValue}
-            onChange={(e) => update(Math.max(1, parseInt(e.target.value) || 1), unit)}
+          <Input type="number" min={1} className="h-8 w-20 text-xs" value={displayValue || ""}
+            onChange={(e) => {
+              const raw = e.target.value;
+              update(raw === "" ? 0 : parseInt(raw) || 0, unit);
+            }}
+            onBlur={() => { if (!displayValue || displayValue < 1) update(1, unit); }}
             onWheel={(e) => (e.target as HTMLInputElement).blur()} />
           <Select value={unit} onValueChange={(v: DelayUnit) => update(displayValue, v)}>
             <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
