@@ -19,6 +19,8 @@ const VARIABLES = [
   { label: "Booking Time", value: "booking_time" },
   { label: "Google Meet Link", value: "booking_meet_link" },
   { label: "Reschedule Link", value: "booking_reschedule_link" },
+  { label: "Add to Google Cal", value: "google_calendar_link" },
+  { label: "Add to Apple Cal", value: "apple_calendar_link" },
   { label: "Unsubscribe Link", value: "unsubscribe_link" },
 ] as const;
 

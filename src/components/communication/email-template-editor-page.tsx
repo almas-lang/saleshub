@@ -32,6 +32,8 @@ const EMAIL_VARIABLES = [
     { value: "booking_time", label: "Booking Time" },
     { value: "booking_meet_link", label: "Google Meet Link" },
     { value: "booking_reschedule_link", label: "Reschedule Link" },
+    { value: "google_calendar_link", label: "Add to Google Calendar" },
+    { value: "apple_calendar_link", label: "Add to Apple Calendar" },
   ]},
   { group: "System", items: [
     { value: "unsubscribe_link", label: "Unsubscribe Link" },
@@ -47,6 +49,8 @@ const SAMPLE_DATA: Record<string, string> = {
   booking_time: "10:00 AM",
   booking_meet_link: "https://meet.google.com/abc-defg-hij",
   booking_reschedule_link: "https://cal.com/reschedule/123",
+  google_calendar_link: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=...",
+  apple_calendar_link: "https://app.xperiencewave.com/api/calendar/ics?...",
   unsubscribe_link: "#",
 };
 
