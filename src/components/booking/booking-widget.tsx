@@ -1027,7 +1027,7 @@ function FormFieldInput({
               </p>
               <div className="mt-3 flex flex-col gap-2">
                 <a
-                  href="/programs/career-transition-ux-mentorship"
+                  href="https://xperiencewave.com/programs/career-transition-ux-mentorship"
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={() => fireGA4("booking_ripple_redirect")}
