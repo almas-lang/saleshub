@@ -498,7 +498,7 @@ function DelayNode({ id, data }: NodeProps) {
             <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="after_previous">After previous step</SelectItem>
-              <SelectItem value="before_booking">Before booking</SelectItem>
+              <SelectItem value="before_booking">Before scheduled call</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
@@ -519,7 +519,7 @@ function DelayNode({ id, data }: NodeProps) {
             </Select>
           </div>
           {mode === "before_booking" && (
-            <p className="text-[9px] text-muted-foreground">Sends {displayValue || "?"} {unit} before the booked call</p>
+            <p className="text-[9px] text-muted-foreground">Sends {displayValue || "?"} {unit} before the scheduled call time</p>
           )}
         </div>
       </NodeShell>
