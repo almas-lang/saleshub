@@ -277,8 +277,8 @@ export function EmailTemplateEditorPage({ template }: Props) {
         </div>
 
         {/* ── Preview panel ── */}
-        <div className="flex w-1/2 flex-col bg-muted/30">
-          <div className="flex items-center justify-between border-b px-4 py-2">
+        <div className="flex w-1/2 flex-col bg-muted/30 overflow-hidden">
+          <div className="flex items-center justify-between border-b px-4 py-2 shrink-0">
             <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Eye className="size-4" />
               Preview
@@ -297,7 +297,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
               </TabsList>
             </Tabs>
           </div>
-          <ScrollArea className="flex-1">
+          <div className="flex-1 overflow-y-auto">
             <div className="flex justify-center p-6">
               <div
                 className={cn(
@@ -331,7 +331,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
                 <div className="px-6 py-5">
                   {bodyHtml ? (
                     <div
-                      className="prose prose-sm max-w-none text-foreground dark:text-zinc-800 [&_a]:text-blue-600 [&_img]:max-w-full [&_img]:rounded"
+                      className="prose prose-sm max-w-none text-foreground dark:text-zinc-800 [&_a]:text-blue-600 [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
                       dangerouslySetInnerHTML={{
                         __html: replaceVariables(bodyHtml),
                       }}
@@ -351,7 +351,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
                 </div>
               </div>
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
     </div>
