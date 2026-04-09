@@ -7,17 +7,14 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function enrollContactByTrigger(
   contactId: string,
   triggerEvent: string,
-  triggerStageId?: string
+  _triggerStageId?: string
 ): Promise<void> {
   // Find active unified campaigns matching this trigger
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let query = supabaseAdmin
+  const { data: campaigns } = await supabaseAdmin
     .from("unified_campaigns")
     .select("id, trigger_event, audience_filter")
     .eq("status", "active")
     .eq("trigger_event", triggerEvent);
-
-  const { data: campaigns } = await query;
   if (!campaigns?.length) return;
 
   // For stage_changed triggers, filter by trigger stage_id stored in flow_data
