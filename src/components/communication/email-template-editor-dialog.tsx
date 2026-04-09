@@ -36,6 +36,8 @@ const EMAIL_VARIABLES = [
     { value: "booking_time", label: "Booking Time" },
     { value: "booking_meet_link", label: "Google Meet Link" },
     { value: "booking_reschedule_link", label: "Reschedule Link" },
+    { value: "google_calendar_link", label: "Add to Google Calendar" },
+    { value: "apple_calendar_link", label: "Add to Apple Calendar" },
   ]},
   { group: "System", items: [
     { value: "unsubscribe_link", label: "Unsubscribe Link" },

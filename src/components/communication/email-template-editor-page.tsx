@@ -32,6 +32,8 @@ const EMAIL_VARIABLES = [
     { value: "booking_time", label: "Booking Time" },
     { value: "booking_meet_link", label: "Google Meet Link" },
     { value: "booking_reschedule_link", label: "Reschedule Link" },
+    { value: "google_calendar_link", label: "Add to Google Calendar" },
+    { value: "apple_calendar_link", label: "Add to Apple Calendar" },
   ]},
   { group: "System", items: [
     { value: "unsubscribe_link", label: "Unsubscribe Link" },
@@ -47,6 +49,8 @@ const SAMPLE_DATA: Record<string, string> = {
   booking_time: "10:00 AM",
   booking_meet_link: "https://meet.google.com/abc-defg-hij",
   booking_reschedule_link: "https://cal.com/reschedule/123",
+  google_calendar_link: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=...",
+  apple_calendar_link: "https://app.xperiencewave.com/api/calendar/ics?...",
   unsubscribe_link: "#",
 };
 
@@ -331,7 +335,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
                 <div className="px-6 py-5">
                   {bodyHtml ? (
                     <div
-                      className="prose prose-sm max-w-none text-foreground dark:text-zinc-800 [&_a]:text-blue-600 [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
+                      className="prose prose-sm max-w-none text-foreground dark:text-zinc-800 break-words [&_a]:text-blue-600 [&_a]:break-all [&_img]:max-w-full [&_img]:rounded [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_p]:my-3 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0"
                       dangerouslySetInnerHTML={{
                         __html: replaceVariables(bodyHtml),
                       }}

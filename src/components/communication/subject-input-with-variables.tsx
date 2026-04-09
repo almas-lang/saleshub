@@ -16,6 +16,12 @@ const VARIABLES = [
   { label: "Company", value: "company_name" },
   { label: "Email", value: "email" },
   { label: "Phone", value: "phone" },
+  { label: "Booking Date", value: "booking_date" },
+  { label: "Booking Time", value: "booking_time" },
+  { label: "Google Meet Link", value: "booking_meet_link" },
+  { label: "Reschedule Link", value: "booking_reschedule_link" },
+  { label: "Add to Google Cal", value: "google_calendar_link" },
+  { label: "Add to Apple Cal", value: "apple_calendar_link" },
 ] as const;
 
 interface SubjectInputWithVariablesProps {

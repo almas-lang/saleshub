@@ -5,6 +5,7 @@ import { sendEmail, renderVariables, getUnsubscribeUrl } from "@/lib/email/clien
 import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
 import { evaluateCondition } from "@/lib/campaigns/condition-evaluators";
+import { buildGoogleCalendarUrl, buildAppleCalendarUrl } from "@/lib/calendar-links";
 import { logger } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -553,11 +554,11 @@ export async function GET(request: Request) {
 
           // Add booking variables if referenced
           const emailContent = `${currentStep.subject} ${currentStep.body_html} ${currentStep.preview_text ?? ""}`;
-          if (emailContent.includes("{{booking_")) {
+          if (emailContent.includes("{{booking_") || emailContent.includes("{{google_calendar_link}}") || emailContent.includes("{{apple_calendar_link}}")) {
             // Prefer next upcoming booking; fall back to most recent
             const { data: emailUpcoming } = await supabaseAdmin
               .from("bookings")
-              .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
+              .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
               .eq("contact_id", contact.id)
               .eq("status", "confirmed")
               .gte("starts_at", now)
@@ -567,7 +568,7 @@ export async function GET(request: Request) {
             const { data: emailFallback } = !emailUpcoming
               ? await supabaseAdmin
                   .from("bookings")
-                  .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
+                  .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
                   .eq("contact_id", contact.id)
                   .eq("status", "confirmed")
                   .order("starts_at", { ascending: false })
@@ -577,18 +578,33 @@ export async function GET(request: Request) {
             const booking = emailUpcoming || emailFallback;
             if (booking) {
               const dt = new Date(booking.starts_at);
+              const endDt = new Date(booking.ends_at);
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const bpData = (booking as any).booking_pages;
               const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
               variables.booking_date = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
               variables.booking_time = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
               variables.booking_meet_link = booking.meet_link || "Not available";
+              const bookingTitle = bpData?.title || "Strategy Call";
+              const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
               const slug = bpData?.slug;
               if (slug) {
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-                  || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
                 variables.booking_reschedule_link = `${baseUrl}/book/${slug}`;
               }
+              variables.google_calendar_link = buildGoogleCalendarUrl({
+                title: bookingTitle,
+                startsAt: dt,
+                endsAt: endDt,
+                meetLink: booking.meet_link,
+              });
+              variables.apple_calendar_link = buildAppleCalendarUrl({
+                title: bookingTitle,
+                startsAt: dt,
+                endsAt: endDt,
+                meetLink: booking.meet_link,
+                baseUrl,
+              });
             } else {
               // No confirmed booking found — skip this email send
               await logger.info("drip-processor", `Skipping email for ${contact.id}: booking variables used but no confirmed booking found`, {
@@ -872,16 +888,18 @@ export async function GET(request: Request) {
           const paramNames = (currentStep.wa_template_param_names ?? []) as string[];
 
           // Fetch next upcoming confirmed booking if any booking variables are used
-          const needsBooking = rawParams.some((p) => p.includes("{{booking_"));
+          const needsBooking = rawParams.some((p) => p.includes("{{booking_") || p.includes("{{google_calendar_link}}") || p.includes("{{apple_calendar_link}}"));
           let bookingDate = "";
           let bookingTime = "";
           let bookingMeetLink = "";
           let bookingRescheduleLink = "";
+          let googleCalendarLink = "";
+          let appleCalendarLink = "";
           if (needsBooking) {
             // Prefer next upcoming booking; fall back to most recent
             const { data: upcoming } = await supabaseAdmin
               .from("bookings")
-              .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
+              .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
               .eq("contact_id", contact.id)
               .eq("status", "confirmed")
               .gte("starts_at", now)
@@ -891,7 +909,7 @@ export async function GET(request: Request) {
             const { data: fallback } = !upcoming
               ? await supabaseAdmin
                   .from("bookings")
-                  .select("starts_at, meet_link, booking_pages(slug, availability_rules)")
+                  .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
                   .eq("contact_id", contact.id)
                   .eq("status", "confirmed")
                   .order("starts_at", { ascending: false })
@@ -913,18 +931,22 @@ export async function GET(request: Request) {
               continue;
             }
             const dt = new Date(booking.starts_at);
+            const endDt = new Date(booking.ends_at);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const bpData = (booking as any).booking_pages;
             const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
             bookingDate = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
             bookingTime = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
             bookingMeetLink = booking.meet_link || "Not available";
+            const bookingTitle = bpData?.title || "Strategy Call";
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+              || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
             const slug = bpData?.slug;
             if (slug) {
-              const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-                || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
               bookingRescheduleLink = `${baseUrl}/book/${slug}`;
             }
+            googleCalendarLink = buildGoogleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link });
+            appleCalendarLink = buildAppleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link, baseUrl });
           }
 
           const resolvedParams = rawParams.map((p) =>
@@ -938,6 +960,8 @@ export async function GET(request: Request) {
               .replace(/\{\{booking_time\}\}/g, bookingTime)
               .replace(/\{\{booking_meet_link\}\}/g, bookingMeetLink)
               .replace(/\{\{booking_reschedule_link\}\}/g, bookingRescheduleLink)
+              .replace(/\{\{google_calendar_link\}\}/g, googleCalendarLink)
+              .replace(/\{\{apple_calendar_link\}\}/g, appleCalendarLink)
           );
 
           const result = await sendTemplate(
