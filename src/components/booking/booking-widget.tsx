@@ -649,7 +649,7 @@ export function BookingWidget({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {renderFormFields(formFields, formData, updateField, errors)}
+                  {renderFormFields(formFields, formData, updateField, errors, slug)}
 
                   <Separator className="bg-gray-100" />
 
@@ -797,7 +797,8 @@ function renderFormFields(
   fields: FormField[],
   formData: Record<string, string>,
   updateField: (label: string, value: string) => void,
-  fieldErrors: Set<string>
+  fieldErrors: Set<string>,
+  slug?: string
 ) {
   const elements: React.ReactNode[] = [];
   let i = 0;
@@ -824,12 +825,14 @@ function renderFormFields(
             value={formData[field.label] ?? ""}
             onChange={(v) => updateField(field.label, v)}
             hasError={fieldErrors.has(field.id)}
+            slug={slug}
           />
           <FormFieldInput
             field={next}
             value={formData[next.label] ?? ""}
             onChange={(v) => updateField(next.label, v)}
             hasError={fieldErrors.has(next.id)}
+            slug={slug}
           />
         </div>
       );
@@ -842,6 +845,7 @@ function renderFormFields(
           value={formData[field.label] ?? ""}
           onChange={(v) => updateField(field.label, v)}
           hasError={fieldErrors.has(field.id)}
+          slug={slug}
         />
       );
       i += 1;
@@ -856,11 +860,13 @@ function FormFieldInput({
   value,
   onChange,
   hasError = false,
+  slug,
 }: {
   field: FormField;
   value: string;
   onChange: (v: string) => void;
   hasError?: boolean;
+  slug?: string;
 }) {
   const id = `field-${field.id}`;
   const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
@@ -868,8 +874,9 @@ function FormFieldInput({
 
   // Conditional Ripple redirect for low-experience leads
   const [rippleDismissed, setRippleDismissed] = useState(false);
+  const isTargetPage = slug === "design-career-strategy-call" || slug === "career-strategy-call";
   const isExperienceField = field.id === "f6" || field.label.toLowerCase().includes("experience");
-  const isLowExperience = isExperienceField && (value === "Fresher" || value === "< 2 years");
+  const isLowExperience = isTargetPage && isExperienceField && (value === "Fresher" || value === "< 2 years");
   const showRippleMessage = isLowExperience && !rippleDismissed;
 
   useEffect(() => {
