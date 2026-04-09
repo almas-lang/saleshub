@@ -30,6 +30,7 @@ interface WAStep {
   order: number;
   step_type: string;
   wa_template_name: string;
+  wa_template_language: string | null;
   wa_template_params: string[] | null;
   wa_template_param_names: string[] | null;
   delay_hours: number;
@@ -380,7 +381,7 @@ export async function GET(request: Request) {
 
           const { data: waSteps } = await supabaseAdmin
             .from("wa_steps")
-            .select("id, campaign_id, order, step_type, wa_template_name, wa_template_params, wa_template_param_names, delay_hours, condition, next_step_id_yes, next_step_id_no")
+            .select("id, campaign_id, order, step_type, wa_template_name, wa_template_language, wa_template_params, wa_template_param_names, delay_hours, condition, next_step_id_yes, next_step_id_no")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
@@ -545,7 +546,7 @@ export async function GET(request: Request) {
             contact.phone,
             currentStep.wa_template_name,
             resolvedParams,
-            "en",
+            currentStep.wa_template_language || "en",
             paramNames.length > 0 ? paramNames : undefined
           );
 

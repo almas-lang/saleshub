@@ -52,6 +52,7 @@ export function CampaignStepMessages({
     updateStep(index, {
       template_id: tpl.id,
       wa_template_name: tpl.name,
+      wa_template_language: tpl.language,
       wa_template_params: paramSlots.map(() => ""),
     });
   }

@@ -257,7 +257,7 @@ export function LogsViewer() {
 
       {/* Detail dialog */}
       <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto overflow-x-hidden">
           {viewing && (
             <>
               <DialogHeader>
@@ -279,7 +279,7 @@ export function LogsViewer() {
                 {viewing.metadata && Object.keys(viewing.metadata).length > 0 && (
                   <div className="rounded-lg border p-3">
                     <p className="text-xs font-medium text-muted-foreground mb-2">Metadata</p>
-                    <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 rounded p-2 max-h-[300px] overflow-y-auto">
+                    <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 rounded p-2 max-h-[300px] overflow-auto overflow-x-hidden">
                       {JSON.stringify(viewing.metadata, null, 2)}
                     </pre>
                   </div>

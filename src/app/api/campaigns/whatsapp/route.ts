@@ -177,6 +177,7 @@ export async function POST(request: Request) {
     order: s.order,
     step_type: s.step_type ?? "send",
     wa_template_name: s.wa_template_name,
+    wa_template_language: s.wa_template_language ?? "en",
     template_id: null, // wa_templates mirror not synced yet; store name only
     delay_hours: s.delay_hours,
     wa_template_params: s.wa_template_params,
@@ -301,6 +302,7 @@ export async function PATCH(request: NextRequest) {
       order: s.order,
       step_type: s.step_type ?? "send",
       wa_template_name: s.wa_template_name,
+      wa_template_language: s.wa_template_language ?? "en",
       template_id: null,
       delay_hours: s.delay_hours,
       wa_template_params: s.wa_template_params,

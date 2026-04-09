@@ -40,6 +40,7 @@ export interface AudienceFilter {
 export interface CampaignStepDraft {
   template_id: string;
   wa_template_name: string;
+  wa_template_language?: string;
   delay_hours: number;
   wa_template_params: string[];
   wa_template_param_names?: string[];
@@ -52,6 +53,7 @@ export interface WAStepDraftWithBranching {
   step_type: "send" | "condition";
   template_id: string;
   wa_template_name: string;
+  wa_template_language?: string;
   delay_hours: number;
   wa_template_params: string[];
   wa_template_param_names?: string[];
@@ -69,6 +71,7 @@ export interface SendNodeData {
   nodeType: "send";
   templateId: string;
   templateName: string;
+  templateLanguage?: string;
   templateParams: string[];
   templateParamNames: string[];
 }

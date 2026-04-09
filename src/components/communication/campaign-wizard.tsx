@@ -33,6 +33,7 @@ interface MetaTemplate {
 export interface WizardTemplate {
   id: string;
   name: string;
+  language: string;
   body_text: string | null;
 }
 
@@ -42,6 +43,7 @@ function normalizeTemplates(meta: MetaTemplate[]): WizardTemplate[] {
     .map((t) => ({
       id: t.id,
       name: t.name,
+      language: t.language,
       body_text:
         t.components.find((c) => c.type === "BODY")?.text ?? null,
     }));
@@ -232,6 +234,7 @@ export function CampaignWizard({
             order: i + 1,
             step_type: s.step_type,
             wa_template_name: s.wa_template_name,
+            wa_template_language: s.wa_template_language ?? "en",
             template_id: s.template_id,
             delay_hours: i === 0 ? 0 : s.delay_hours,
             wa_template_params: s.wa_template_params,
@@ -254,6 +257,7 @@ export function CampaignWizard({
           order: i + 1,
           step_type: "send",
           wa_template_name: s.wa_template_name,
+          wa_template_language: s.wa_template_language ?? "en",
           template_id: s.template_id,
           delay_hours: i === 0 ? 0 : s.delay_hours,
           wa_template_params: s.wa_template_params,

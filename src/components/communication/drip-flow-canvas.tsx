@@ -151,6 +151,7 @@ export function flowToSteps(flow: FlowData): CampaignStepDraft[] {
       steps.push({
         template_id: d.templateId ?? "",
         wa_template_name: d.templateName ?? "",
+        wa_template_language: d.templateLanguage ?? "en",
         delay_hours: accumulatedDelay,
         wa_template_params: d.templateParams ?? [],
         wa_template_param_names: d.templateParamNames ?? [],
@@ -270,6 +271,7 @@ export function flowToWaStepsWithBranching(
         step_type: "send",
         template_id: d.templateId ?? "",
         wa_template_name: d.templateName ?? "",
+        wa_template_language: d.templateLanguage ?? "en",
         delay_hours: delayBefore.get(nodeId) ?? 0,
         wa_template_params: d.templateParams ?? [],
         wa_template_param_names: d.templateParamNames ?? [],

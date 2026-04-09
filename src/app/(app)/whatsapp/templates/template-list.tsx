@@ -33,6 +33,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Card, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { safeFetch } from "@/lib/fetch";
@@ -78,6 +84,7 @@ export function TemplateList({
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<WATemplate | null>(null);
 
   const filtered = templates.filter((t) => {
     const matchesSearch =
@@ -213,7 +220,11 @@ export function TemplateList({
                 const canDelete = template.status === "PENDING" || template.status === "REJECTED";
 
                 return (
-                  <TableRow key={template.id ?? template.name}>
+                  <TableRow
+                    key={template.id ?? template.name}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setViewing(template)}
+                  >
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {headerIcon}
@@ -271,6 +282,80 @@ export function TemplateList({
         onConfirm={handleDelete}
         destructive
       />
+
+      {/* Template detail dialog */}
+      <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto overflow-x-hidden">
+          {viewing && (() => {
+            const body = viewing.components.find((c) => c.type === "BODY");
+            const header = viewing.components.find((c) => c.type === "HEADER");
+            const footer = viewing.components.find((c) => c.type === "FOOTER");
+            const buttons = viewing.components.find((c) => c.type === "BUTTONS");
+            const vs = STATUS_STYLES[viewing.status] ?? { label: viewing.status, variant: "outline" as const };
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    {viewing.name.replace(/_/g, " ")}
+                  </DialogTitle>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant={vs.variant}>{vs.label}</Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {CATEGORY_LABELS[viewing.category] ?? viewing.category}
+                    </span>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-xs text-muted-foreground">{viewing.language}</span>
+                  </div>
+                </DialogHeader>
+                <div className="mt-3 space-y-3">
+                  {header?.text && (
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Header</p>
+                      <p className="text-sm font-medium">{header.text}</p>
+                    </div>
+                  )}
+                  {header?.format && header.format !== "TEXT" && (
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Header</p>
+                      <p className="text-sm text-muted-foreground italic">{header.format.toLowerCase()} attachment</p>
+                    </div>
+                  )}
+                  {body?.text && (
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Body</p>
+                      <p className="text-sm whitespace-pre-wrap">{body.text}</p>
+                    </div>
+                  )}
+                  {footer?.text && (
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Footer</p>
+                      <p className="text-sm text-muted-foreground">{footer.text}</p>
+                    </div>
+                  )}
+                  {buttons?.buttons && buttons.buttons.length > 0 && (
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Buttons</p>
+                      <div className="space-y-1">
+                        {buttons.buttons.map((b, i) => (
+                          <div key={i} className="text-sm flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px]">{b.type}</Badge>
+                            <span>{b.text}</span>
+                            {b.url && <span className="text-xs text-muted-foreground truncate">({b.url})</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="rounded-lg border p-3">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">API Template Name</p>
+                    <code className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded">{viewing.name}</code>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

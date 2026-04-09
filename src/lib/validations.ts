@@ -210,6 +210,7 @@ export const createCampaignSchema = z.object({
     order: z.number().int().min(1),
     step_type: z.enum(["send", "condition"]).default("send"),
     wa_template_name: z.string(),
+    wa_template_language: z.string().optional().default("en"),
     template_id: z.string().optional().or(z.literal("")),
     delay_hours: z.number().min(0),
     wa_template_params: z.array(z.string()),

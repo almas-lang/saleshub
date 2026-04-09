@@ -118,6 +118,7 @@ function SendNode({ id, data }: NodeProps) {
                   ...n.data,
                   templateId: tpl.id,
                   templateName: tpl.name,
+                  templateLanguage: tpl.language,
                   templateParams: paramSlots.map(() => ""),
                   templateParamNames: paramSlots,
                 },
