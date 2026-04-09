@@ -885,7 +885,7 @@ function FormFieldInput({
   const [rippleDismissed, setRippleDismissed] = useState(false);
   const isTargetPage = slug === "design-career-strategy-call";
   const isExperienceField = field.id === "f6" || field.label.toLowerCase().includes("experience");
-  const isLowExperience = isTargetPage && isExperienceField && (value === "Fresher" || value === "< 2 years");
+  const isLowExperience = isTargetPage && isExperienceField && (value === "Fresher" || value === "< 2 years" || value === "Less than 2 years");
   const showRippleMessage = isLowExperience && !rippleDismissed;
 
   useEffect(() => {
