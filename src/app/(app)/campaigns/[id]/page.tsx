@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { UnifiedCampaignWizard } from "@/components/communication/unified-campaign-wizard";
+import { UnifiedCampaignEnrollments } from "@/components/communication/unified-campaign-enrollments";
 
 export default async function EditUnifiedCampaignPage({
   params,
@@ -90,6 +91,14 @@ export default async function EditUnifiedCampaignPage({
           flow_data: campaign.flow_data,
         }}
       />
+
+      {/* Enrollment stats + table (only for non-draft campaigns) */}
+      {campaign.status !== "draft" && (
+        <div className="mt-8 space-y-4">
+          <h2 className="text-lg font-semibold">Enrollments</h2>
+          <UnifiedCampaignEnrollments campaignId={campaign.id} />
+        </div>
+      )}
     </div>
   );
 }

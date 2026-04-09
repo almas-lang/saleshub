@@ -185,6 +185,32 @@ export async function PATCH(request: NextRequest) {
 
   const body = await request.json();
 
+  // Fetch current campaign state for status transition logic
+  const { data: current } = await supabase.from("unified_campaigns").select("status, audience_filter").eq("id", id).single();
+  if (!current) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+
+  const oldStatus = current.status;
+  const newStatus = body.status ?? oldStatus;
+
+  // Conflict detection: if client sends updated_at, verify it matches
+  if (body.expected_updated_at) {
+    const { data: latest } = await supabase.from("unified_campaigns").select("updated_at").eq("id", id).single();
+    if (latest && latest.updated_at !== body.expected_updated_at) {
+      return NextResponse.json(
+        { error: "This campaign was modified by another session. Please refresh and try again.", code: "CONFLICT" },
+        { status: 409 }
+      );
+    }
+  }
+
+  // Block step modifications on active campaigns
+  if (oldStatus === "active" && Array.isArray(body.steps) && body.steps.length > 0) {
+    return NextResponse.json(
+      { error: "Cannot modify steps of an active campaign. Pause it first." },
+      { status: 400 }
+    );
+  }
+
   const update: Record<string, unknown> = {};
   if (body.name !== undefined) update.name = body.name;
   if (body.audience_filter !== undefined) update.audience_filter = body.audience_filter;
@@ -198,7 +224,7 @@ export async function PATCH(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Replace steps if provided
+  // Replace steps if provided (only for draft/paused campaigns)
   if (Array.isArray(body.steps) && body.steps.length > 0) {
     await supabase.from("unified_steps").delete().eq("campaign_id", id);
 
@@ -221,6 +247,83 @@ export async function PATCH(request: NextRequest) {
     await supabase.from("unified_steps").insert(stepRows).select("id, order");
   }
 
+  // ── Status transition side-effects ──
+
+  // Activating (draft→active or paused→active)
+  if (newStatus === "active" && oldStatus !== "active") {
+    if (oldStatus === "paused") {
+      // Resume: reactivate paused enrollments
+      await supabaseAdmin
+        .from("drip_enrollments")
+        .update({ status: "active", next_send_at: new Date().toISOString() })
+        .eq("campaign_id", id)
+        .eq("campaign_type", "unified")
+        .eq("status", "paused");
+    } else if (oldStatus === "draft") {
+      // First activation: enroll existing matching contacts
+      const audienceFilter = body.audience_filter ?? current.audience_filter;
+      const enrollmentType = audienceFilter?.enrollment_type ?? "new_leads";
+      if (enrollmentType === "existing" || enrollmentType === "both") {
+        const { data: steps } = await supabaseAdmin
+          .from("unified_steps")
+          .select("id, order")
+          .eq("campaign_id", id)
+          .order("order", { ascending: true })
+          .limit(1);
+
+        const firstStep = steps?.[0];
+        if (firstStep) {
+          let contactQuery = supabaseAdmin
+            .from("contacts")
+            .select("id")
+            .is("deleted_at", null);
+
+          if (audienceFilter?.source) contactQuery = contactQuery.eq("source", audienceFilter.source);
+          if (audienceFilter?.funnel_id) contactQuery = contactQuery.eq("funnel_id", audienceFilter.funnel_id);
+          if (audienceFilter?.stage_id) contactQuery = contactQuery.eq("current_stage_id", audienceFilter.stage_id);
+          if (audienceFilter?.assigned_to) contactQuery = contactQuery.eq("assigned_to", audienceFilter.assigned_to);
+          if (!audienceFilter?.include_archived) contactQuery = contactQuery.is("archived_at", null);
+
+          const { data: contacts } = await contactQuery;
+          if (contacts?.length) {
+            // Check for existing enrollments to avoid duplicates
+            const { data: existing } = await supabaseAdmin
+              .from("drip_enrollments")
+              .select("contact_id")
+              .eq("campaign_id", id)
+              .eq("campaign_type", "unified");
+            const enrolled = new Set((existing ?? []).map((e) => e.contact_id));
+
+            const enrollments = contacts
+              .filter((c) => !enrolled.has(c.id))
+              .map((c) => ({
+                contact_id: c.id,
+                campaign_id: id,
+                campaign_type: "unified",
+                current_step_order: firstStep.order,
+                current_step_id: firstStep.id,
+                status: "active",
+                next_send_at: new Date().toISOString(),
+              }));
+            if (enrollments.length > 0) {
+              await supabaseAdmin.from("drip_enrollments").insert(enrollments);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Pausing (active→paused): pause all active enrollments
+  if (newStatus === "paused" && oldStatus === "active") {
+    await supabaseAdmin
+      .from("drip_enrollments")
+      .update({ status: "paused" })
+      .eq("campaign_id", id)
+      .eq("campaign_type", "unified")
+      .eq("status", "active");
+  }
+
   const { data } = await supabase.from("unified_campaigns").select("*").eq("id", id).single();
   return NextResponse.json(data);
 }
@@ -231,6 +334,13 @@ export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "Campaign ID required" }, { status: 400 });
+
+  // Clean up enrollments first
+  await supabaseAdmin
+    .from("drip_enrollments")
+    .delete()
+    .eq("campaign_id", id)
+    .eq("campaign_type", "unified");
 
   // Steps are cascade-deleted via FK
   const { error } = await supabase.from("unified_campaigns").delete().eq("id", id);

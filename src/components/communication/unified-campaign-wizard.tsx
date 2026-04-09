@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, Save } from "lucide-react";
+import { Loader2, Save, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { safeFetch } from "@/lib/fetch";
 import { Button } from "@/components/ui/button";
@@ -107,6 +107,11 @@ export function UnifiedCampaignWizard({
 
   // Step 3 — Flow builder
   const [flowData, setFlowData] = useState<FlowData | null>(existingCampaign?.flow_data ?? null);
+
+  // Active/paused campaigns can't edit steps
+  const isActive = existingCampaign?.status === "active";
+  const isPaused = existingCampaign?.status === "paused";
+  const isLocked = isActive || isPaused;
 
   // Step 4 — Saving
   const [saving, setSaving] = useState(false);
@@ -265,6 +270,21 @@ export function UnifiedCampaignWizard({
 
   return (
     <div className="space-y-8">
+      {/* Warning banner for active/paused campaigns */}
+      {isLocked && (
+        <div className="mx-auto max-w-5xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <AlertTriangle className="size-4 shrink-0" />
+            <span>
+              This campaign is <strong>{existingCampaign?.status}</strong>.
+              {isActive
+                ? " You can edit the name, audience, and stop condition, but cannot modify the flow steps while active. Pause the campaign first to edit steps."
+                : " You can edit freely while paused. Resume when ready."}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-0">
         {STEPS.map((s, i) => (
@@ -319,11 +339,16 @@ export function UnifiedCampaignWizard({
 
         {step === 2 && (
           <>
+            {isActive && (
+              <div className="mb-3 rounded-md border border-dashed border-amber-300 bg-amber-50/50 p-3 text-center text-sm text-amber-700 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
+                Flow is read-only while the campaign is active. Pause to edit.
+              </div>
+            )}
             <UnifiedDripFlowCanvas
               templates={templates}
               templatesLoading={templatesLoading}
               flowData={flowData}
-              onFlowChange={setFlowData}
+              onFlowChange={isActive ? () => {} : setFlowData}
               onBack={() => setStep((s) => s - 1)}
               onContinue={() => setStep((s) => s + 1)}
               canContinue={canProceed}

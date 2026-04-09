@@ -10,9 +10,9 @@ import {
   Pencil,
   Pause,
   Play,
+  Copy,
   Megaphone,
-  Mail,
-  MessageCircle,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch, throwOnError } from "@/lib/fetch";
@@ -54,6 +54,8 @@ interface UnifiedCampaign {
   stop_condition: unknown;
   created_at: string;
   updated_at: string;
+  stats?: { enrolled: number; active: number; completed: number; stopped: number };
+  step_count?: number;
 }
 
 const STATUS_STYLES: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -123,6 +125,30 @@ export function UnifiedCampaignListClient({
     }
   }
 
+  async function handleDuplicate(campaign: UnifiedCampaign) {
+    try {
+      await throwOnError(
+        safeFetch("/api/campaigns/unified", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${campaign.name} (copy)`,
+            type: campaign.type,
+            audience_filter: campaign.audience_filter,
+            stop_condition: campaign.stop_condition,
+            flow_data: campaign.flow_data,
+            steps: [],
+            activate: false,
+          }),
+        })
+      );
+      toast.success("Campaign duplicated as draft");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to duplicate");
+    }
+  }
+
   return (
     <>
       {/* Toolbar */}
@@ -179,8 +205,11 @@ export function UnifiedCampaignListClient({
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead className="hidden md:table-cell">Steps</TableHead>
+                <TableHead className="hidden md:table-cell">Enrolled</TableHead>
+                <TableHead className="hidden lg:table-cell">Active</TableHead>
+                <TableHead className="hidden lg:table-cell">Done</TableHead>
                 <TableHead className="hidden md:table-cell">Created</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -191,6 +220,7 @@ export function UnifiedCampaignListClient({
                   label: campaign.status,
                   variant: "outline" as const,
                 };
+                const stats = campaign.stats ?? { enrolled: 0, active: 0, completed: 0, stopped: 0 };
 
                 return (
                   <TableRow
@@ -205,12 +235,22 @@ export function UnifiedCampaignListClient({
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {TYPE_LABELS[campaign.type] ?? campaign.type}
-                      </span>
-                    </TableCell>
-                    <TableCell>
                       <Badge variant={statusStyle.variant}>{statusStyle.label}</Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <span className="text-sm text-muted-foreground">{campaign.step_count ?? 0}</span>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="size-3.5 text-muted-foreground" />
+                        <span className="text-sm font-medium">{stats.enrolled}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <span className="text-sm text-muted-foreground">{stats.active}</span>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      <span className="text-sm text-muted-foreground">{stats.completed + stats.stopped}</span>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <span className="text-sm text-muted-foreground whitespace-nowrap">
@@ -259,6 +299,15 @@ export function UnifiedCampaignListClient({
                               Edit
                             </DropdownMenuItem>
                           )}
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDuplicate(campaign);
+                            }}
+                          >
+                            <Copy className="mr-2 size-4" />
+                            Duplicate
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={(e) => {
