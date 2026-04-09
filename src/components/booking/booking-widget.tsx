@@ -527,7 +527,7 @@ export function BookingWidget({
                     disabled={isDayDisabled}
                     fromDate={new Date()}
                     toDate={maxBookingDate}
-                    className="w-full rounded-xl border border-gray-200 bg-white p-2 [--cell-size:2.5rem] sm:p-4 sm:[--cell-size:3rem] [&_button]:text-gray-800 [&_button:hover]:bg-gray-100 [&_button:hover]:text-gray-900 [&_button[data-selected-single=true]]:!bg-indigo-600 [&_button[data-selected-single=true]]:!text-white"
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 pb-4 [--cell-size:2.5rem] sm:p-4 sm:[--cell-size:3rem] [&_button]:text-gray-800 [&_button:hover]:bg-gray-100 [&_button:hover]:text-gray-900 [&_button[data-selected-single=true]]:!bg-indigo-600 [&_button[data-selected-single=true]]:!text-white"
                     classNames={{
                       root: "w-full",
                       months: "flex flex-col w-full relative",
