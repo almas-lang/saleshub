@@ -154,7 +154,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, type, audience_filter, steps, activate, flow_data, trigger_event, branching_edges } = parsed.data;
+  const { name, type, audience_filter, steps, activate, flow_data, trigger_event, branching_edges, stop_condition } = parsed.data;
 
   const { data: campaign, error: campaignError } = await supabase
     .from("email_campaigns")
@@ -163,6 +163,7 @@ export async function POST(request: Request) {
       type,
       status: "draft" as const,
       audience_filter: audience_filter ?? null,
+      stop_condition: stop_condition ?? null,
       trigger_event: trigger_event ?? null,
       flow_data: flow_data ?? null,
     })

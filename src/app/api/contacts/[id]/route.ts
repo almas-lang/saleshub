@@ -133,6 +133,39 @@ export async function PATCH(
         new_stage_id: cleaned.current_stage_id,
       },
     });
+
+    // Stop active drip enrollments whose campaign has a stop_condition matching this stage
+    if (cleaned.current_stage_id) {
+      const newStageId = cleaned.current_stage_id as string;
+
+      // Find all active enrollments for this contact
+      const { data: activeEnrollments } = await supabaseAdmin
+        .from("drip_enrollments")
+        .select("id, campaign_id, campaign_type")
+        .eq("contact_id", id)
+        .eq("status", "active");
+
+      if (activeEnrollments?.length) {
+        // Check each enrollment's campaign for a matching stop condition
+        for (const enrollment of activeEnrollments) {
+          const table = enrollment.campaign_type === "unified" ? "unified_campaigns"
+            : enrollment.campaign_type === "email" ? "email_campaigns" : "wa_campaigns";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: camp } = await (supabaseAdmin as any)
+            .from(table)
+            .select("stop_condition")
+            .eq("id", enrollment.campaign_id)
+            .single();
+
+          const stopCond = camp?.stop_condition as { stage_id: string } | null;
+          if (stopCond?.stage_id === newStageId) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: "stage_exit_condition" })
+              .eq("id", enrollment.id);
+          }
+        }
+      }
+    }
   }
 
   // Return updated contact with joins

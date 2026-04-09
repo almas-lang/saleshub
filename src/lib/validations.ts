@@ -205,6 +205,10 @@ export const createCampaignSchema = z.object({
     tags: z.array(z.string()).optional(),
     include_archived: z.boolean().optional(),
   }).optional(),
+  stop_condition: z.object({
+    stage_id: z.string(),
+    stage_name: z.string().optional(),
+  }).nullable().optional(),
   steps: z.array(z.object({
     node_id: z.string().optional(),
     order: z.number().int().min(1),
@@ -246,6 +250,72 @@ export const createCampaignSchema = z.object({
 export type CreateCampaignValues = z.infer<typeof createCampaignSchema>;
 
 // ──────────────────────────────────────────
+// Unified Campaigns (mixed Email + WhatsApp)
+// ──────────────────────────────────────────
+
+export const createUnifiedCampaignSchema = z.object({
+  name: z.string().min(1, "Campaign name is required").max(100),
+  type: z.enum(["drip", "one_time", "newsletter"]),
+  audience_filter: z.object({
+    enrollment_type: z.enum(["new_leads", "existing", "both"]).optional(),
+    source: z.string().optional(),
+    funnel_id: z.string().optional(),
+    stage_id: z.string().optional(),
+    assigned_to: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    include_archived: z.boolean().optional(),
+  }).optional(),
+  stop_condition: z.object({
+    stage_id: z.string(),
+    stage_name: z.string().optional(),
+  }).nullable().optional(),
+  steps: z.array(z.object({
+    node_id: z.string().optional(),
+    order: z.number().int().min(1),
+    step_type: z.enum(["send", "condition"]).default("send"),
+    channel: z.enum(["email", "whatsapp"]),
+    delay_hours: z.number().min(0),
+    // Email
+    subject: z.string().optional(),
+    preview_text: z.string().optional(),
+    body_html: z.string().optional(),
+    // WhatsApp
+    wa_template_name: z.string().optional(),
+    wa_template_language: z.string().optional().default("en"),
+    wa_template_params: z.array(z.string()).optional(),
+    wa_template_param_names: z.array(z.string()).optional(),
+    // Condition
+    condition: z.object({
+      check: z.string(),
+      value: z.string().optional(),
+    }).optional(),
+  })).min(1, "At least one step is required"),
+  branching_edges: z.array(z.object({
+    source_node_id: z.string(),
+    target_node_id: z.string(),
+    branch: z.enum(["yes", "no"]).nullable(),
+  })).optional(),
+  activate: z.boolean().optional(),
+  flow_data: z.object({
+    nodes: z.array(z.object({
+      id: z.string(),
+      type: z.string(),
+      position: z.object({ x: z.number(), y: z.number() }),
+      data: z.record(z.string(), z.unknown()),
+    })),
+    edges: z.array(z.object({
+      id: z.string(),
+      source: z.string(),
+      target: z.string(),
+      sourceHandle: z.string().nullable().optional(),
+      targetHandle: z.string().nullable().optional(),
+    })),
+  }).optional(),
+});
+
+export type CreateUnifiedCampaignValues = z.infer<typeof createUnifiedCampaignSchema>;
+
+// ──────────────────────────────────────────
 // Email Campaigns
 // ──────────────────────────────────────────
 
@@ -263,6 +333,10 @@ export const createEmailCampaignSchema = z.object({
     extra_emails: z.array(z.string().email()).optional(),
     include_archived: z.boolean().optional(),
   }).optional(),
+  stop_condition: z.object({
+    stage_id: z.string(),
+    stage_name: z.string().optional(),
+  }).nullable().optional(),
   flow_data: z.any().optional(),
   steps: z.array(z.object({
     node_id: z.string().optional(),

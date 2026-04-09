@@ -117,6 +117,9 @@ export function CampaignWizard({
   const [audienceCount, setAudienceCount] = useState(0);
   const [countLoading, setCountLoading] = useState(false);
 
+  // Stop condition
+  const [stopCondition, setStopCondition] = useState<{ stage_id: string; stage_name?: string } | null>(null);
+
   // Step 3 — Messages
   const [campaignSteps, setCampaignSteps] = useState<CampaignStepDraft[]>([
     { template_id: "", wa_template_name: "", delay_hours: 0, wa_template_params: [] },
@@ -229,6 +232,7 @@ export function CampaignWizard({
           name: name.trim() || "Untitled Campaign",
           type,
           audience_filter: audienceFilter,
+          stop_condition: stopCondition,
           steps: branchingSteps.map((s, i) => ({
             node_id: s.node_id,
             order: i + 1,
@@ -252,6 +256,7 @@ export function CampaignWizard({
         name: name.trim() || "Untitled Campaign",
         type,
         audience_filter: audienceFilter,
+        stop_condition: stopCondition,
         flow_data: flowData ?? undefined,
         steps: stepsToSave.map((s, i) => ({
           order: i + 1,
@@ -266,7 +271,7 @@ export function CampaignWizard({
         activate,
       };
     },
-    [name, type, audienceFilter, campaignSteps, flowData],
+    [name, type, audienceFilter, campaignSteps, flowData, stopCondition],
   );
 
   const handleSave = useCallback(
@@ -404,6 +409,9 @@ export function CampaignWizard({
             onNameChange={setName}
             type={type}
             onTypeChange={handleTypeChange}
+            stages={stages}
+            stopCondition={stopCondition}
+            onStopConditionChange={setStopCondition}
           />
         )}
 

@@ -32,7 +32,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
-import { EmailTemplateEditorDialog } from "./email-template-editor-dialog";
 
 export function EmailTemplateGrid({
   templates,
@@ -41,10 +40,6 @@ export function EmailTemplateGrid({
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(
-    null
-  );
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -108,7 +103,7 @@ export function EmailTemplateGrid({
             className="h-9 pl-9 text-sm"
           />
         </div>
-        <Button onClick={() => setEditorOpen(true)} size="sm">
+        <Button onClick={() => router.push("/email/templates/new")} size="sm">
           <Plus className="mr-2 size-4" />
           New template
         </Button>
@@ -122,7 +117,7 @@ export function EmailTemplateGrid({
           description="Create reusable email templates for your campaigns and drip sequences."
           action={{
             label: "Create template",
-            onClick: () => setEditorOpen(true),
+            onClick: () => router.push("/email/templates/new"),
           }}
         />
       ) : filtered.length === 0 ? (
@@ -140,10 +135,7 @@ export function EmailTemplateGrid({
               style={{
                 animation: `fadeInUp 350ms cubic-bezier(0.16, 1, 0.3, 1) ${index * 50}ms both`,
               }}
-              onClick={() => {
-                setEditingTemplate(template);
-                setEditorOpen(true);
-              }}
+              onClick={() => router.push(`/email/templates/${template.id}/edit`)}
             >
               <CardHeader className="flex-row items-start justify-between space-y-0 pb-2">
                 <div className="min-w-0 flex-1 space-y-1">
@@ -165,8 +157,7 @@ export function EmailTemplateGrid({
                     <DropdownMenuItem
                       onClick={(e) => {
                         e.stopPropagation();
-                        setEditingTemplate(template);
-                        setEditorOpen(true);
+                        router.push(`/email/templates/${template.id}/edit`);
                       }}
                     >
                       <Pencil className="mr-2 size-4" />
@@ -203,18 +194,6 @@ export function EmailTemplateGrid({
           ))}
         </div>
       )}
-
-      {/* Editor dialog */}
-      <EmailTemplateEditorDialog
-        open={editorOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditorOpen(false);
-            setEditingTemplate(null);
-          }
-        }}
-        template={editingTemplate}
-      />
 
       {/* Delete confirmation */}
       <ConfirmDialog

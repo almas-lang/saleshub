@@ -77,6 +77,9 @@ export function EmailCampaignWizard({
   const [name, setName] = useState(initialData?.name ?? "");
   const [type, setType] = useState<CampaignType>(initialData?.type ?? "one_time");
 
+  // Stop condition
+  const [stopCondition, setStopCondition] = useState<{ stage_id: string; stage_name?: string } | null>(null);
+
   // Step 2 -- Audience
   const [audienceFilter, setAudienceFilter] = useState<AudienceFilter>(initialData?.audience_filter ?? {});
   const [audienceCount, setAudienceCount] = useState(0);
@@ -186,6 +189,7 @@ export function EmailCampaignWizard({
           type,
           trigger_event: triggerEvent,
           audience_filter: audienceFilter,
+          stop_condition: stopCondition,
           flow_data: flowData,
           steps: branchingSteps.map((s, i) => ({
             node_id: s.node_id,
@@ -208,6 +212,7 @@ export function EmailCampaignWizard({
         name: name.trim() || "Untitled Campaign",
         type,
         audience_filter: audienceFilter,
+        stop_condition: stopCondition,
         flow_data: flowData ?? undefined,
         steps: stepsToSave.map((s, i) => ({
           ...(s.id ? { id: s.id } : {}),
@@ -364,6 +369,9 @@ export function EmailCampaignWizard({
             onNameChange={setName}
             type={type}
             onTypeChange={handleTypeChange}
+            stages={stages}
+            stopCondition={stopCondition}
+            onStopConditionChange={setStopCondition}
           />
         )}
 

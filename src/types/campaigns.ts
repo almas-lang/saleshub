@@ -187,6 +187,43 @@ export interface EmailSendNodeData {
   bodyHtml: string;
 }
 
+// ── Unified campaign types (mixed Email + WhatsApp) ──
+
+export type SendChannel = "email" | "whatsapp";
+
+export interface UnifiedSendNodeData {
+  nodeType: "unified_send";
+  channel: SendChannel;
+  // Email fields
+  subject?: string;
+  previewText?: string;
+  bodyHtml?: string;
+  // WhatsApp fields
+  templateId?: string;
+  templateName?: string;
+  templateLanguage?: string;
+  templateParams?: string[];
+  templateParamNames?: string[];
+}
+
+export interface UnifiedStepDraftWithBranching {
+  node_id: string;
+  step_type: "send" | "condition";
+  channel: SendChannel;
+  delay_hours: number;
+  // Email payload
+  subject?: string;
+  preview_text?: string;
+  body_html?: string;
+  // WhatsApp payload
+  wa_template_name?: string;
+  wa_template_language?: string;
+  wa_template_params?: string[];
+  wa_template_param_names?: string[];
+  // Condition
+  condition?: { check: string; value?: string };
+}
+
 // Joined types for communication history
 export type WASendWithDetails = WASend & {
   wa_campaigns: { name: string } | null;

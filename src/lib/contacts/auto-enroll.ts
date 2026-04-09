@@ -102,10 +102,31 @@ export async function autoEnrollIntoDrips(contactId: string) {
     if (matches) emailToEnroll.push(c.id);
   }
 
-  if (!waToEnroll.length && !emailToEnroll.length) return;
+  // Find active unified drip campaigns with lead_created trigger
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: unifiedCampaigns } = await (supabaseAdmin as any)
+    .from("unified_campaigns")
+    .select("id, flow_data, audience_filter")
+    .eq("type", "drip")
+    .eq("status", "active");
+
+  const unifiedToEnroll: string[] = [];
+  for (const c of unifiedCampaigns ?? []) {
+    const af = c.audience_filter as AudienceFilter | null;
+    if (af?.enrollment_type === "existing") continue;
+    const flow = c.flow_data as { nodes?: { data?: { event?: string; nodeType?: string } }[] } | null;
+    const hasTrigger = flow?.nodes?.some(
+      (n) => n.data?.nodeType === "trigger" && n.data?.event === "lead_created"
+    );
+    if (!hasTrigger) continue;
+    const matches = await contactMatchesFilter(contactId, af);
+    if (matches) unifiedToEnroll.push(c.id);
+  }
+
+  if (!waToEnroll.length && !emailToEnroll.length && !unifiedToEnroll.length) return;
 
   // Check existing enrollments to avoid duplicates
-  const allCampaignIds = [...waToEnroll, ...emailToEnroll];
+  const allCampaignIds = [...waToEnroll, ...emailToEnroll, ...unifiedToEnroll];
   const { data: existing } = await supabaseAdmin
     .from("drip_enrollments")
     .select("campaign_id")
@@ -118,7 +139,7 @@ export async function autoEnrollIntoDrips(contactId: string) {
   const rows: {
     contact_id: string;
     campaign_id: string;
-    campaign_type: "whatsapp" | "email";
+    campaign_type: "whatsapp" | "email" | "unified";
     current_step_order: number;
     current_step_id: string | null;
     status: "active";
@@ -162,6 +183,29 @@ export async function autoEnrollIntoDrips(contactId: string) {
       contact_id: contactId,
       campaign_id: campaignId,
       campaign_type: "email",
+      current_step_order: firstStep?.order ?? 1,
+      current_step_id: firstStep?.id ?? null,
+      status: "active",
+      next_send_at: now,
+    });
+  }
+
+  // Build unified enrollment rows
+  for (const campaignId of unifiedToEnroll) {
+    if (alreadyEnrolled.has(campaignId)) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: firstStep } = await (supabaseAdmin as any)
+      .from("unified_steps")
+      .select("id, order")
+      .eq("campaign_id", campaignId)
+      .order("order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    rows.push({
+      contact_id: contactId,
+      campaign_id: campaignId,
+      campaign_type: "unified",
       current_step_order: firstStep?.order ?? 1,
       current_step_id: firstStep?.id ?? null,
       status: "active",

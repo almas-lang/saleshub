@@ -53,6 +53,25 @@ interface EmailStepRow {
   next_step_id_no: string | null;
 }
 
+interface UnifiedStepRow {
+  id: string;
+  campaign_id: string;
+  order: number;
+  step_type: string;
+  channel: string;
+  subject: string | null;
+  preview_text: string | null;
+  body_html: string | null;
+  wa_template_name: string | null;
+  wa_template_language: string | null;
+  wa_template_params: string[] | null;
+  wa_template_param_names: string[] | null;
+  delay_hours: number;
+  condition: { check: string; value?: string } | null;
+  next_step_id_yes: string | null;
+  next_step_id_no: string | null;
+}
+
 export { GET as POST };
 
 export async function GET(request: Request) {
@@ -89,12 +108,14 @@ export async function GET(request: Request) {
     for (const enrollment of (enrollments ?? []) as Enrollment[]) {
       try {
         const isEmail = enrollment.campaign_type === "email";
+        const isUnified = enrollment.campaign_type === "unified";
 
-        if (isEmail) {
-          // ── EMAIL DRIP BRANCH ──
-          const { data: campaign } = await supabaseAdmin
-            .from("email_campaigns")
-            .select("id, status, type")
+        if (isUnified) {
+          // ── UNIFIED DRIP BRANCH (mixed Email + WhatsApp) ──
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: campaign } = await (supabaseAdmin as any)
+            .from("unified_campaigns")
+            .select("id, status, type, stop_condition")
             .eq("id", enrollment.campaign_id)
             .single();
 
@@ -104,6 +125,253 @@ export async function GET(request: Request) {
               .eq("id", enrollment.id);
             stopped++;
             continue;
+          }
+
+          // Check stop condition
+          const uniStopCond = campaign.stop_condition as { stage_id: string } | null;
+          if (uniStopCond?.stage_id) {
+            const { data: contactStage } = await supabaseAdmin
+              .from("contacts")
+              .select("current_stage_id")
+              .eq("id", enrollment.contact_id)
+              .single();
+            if (contactStage?.current_stage_id === uniStopCond.stage_id) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "stage_exit_condition" })
+                .eq("id", enrollment.id);
+              stopped++;
+              continue;
+            }
+          }
+
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: uniSteps } = await (supabaseAdmin as any)
+            .from("unified_steps")
+            .select("id, campaign_id, order, step_type, channel, subject, preview_text, body_html, wa_template_name, wa_template_language, wa_template_params, wa_template_param_names, delay_hours, condition, next_step_id_yes, next_step_id_no")
+            .eq("campaign_id", enrollment.campaign_id)
+            .order("order", { ascending: true });
+
+          if (!uniSteps?.length) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "completed", completed_at: now })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          const steps = uniSteps as unknown as UnifiedStepRow[];
+          const stepMap = new Map(steps.map((s) => [s.id, s]));
+
+          let currentStep: UnifiedStepRow | undefined;
+          if (enrollment.current_step_id) currentStep = stepMap.get(enrollment.current_step_id);
+          if (!currentStep) currentStep = steps.find((s) => s.order === enrollment.current_step_order);
+
+          if (!currentStep) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "completed", completed_at: now })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          // Skip condition steps (walk through them)
+          const visitedSteps = new Set<string>();
+          while (currentStep.step_type === "condition" && currentStep.condition) {
+            if (visitedSteps.has(currentStep.id)) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "loop_detected" })
+                .eq("id", enrollment.id);
+              stopped++;
+              break;
+            }
+            visitedSteps.add(currentStep.id);
+            // For now, follow "no" branch (conditions evaluated at WA/email level)
+            const nextId = currentStep.next_step_id_no;
+            if (!nextId) break;
+            currentStep = stepMap.get(nextId);
+            if (!currentStep) break;
+          }
+
+          if (!currentStep || visitedSteps.has(currentStep.id)) continue;
+
+          // Fetch contact
+          const { data: contact } = await supabaseAdmin
+            .from("contacts")
+            .select("id, email, phone, first_name, last_name, company_name, deleted_at, email_unsubscribed_at")
+            .eq("id", enrollment.contact_id)
+            .single();
+
+          if (!contact || contact.deleted_at) {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: contact?.deleted_at ? "contact_deleted" : "contact_not_found" })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          // Dispatch based on channel
+          let sendSuccess = false;
+          let sendError: string | null = null;
+
+          if (currentStep.channel === "email") {
+            if (!contact.email) {
+              // Skip this step, advance to next
+            } else if (contact.email_unsubscribed_at) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "unsubscribed" })
+                .eq("id", enrollment.id);
+              stopped++;
+              continue;
+            } else {
+              // Resolve variables
+              const unsubscribeUrl = getUnsubscribeUrl(contact.id);
+              const variables: Record<string, string> = {
+                first_name: contact.first_name || "there",
+                last_name: contact.last_name || "",
+                company_name: contact.company_name || "your company",
+                unsubscribe_link: unsubscribeUrl,
+              };
+
+              const rawSubject = renderVariables(currentStep.subject ?? "", variables);
+              const rawBody = renderVariables(currentStep.body_html ?? "", variables);
+              const rawPreview = currentStep.preview_text ? renderVariables(currentStep.preview_text, variables) : undefined;
+
+              const { subject: resolvedSubject, html: resolvedBody } = await renderDripEmail({
+                subject: rawSubject,
+                bodyHtml: rawBody,
+                preview: rawPreview,
+              });
+
+              const result = await sendEmail({
+                to: contact.email,
+                subject: resolvedSubject,
+                html: resolvedBody,
+                tags: [
+                  { name: "campaign_id", value: enrollment.campaign_id },
+                  { name: "step_id", value: currentStep.id },
+                ],
+              });
+
+              sendSuccess = result.success;
+              sendError = result.success ? null : (result.error ?? "email_failed");
+
+              await supabaseAdmin.from("email_sends").insert({
+                contact_id: contact.id,
+                campaign_id: enrollment.campaign_id,
+                step_id: currentStep.id,
+                status: result.success ? "sent" : "failed",
+                resend_message_id: result.messageId ?? null,
+                sent_at: result.success ? now : null,
+              });
+            }
+            sendSuccess = sendSuccess || !contact.email; // Skip = success for advancement
+          } else if (currentStep.channel === "whatsapp") {
+            if (!contact.phone) {
+              // Skip this step
+              sendSuccess = true;
+            } else {
+              const rawParams = (currentStep.wa_template_params ?? []) as string[];
+              const paramNames = (currentStep.wa_template_param_names ?? []) as string[];
+              const resolvedParams = rawParams.map((p) =>
+                p
+                  .replace(/\{\{first_name\}\}/g, contact.first_name || "there")
+                  .replace(/\{\{last_name\}\}/g, contact.last_name || "")
+                  .replace(/\{\{email\}\}/g, contact.email || "")
+                  .replace(/\{\{phone\}\}/g, contact.phone || "")
+                  .replace(/\{\{company_name\}\}/g, contact.company_name || "your company")
+              );
+
+              const result = await sendTemplate(
+                contact.phone,
+                currentStep.wa_template_name ?? "",
+                resolvedParams,
+                currentStep.wa_template_language || "en",
+                paramNames.length > 0 ? paramNames : undefined
+              );
+
+              sendSuccess = result.success;
+              sendError = result.success ? null : (result.error ?? "wa_failed");
+
+              await supabaseAdmin.from("wa_sends").insert({
+                contact_id: contact.id,
+                campaign_id: enrollment.campaign_id,
+                step_id: currentStep.id,
+                status: result.success ? "sent" : "failed",
+                wa_message_id: result.messageId ?? null,
+                sent_at: result.success ? now : null,
+                error_message: sendError,
+              });
+
+              if (!result.success) {
+                await logger.error("drip-processor", `Unified WA send failed for enrollment ${enrollment.id}`, {
+                  enrollment_id: enrollment.id,
+                  template: currentStep.wa_template_name,
+                  error: result.error,
+                });
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "stopped", stopped_reason: `send_failed: ${result.error?.slice(0, 100) ?? "unknown"}` })
+                  .eq("id", enrollment.id);
+                failed++;
+                continue;
+              }
+            }
+          }
+
+          if (sendSuccess) sent++;
+
+          // Advance to next step
+          let nextStep: UnifiedStepRow | undefined;
+          if (currentStep.next_step_id_no) {
+            nextStep = stepMap.get(currentStep.next_step_id_no);
+          } else {
+            nextStep = steps.find((s) => s.order > currentStep!.order);
+          }
+
+          if (nextStep) {
+            const nextSendAt = new Date(Date.now() + (nextStep.delay_hours ?? 0) * 3600_000).toISOString();
+            await supabaseAdmin.from("drip_enrollments")
+              .update({
+                current_step_id: nextStep.id,
+                current_step_order: nextStep.order,
+                next_send_at: nextSendAt,
+              })
+              .eq("id", enrollment.id);
+          } else {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "completed", completed_at: now })
+              .eq("id", enrollment.id);
+          }
+        } else if (isEmail) {
+          // ── EMAIL DRIP BRANCH ──
+          const { data: campaign } = await supabaseAdmin
+            .from("email_campaigns")
+            .select("id, status, type, stop_condition")
+            .eq("id", enrollment.campaign_id)
+            .single();
+
+          if (!campaign || campaign.status !== "active") {
+            await supabaseAdmin.from("drip_enrollments")
+              .update({ status: "stopped", stopped_reason: "campaign_inactive" })
+              .eq("id", enrollment.id);
+            stopped++;
+            continue;
+          }
+
+          // Check stop condition — stop if contact reached the exit stage
+          const emailStopCond = campaign.stop_condition as { stage_id: string } | null;
+          if (emailStopCond?.stage_id) {
+            const { data: contactStage } = await supabaseAdmin
+              .from("contacts")
+              .select("current_stage_id")
+              .eq("id", enrollment.contact_id)
+              .single();
+            if (contactStage?.current_stage_id === emailStopCond.stage_id) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "stage_exit_condition" })
+                .eq("id", enrollment.id);
+              stopped++;
+              continue;
+            }
           }
 
           const { data: emailSteps } = await supabaseAdmin
@@ -416,7 +684,7 @@ export async function GET(request: Request) {
           // ── WHATSAPP DRIP BRANCH (with branching support) ──
           const { data: campaign } = await supabaseAdmin
             .from("wa_campaigns")
-            .select("id, status, type")
+            .select("id, status, type, stop_condition")
             .eq("id", enrollment.campaign_id)
             .single();
 
@@ -426,6 +694,23 @@ export async function GET(request: Request) {
               .eq("id", enrollment.id);
             stopped++;
             continue;
+          }
+
+          // Check stop condition — stop if contact reached the exit stage
+          const waStopCond = campaign.stop_condition as { stage_id: string } | null;
+          if (waStopCond?.stage_id) {
+            const { data: contactStage } = await supabaseAdmin
+              .from("contacts")
+              .select("current_stage_id")
+              .eq("id", enrollment.contact_id)
+              .single();
+            if (contactStage?.current_stage_id === waStopCond.stage_id) {
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "stage_exit_condition" })
+                .eq("id", enrollment.id);
+              stopped++;
+              continue;
+            }
           }
 
           const { data: waSteps } = await supabaseAdmin

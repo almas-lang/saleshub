@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ReactFlow,
   Controls,
@@ -359,8 +360,8 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
 
   const [fullscreen, setFullscreen] = useState(false);
 
-  return (
-    <div className={fullscreen ? "fixed inset-0 z-50 flex flex-col bg-background" : "space-y-3"}>
+  const content = (
+    <div className={fullscreen ? "fixed inset-0 z-[9999] flex flex-col bg-background" : "space-y-3"}>
       {/* Toolbar */}
       <div className={`flex flex-wrap gap-2 ${fullscreen ? "px-4 py-3 border-b" : ""}`}>
         <Button
@@ -455,6 +456,8 @@ function InnerCanvas({ flowData, onFlowChange }: InnerCanvasProps) {
       </div>
     </div>
   );
+
+  return fullscreen ? createPortal(content, document.body) : content;
 }
 
 // ── Main exported component ──

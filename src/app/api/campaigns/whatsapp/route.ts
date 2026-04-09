@@ -152,7 +152,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { name, type, audience_filter, steps, activate, flow_data, branching_edges } = parsed.data;
+  const { name, type, audience_filter, steps, activate, flow_data, branching_edges, stop_condition } = parsed.data;
 
   // 1. Insert campaign as draft
   const { data: campaign, error: campaignError } = await supabase
@@ -162,6 +162,7 @@ export async function POST(request: Request) {
       type,
       status: "draft" as const,
       audience_filter: audience_filter ?? null,
+      stop_condition: stop_condition ?? null,
       flow_data: flow_data ?? null,
     })
     .select()

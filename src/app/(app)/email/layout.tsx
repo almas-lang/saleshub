@@ -16,9 +16,15 @@ export default function EmailLayout({
 }) {
   const pathname = usePathname();
 
-  // Hide tabs on campaign detail/new pages
+  // Hide header + tabs on editor pages (new/edit)
+  const isEditorPage =
+    pathname === "/email/templates/new" || pathname.endsWith("/edit");
   const showTabs =
     pathname === "/email" || pathname === "/email/templates";
+
+  if (isEditorPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="page-enter space-y-6">
