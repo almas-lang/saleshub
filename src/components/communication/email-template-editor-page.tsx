@@ -60,6 +60,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
 
   const [name, setName] = useState(template?.name ?? "");
   const [subject, setSubject] = useState(template?.subject ?? "");
+  const [previewText, setPreviewText] = useState(template?.preview_text ?? "");
   const [bodyHtml, setBodyHtml] = useState(template?.body_html ?? "");
   const [saving, setSaving] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
@@ -90,7 +91,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
 
     setSaving(true);
     try {
-      const payload = { name, subject, body_html: bodyHtml };
+      const payload = { name, subject, preview_text: previewText || null, body_html: bodyHtml };
 
       if (isEditing && template) {
         await throwOnError(
@@ -219,6 +220,29 @@ export function EmailTemplateEditorPage({ template }: Props) {
                 </p>
               </div>
 
+              {/* Preview text */}
+              <div className="space-y-1.5">
+                <Label htmlFor="tpl-preview" className="text-sm font-medium">
+                  Preview text
+                  <span className="ml-1 text-xs font-normal text-muted-foreground">
+                    (shown in inbox before opening)
+                  </span>
+                </Label>
+                <Input
+                  id="tpl-preview"
+                  placeholder="Optional preview text..."
+                  value={previewText}
+                  onChange={(e) => setPreviewText(e.target.value)}
+                  maxLength={150}
+                  className="h-9"
+                />
+                {previewText && (
+                  <p className="text-[11px] text-muted-foreground">
+                    {previewText.length}/150 characters
+                  </p>
+                )}
+              </div>
+
               {/* Variable reference */}
               <div className="rounded-md border border-dashed p-3">
                 <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2">
@@ -294,6 +318,12 @@ export function EmailTemplateEditorPage({ template }: Props) {
                       <span className="font-medium text-foreground/70">To:</span>
                       <span>{SAMPLE_DATA.email}</span>
                     </div>
+                    {previewText && (
+                      <div className="flex items-baseline gap-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground/70">Preview:</span>
+                        <span className="italic">{replaceVariables(previewText)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

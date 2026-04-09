@@ -807,6 +807,7 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          preview_text: string | null
           subject: string
           updated_at: string
         }
@@ -815,6 +816,7 @@ export type Database = {
           created_at?: string
           id?: string
           name: string
+          preview_text?: string | null
           subject: string
           updated_at?: string
         }
@@ -823,6 +825,7 @@ export type Database = {
           created_at?: string
           id?: string
           name?: string
+          preview_text?: string | null
           subject?: string
           updated_at?: string
         }

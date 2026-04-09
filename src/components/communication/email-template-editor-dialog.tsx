@@ -58,6 +58,7 @@ export function EmailTemplateEditorDialog({
 
   const [name, setName] = useState("");
   const [subject, setSubject] = useState("");
+  const [previewText, setPreviewText] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -66,10 +67,12 @@ export function EmailTemplateEditorDialog({
     if (template) {
       setName(template.name);
       setSubject(template.subject);
+      setPreviewText(template.preview_text ?? "");
       setBodyHtml(template.body_html);
     } else {
       setName("");
       setSubject("");
+      setPreviewText("");
       setBodyHtml("");
     }
   }, [template, open]);
@@ -82,7 +85,7 @@ export function EmailTemplateEditorDialog({
 
     setSaving(true);
     try {
-      const payload = { name, subject, body_html: bodyHtml };
+      const payload = { name, subject, preview_text: previewText || null, body_html: bodyHtml };
 
       if (isEditing) {
         await throwOnError(
@@ -200,6 +203,29 @@ export function EmailTemplateEditorDialog({
               <p className="text-[11px] text-muted-foreground">
                 Use {"{{variable}}"} for personalization
               </p>
+            </div>
+
+            {/* Preview text */}
+            <div className="space-y-1.5">
+              <Label htmlFor="tpl-preview" className="text-sm font-medium">
+                Preview text
+                <span className="ml-1 text-xs font-normal text-muted-foreground">
+                  (shown in inbox before opening)
+                </span>
+              </Label>
+              <Input
+                id="tpl-preview"
+                placeholder="Optional preview text..."
+                value={previewText}
+                onChange={(e) => setPreviewText(e.target.value)}
+                maxLength={150}
+                className="h-9"
+              />
+              {previewText && (
+                <p className="text-[11px] text-muted-foreground">
+                  {previewText.length}/150 characters
+                </p>
+              )}
             </div>
 
             {/* Variable reference */}

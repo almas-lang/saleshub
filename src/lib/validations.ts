@@ -559,6 +559,7 @@ export type BankImportBatchValues = z.infer<typeof bankImportBatchSchema>;
 export const emailTemplateSchema = z.object({
   name: z.string().min(1, "Template name is required").max(100),
   subject: z.string().min(1, "Subject line is required").max(200),
+  preview_text: z.string().max(150).optional().nullable(),
   body_html: z.string().min(1, "Email body is required"),
 });
 
