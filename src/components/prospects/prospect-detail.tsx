@@ -415,6 +415,40 @@ export function ProspectDetail({
                     <ExternalLink className="size-3" />
                   </a>
                 )}
+                {(() => {
+                  const meta = prospect.metadata as Record<string, string> | null;
+                  const portfolioUrl = meta?.portfolio_url;
+                  const resumeUrl = meta?.resume_url;
+                  if (!portfolioUrl && !resumeUrl) return null;
+                  return (
+                    <div className="flex items-center gap-3">
+                      {portfolioUrl && (
+                        <a
+                          href={portfolioUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <Globe className="size-3" />
+                          Portfolio
+                          <ExternalLink className="size-3" />
+                        </a>
+                      )}
+                      {resumeUrl && (
+                        <a
+                          href={resumeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-sm text-primary hover:text-primary/80 transition-colors"
+                        >
+                          <FileText className="size-3" />
+                          Resume
+                          <ExternalLink className="size-3" />
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

@@ -28,6 +28,12 @@ const FIELD_ALIASES: Record<string, string> = {
   "LinkedIn URL": "linkedin_url",
   LinkedinUrl: "linkedin_url",
   linkedin_url: "linkedin_url",
+  PortfolioUrl: "portfolio_url",
+  "Portfolio URL": "portfolio_url",
+  portfolio_url: "portfolio_url",
+  ResumeUrl: "resume_url",
+  "Resume URL": "resume_url",
+  resume_url: "resume_url",
 };
 
 function normalizeFieldNames(
@@ -102,13 +108,18 @@ export async function POST(request: NextRequest) {
     utm_term: lead.utm_term ?? null,
   };
 
+  // Portfolio / resume URLs (stored in metadata)
+  const extraMeta: Record<string, string> = {};
+  if (lead.portfolio_url) extraMeta.portfolio_url = lead.portfolio_url;
+  if (lead.resume_url) extraMeta.resume_url = lead.resume_url;
+
   // ── Step 4: Deduplication ──────────────────────────
-  let existingContact: { id: string; phone: string | null; funnel_id: string | null } | null = null;
+  let existingContact: { id: string; phone: string | null; funnel_id: string | null; metadata: Record<string, unknown> | null } | null = null;
 
   // Check by email first
   const { data: byEmail } = await supabaseAdmin
     .from("contacts")
-    .select("id, phone, funnel_id")
+    .select("id, phone, funnel_id, metadata")
     .eq("email", email)
     .is("deleted_at", null)
     .maybeSingle();
@@ -119,7 +130,7 @@ export async function POST(request: NextRequest) {
   if (!existingContact && phone) {
     const { data: byPhone } = await supabaseAdmin
       .from("contacts")
-      .select("id, phone, funnel_id")
+      .select("id, phone, funnel_id, metadata")
       .eq("phone", phone)
       .is("deleted_at", null)
       .maybeSingle();
@@ -170,6 +181,12 @@ export async function POST(request: NextRequest) {
       updates.current_stage_id = firstStageId;
     }
 
+    // Merge portfolio/resume URLs into existing metadata
+    if (Object.keys(extraMeta).length > 0) {
+      const prevMeta = (existingContact.metadata as Record<string, unknown>) ?? {};
+      updates.metadata = { ...prevMeta, ...extraMeta };
+    }
+
     await supabaseAdmin
       .from("contacts")
       .update(updates)
@@ -191,6 +208,7 @@ export async function POST(request: NextRequest) {
         funnel_id: funnelId,
         current_stage_id: firstStageId,
         ...utmData,
+        ...(Object.keys(extraMeta).length > 0 ? { metadata: extraMeta } : {}),
       })
       .select("id")
       .single();
@@ -212,6 +230,7 @@ export async function POST(request: NextRequest) {
     title: `New lead captured from ${source}`,
     metadata: {
       ...utmData,
+      ...extraMeta,
       is_duplicate: isDuplicate,
       source,
     },
