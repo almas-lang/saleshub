@@ -625,55 +625,50 @@ export function ProspectDetail({
                 <CardTitle className="text-sm">Qualifying Data</CardTitle>
               </CardHeader>
               <CardContent>
-                {latestFormResponse ? (
-                  <div className="space-y-4">
-                    {/* Show form email if it differs from contact email */}
-                    {(() => {
-                      const formEmail = (latestFormResponse as Record<string, unknown>).form_email as string | null;
-                      if (formEmail && formEmail !== prospect.email) {
-                        return (
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground">Form Email</p>
-                            <p className="mt-0.5 text-sm">{formEmail}</p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                    <FormResponseRow
-                      label="Total work experience"
-                      value={displayWorkExperience(latestFormResponse.work_experience)}
-                    />
-                    <FormResponseRow
-                      label="Current role"
-                      value={latestFormResponse.current_role}
-                    />
-                    <FormResponseRow
-                      label="Key challenges"
-                      value={latestFormResponse.key_challenge}
-                    />
-                    <FormResponseRow
-                      label="Desired salary"
-                      value={latestFormResponse.desired_salary}
-                    />
-                    <FormResponseRow
-                      label="Financial readiness"
-                      value={displayFinancialReadiness(latestFormResponse.financial_readiness)}
-                    />
-                    <FormResponseRow
-                      label="Urgency"
-                      value={displayUrgency(latestFormResponse.urgency)}
-                    />
-                    <FormResponseRow
-                      label="What's stopping them"
-                      value={latestFormResponse.blocker}
-                    />
-                  </div>
-                ) : (
-                  <p className="py-6 text-center text-sm text-muted-foreground">
-                    No qualifying data yet
-                  </p>
-                )}
+                {(() => {
+                  const meta = prospect.metadata as Record<string, unknown> | null;
+                  const formResponses = meta?.form_responses as Record<string, string> | null;
+
+                  // Filter out fields that are already shown elsewhere (name, email, phone, linkedin)
+                  const SKIP_KEYS = new Set(["email", "name", "first name", "last name", "phone", "whatsapp", "whatsapp/phone number", "phone number", "linkedin", "share your linkedin profile link", "linkedin profile", "linkedin_url"]);
+
+                  const entries = formResponses
+                    ? Object.entries(formResponses).filter(
+                        ([k, v]) => v?.trim() && !SKIP_KEYS.has(k.toLowerCase())
+                      )
+                    : [];
+
+                  if (entries.length > 0) {
+                    return (
+                      <div className="space-y-4">
+                        {entries.map(([label, value]) => (
+                          <FormResponseRow key={label} label={label} value={value} />
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  // Fall back to structured form response data
+                  if (latestFormResponse) {
+                    return (
+                      <div className="space-y-4">
+                        <FormResponseRow label="Total work experience" value={displayWorkExperience(latestFormResponse.work_experience)} />
+                        <FormResponseRow label="Current role" value={latestFormResponse.current_role} />
+                        <FormResponseRow label="Key challenges" value={latestFormResponse.key_challenge} />
+                        <FormResponseRow label="Desired salary" value={latestFormResponse.desired_salary} />
+                        <FormResponseRow label="Financial readiness" value={displayFinancialReadiness(latestFormResponse.financial_readiness)} />
+                        <FormResponseRow label="Urgency" value={displayUrgency(latestFormResponse.urgency)} />
+                        <FormResponseRow label="What's stopping them" value={latestFormResponse.blocker} />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <p className="py-6 text-center text-sm text-muted-foreground">
+                      No qualifying data yet
+                    </p>
+                  );
+                })()}
               </CardContent>
             </Card>
 

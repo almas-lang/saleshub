@@ -223,7 +223,7 @@ export async function POST(request: Request) {
         email,
         phone: phone || null,
         linkedin_url: linkedinUrl || null,
-        source: "booking_page",
+        source: trackingParams?.utm_source || "booking_page",
         type: "prospect",
         tags: ["booking"],
         funnel_id: funnelId,
