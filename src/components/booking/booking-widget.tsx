@@ -140,7 +140,7 @@ export function BookingWidget({
     }
   }, [formDefaults]);
 
-  // Build redirect URL with tracking params + booker email
+  // Build redirect URL with tracking params + booking details
   const redirectUrl = useMemo(() => {
     if (!redirectUrlProp) return null;
     try {
@@ -153,11 +153,16 @@ export function BookingWidget({
       const emailField = formFields.find((f) => f.type === "email" || f.label.toLowerCase().includes("email"));
       const emailValue = emailField ? formData[emailField.label]?.trim() : undefined;
       if (emailValue) url.searchParams.set("email", emailValue);
+      // Pass booking details so the congratulations page can display them
+      if (selectedDate) url.searchParams.set("date", format(selectedDate, "yyyy-MM-dd"));
+      if (selectedSlot) url.searchParams.set("time", selectedSlot.time);
+      if (durationMinutes) url.searchParams.set("duration", String(durationMinutes));
+      if (meetLink) url.searchParams.set("meet_link", meetLink);
       return url.toString();
     } catch {
       return null;
     }
-  }, [redirectUrlProp, trackingParams, formFields, formData]);
+  }, [redirectUrlProp, trackingParams, formFields, formData, selectedDate, selectedSlot, durationMinutes, meetLink]);
 
   useEffect(() => {
     if (step !== "confirmed" || !redirectUrl) return;
