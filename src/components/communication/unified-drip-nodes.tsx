@@ -45,11 +45,33 @@ import type { WizardTemplate } from "./campaign-wizard";
 // ── Templates Context ──
 
 export const UnifiedTemplatesContext = createContext<WizardTemplate[]>([]);
-export const UnifiedStagesContext = createContext<{ id: string; name: string }[]>([]);
+export const UnifiedStagesContext = createContext<{ id: string; name: string; funnel_name?: string }[]>([]);
 
 // Wrap SelectContent to always render at z-[10000] so it appears above fullscreen overlay
 function SelectContent(props: React.ComponentProps<typeof SelectContentBase>) {
   return <SelectContentBase {...props} className={`z-[10000] ${props.className ?? ""}`} />;
+}
+
+// ── Stage picker items (grouped by funnel) ──
+function StageSelectItems({ stages }: { stages: { id: string; name: string; funnel_name?: string }[] }) {
+  const grouped = stages.reduce<Record<string, typeof stages>>((acc, s) => {
+    const group = s.funnel_name || "Stages";
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(s);
+    return acc;
+  }, {});
+  return (
+    <>
+      {Object.entries(grouped).map(([funnel, funnelStages]) => (
+        <SelectGroup key={funnel}>
+          <SelectLabel className="text-[10px]">{funnel}</SelectLabel>
+          {funnelStages.map((s) => (
+            <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
+          ))}
+        </SelectGroup>
+      ))}
+    </>
+  );
 }
 
 // ── Dynamic variable options ──
@@ -173,9 +195,7 @@ function TriggerNode({ id, data }: NodeProps) {
           <Select value={d.stageId ?? ""} onValueChange={updateStage}>
             <SelectTrigger className="h-7 text-[10px] mt-1"><SelectValue placeholder="Select stage..." /></SelectTrigger>
             <SelectContent>
-              {stages.map((s) => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
-              ))}
+              <StageSelectItems stages={stages} />
             </SelectContent>
           </Select>
         )}
@@ -615,9 +635,7 @@ function ConditionNode({ id, data }: NodeProps) {
           <Select value={d.stageId ?? ""} onValueChange={updateStage}>
             <SelectTrigger className="h-7 text-[10px] mt-1"><SelectValue placeholder="Select stage..." /></SelectTrigger>
             <SelectContent>
-              {stages.map((s) => (
-                <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
-              ))}
+              <StageSelectItems stages={stages} />
             </SelectContent>
           </Select>
         )}
@@ -678,9 +696,7 @@ function MoveStageNode({ id, data }: NodeProps) {
         <Select value={d.stageId || undefined} onValueChange={update}>
           <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select stage..." /></SelectTrigger>
           <SelectContent>
-            {stages.map((s) => (
-              <SelectItem key={s.id} value={s.id} className="text-xs">{s.name}</SelectItem>
-            ))}
+            <StageSelectItems stages={stages} />
           </SelectContent>
         </Select>
         {d.stageName && <p className="text-[9px] text-muted-foreground mt-1">→ {d.stageName}</p>}

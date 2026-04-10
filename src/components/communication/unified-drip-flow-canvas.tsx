@@ -414,7 +414,7 @@ function InnerCanvas({ flowData, onFlowChange, onBack, onContinue, canContinue, 
 interface UnifiedDripFlowCanvasProps {
   templates: WizardTemplate[];
   templatesLoading: boolean;
-  stages?: { id: string; name: string }[];
+  stages?: { id: string; name: string; funnel_name?: string }[];
   flowData: FlowData | null;
   onFlowChange: (flow: FlowData) => void;
   onBack?: () => void;

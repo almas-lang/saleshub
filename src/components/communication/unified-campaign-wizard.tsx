@@ -346,7 +346,7 @@ export function UnifiedCampaignWizard({
             <UnifiedDripFlowCanvas
               templates={templates}
               templatesLoading={templatesLoading}
-              stages={stages}
+              stages={stages.map((s) => ({ ...s, funnel_name: funnels.find((f) => f.id === s.funnel_id)?.name }))}
               flowData={flowData}
               onFlowChange={isActive ? () => {} : setFlowData}
               onBack={() => setStep((s) => s - 1)}
