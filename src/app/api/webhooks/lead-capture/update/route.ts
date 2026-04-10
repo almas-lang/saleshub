@@ -65,14 +65,15 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Merge into metadata ────────────────────
-  const prevMeta = (contact.metadata as Record<string, unknown>) ?? {};
-  const newMeta: Record<string, unknown> = { ...prevMeta };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prevMeta = (contact.metadata as Record<string, any>) ?? {};
+  const newMeta = { ...prevMeta } as Record<string, any>;
   if (portfolio_url) newMeta.portfolio_url = portfolio_url;
   if (resume_url) newMeta.resume_url = resume_url;
 
   await supabaseAdmin
     .from("contacts")
-    .update({ metadata: newMeta })
+    .update({ metadata: newMeta as any })
     .eq("id", contact.id);
 
   return NextResponse.json({ success: true, contact_id: contact.id });
