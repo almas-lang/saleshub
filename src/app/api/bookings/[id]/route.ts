@@ -38,12 +38,12 @@ export async function PATCH(
   if (body.status === "cancelled") {
     const { data: booking } = await supabaseAdmin
       .from("bookings")
-      .select("google_event_id, team_member_id")
+      .select("google_event_id, assigned_to")
       .eq("id", id)
       .single();
 
-    if (booking?.google_event_id && booking?.team_member_id) {
-      await deleteEvent(booking.team_member_id, booking.google_event_id).catch(
+    if (booking?.google_event_id && booking?.assigned_to) {
+      await deleteEvent(booking.assigned_to, booking.google_event_id).catch(
         (err) => console.error("[Booking] Calendar delete error:", err)
       );
     }
