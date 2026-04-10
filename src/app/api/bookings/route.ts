@@ -613,12 +613,12 @@ function formatEventDescription(
   formData: Record<string, string>,
   pageTitle: string
 ): string {
-  const lines = [`Booking: ${pageTitle}`, ""];
+  const lines = [`Booking: ${pageTitle}`];
   for (const [key, value] of Object.entries(formData)) {
     if (value) {
-      lines.push(`${key}: ${value}`);
+      lines.push("", `${key}: ${value}`);
     }
   }
-  lines.push("", "Booked via SalesHub");
+  lines.push("", "", "Booked via SalesHub");
   return lines.join("\n");
 }

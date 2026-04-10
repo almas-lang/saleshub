@@ -294,7 +294,11 @@ export function BookingWidget({
         date: format(selectedDate, "yyyy-MM-dd"),
         time: selectedSlot.time,
         assignedTo: selectedSlot.assignedTo,
-        formData,
+        formData: Object.fromEntries(
+          formFields
+            .filter((f) => formData[f.label] !== undefined)
+            .map((f) => [f.label, formData[f.label]])
+        ),
         trackingParams,
       }),
     });
