@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Merge into metadata ────────────────────
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const prevMeta = (contact.metadata as Record<string, any>) ?? {};
   const newMeta = { ...prevMeta } as Record<string, any>;
   if (portfolio_url) newMeta.portfolio_url = portfolio_url;
@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     .from("contacts")
     .update({ metadata: newMeta as any })
     .eq("id", contact.id);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   return NextResponse.json({ success: true, contact_id: contact.id });
 }
