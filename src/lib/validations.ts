@@ -406,6 +406,7 @@ export const bookingPageSchema = z.object({
   form_fields: z.array(formFieldSchema).nullable().optional(),
   availability_rules: availabilityRulesSchema.nullable().optional(),
   assigned_to: z.array(z.string().uuid()).nullable().optional(),
+  redirect_url: z.string().url().nullable().optional(),
   confirmation_email: z.boolean().optional(),
   confirmation_wa: z.boolean().optional(),
   is_active: z.boolean().optional(),
