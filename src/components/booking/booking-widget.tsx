@@ -140,8 +140,8 @@ export function BookingWidget({
     }
   }, [formDefaults]);
 
-  // Build redirect URL with tracking params
-  const redirectUrl = (() => {
+  // Build redirect URL with tracking params + booker email
+  const redirectUrl = useMemo(() => {
     if (!redirectUrlProp) return null;
     try {
       const url = new URL(redirectUrlProp);
@@ -149,11 +149,15 @@ export function BookingWidget({
       for (const [k, v] of Object.entries(trackingParams)) {
         if (v) url.searchParams.set(k, v);
       }
+      // Find the email from form data so the congratulations page can identify the contact
+      const emailField = formFields.find((f) => f.type === "email" || f.label.toLowerCase().includes("email"));
+      const emailValue = emailField ? formData[emailField.label]?.trim() : undefined;
+      if (emailValue) url.searchParams.set("email", emailValue);
       return url.toString();
     } catch {
       return null;
     }
-  })();
+  }, [redirectUrlProp, trackingParams, formFields, formData]);
 
   useEffect(() => {
     if (step !== "confirmed" || !redirectUrl) return;

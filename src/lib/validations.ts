@@ -112,8 +112,8 @@ export const leadCaptureSchema = z.object({
   urgency: z.string().optional(),
   linkedin_url: z.string().optional(),
   // Portfolio / resume URLs (from external landing pages)
-  portfolio_url: z.string().url().optional(),
-  resume_url: z.string().url().optional(),
+  portfolio_url: z.string().optional(),
+  resume_url: z.string().optional(),
 });
 
 export type LeadCaptureValues = z.infer<typeof leadCaptureSchema>;
