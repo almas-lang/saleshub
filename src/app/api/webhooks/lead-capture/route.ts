@@ -114,32 +114,37 @@ export async function POST(request: NextRequest) {
   if (lead.resume_url) extraMeta.resume_url = lead.resume_url;
 
   // ── Step 4: Deduplication ──────────────────────────
+  // Search ALL contacts (including soft-deleted) so we can revive them
+  // instead of creating duplicates.  Use .limit(1) to avoid the
+  // maybeSingle() error when multiple rows share the same email/phone.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let existingContact: { id: string; phone: string | null; funnel_id: string | null; metadata: any } | null = null;
+  let existingContact: { id: string; phone: string | null; funnel_id: string | null; metadata: any; deleted_at: string | null } | null = null;
 
   // Check by email first
   const { data: byEmail } = await supabaseAdmin
     .from("contacts")
-    .select("id, phone, funnel_id, metadata")
+    .select("id, phone, funnel_id, metadata, deleted_at")
     .eq("email", email)
-    .is("deleted_at", null)
-    .maybeSingle();
+    .order("deleted_at", { ascending: true, nullsFirst: true })
+    .limit(1);
 
-  existingContact = byEmail;
+  existingContact = byEmail?.[0] ?? null;
 
   // If no email match and phone provided, check by phone
   if (!existingContact && phone) {
     const { data: byPhone } = await supabaseAdmin
       .from("contacts")
-      .select("id, phone, funnel_id, metadata")
+      .select("id, phone, funnel_id, metadata, deleted_at")
       .eq("phone", phone)
-      .is("deleted_at", null)
-      .maybeSingle();
+      .order("deleted_at", { ascending: true, nullsFirst: true })
+      .limit(1);
 
-    existingContact = byPhone;
+    existingContact = byPhone?.[0] ?? null;
   }
 
-  const isDuplicate = !!existingContact;
+  // A soft-deleted contact being revived is treated as new (for welcome emails, drips, etc.)
+  const isRevived = !!existingContact?.deleted_at;
+  const isDuplicate = !!existingContact && !isRevived;
 
   // ── Step 5: Find default funnel ────────────────────
   let funnelId: string | null = null;
@@ -170,8 +175,14 @@ export async function POST(request: NextRequest) {
   let contactId: string;
 
   if (existingContact) {
-    // Update: refresh UTMs, fill missing phone, assign funnel if unset
-    const updates: Record<string, unknown> = { ...utmData };
+    // Update: refresh UTMs, fill missing phone, assign funnel if unset,
+    // revive soft-deleted contacts, and unarchive so the contact
+    // reappears on the active prospects tab.
+    const updates: Record<string, unknown> = {
+      ...utmData,
+      archived_at: null,
+      deleted_at: null,
+    };
 
     if (!existingContact.phone && phone) {
       updates.phone = phone;

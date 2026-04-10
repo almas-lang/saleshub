@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { enrollContactByTrigger } from "@/lib/campaigns/trigger-enroll";
+import { deleteEvent } from "@/lib/google/calendar";
 
 export async function PATCH(
   request: Request,
@@ -31,6 +32,21 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // If cancelling, delete the Google Calendar event
+  if (body.status === "cancelled") {
+    const { data: booking } = await supabaseAdmin
+      .from("bookings")
+      .select("google_event_id, team_member_id")
+      .eq("id", id)
+      .single();
+
+    if (booking?.google_event_id && booking?.team_member_id) {
+      await deleteEvent(booking.team_member_id, booking.google_event_id).catch(
+        (err) => console.error("[Booking] Calendar delete error:", err)
+      );
+    }
   }
 
   // Trigger campaign enrollment based on booking status change

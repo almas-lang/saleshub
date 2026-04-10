@@ -214,8 +214,8 @@ export async function POST(request: Request) {
           }
 
           if (config.duplicate_handling === "update") {
-            // Merge non-null fields into existing contact
-            const updates: Record<string, unknown> = {};
+            // Merge non-null fields into existing contact + unarchive
+            const updates: Record<string, unknown> = { archived_at: null };
             for (const [key, value] of Object.entries(cleaned)) {
               if (key === "type" || key === "id") continue;
               if (value !== null && value !== undefined) {

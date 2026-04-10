@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarX, ExternalLink, Calendar } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { CalendarX, ExternalLink, X } from "lucide-react";
 import { formatDateTime } from "@/lib/utils";
 import type { BookingWithRelations } from "@/types/bookings";
 import {
@@ -16,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
+import { safeFetch } from "@/lib/fetch";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   confirmed: "default",
@@ -29,10 +31,11 @@ function contactName(contact: BookingWithRelations["contacts"]) {
   return [contact.first_name, contact.last_name].filter(Boolean).join(" ");
 }
 
-function BookingTable({ bookings, emptyTitle, emptyDescription }: {
+function BookingTable({ bookings, emptyTitle, emptyDescription, onCancel }: {
   bookings: BookingWithRelations[];
   emptyTitle: string;
   emptyDescription: string;
+  onCancel?: (id: string) => void;
 }) {
   if (bookings.length === 0) {
     return (
@@ -86,13 +89,25 @@ function BookingTable({ bookings, emptyTitle, emptyDescription }: {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  {b.meet_link && (
-                    <Button variant="ghost" size="icon" className="size-8" asChild>
-                      <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="size-4" />
-                      </a>
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {b.meet_link && (
+                      <Button variant="ghost" size="icon" className="size-8" asChild>
+                        <a href={b.meet_link} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="size-4" />
+                        </a>
+                      </Button>
+                    )}
+                    {onCancel && b.status === "confirmed" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => onCancel(b.id)}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -128,17 +143,28 @@ function BookingTable({ bookings, emptyTitle, emptyDescription }: {
               <span>{formatDateTime(b.starts_at)}</span>
               {b.booking_pages && <span>{b.booking_pages.title}</span>}
             </div>
-            {b.meet_link && (
-              <a
-                href={b.meet_link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
-              >
-                <ExternalLink className="size-3" />
-                Join meeting
-              </a>
-            )}
+            <div className="flex items-center gap-3">
+              {b.meet_link && (
+                <a
+                  href={b.meet_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                >
+                  <ExternalLink className="size-3" />
+                  Join meeting
+                </a>
+              )}
+              {onCancel && b.status === "confirmed" && (
+                <button
+                  onClick={() => onCancel(b.id)}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive"
+                >
+                  <X className="size-3" />
+                  Cancel
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -150,6 +176,20 @@ export function BookingsSection({ upcoming, past }: {
   upcoming: BookingWithRelations[];
   past: BookingWithRelations[];
 }) {
+  const router = useRouter();
+
+  async function handleCancel(id: string) {
+    if (!confirm("Cancel this booking? The calendar event will also be removed.")) return;
+    const res = await safeFetch(`/api/bookings/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "cancelled" }),
+    });
+    if (res.ok) {
+      router.refresh();
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
@@ -184,6 +224,7 @@ export function BookingsSection({ upcoming, past }: {
             bookings={upcoming}
             emptyTitle="No upcoming bookings"
             emptyDescription="Bookings will appear here once prospects schedule calls through your booking pages."
+            onCancel={handleCancel}
           />
         </TabsContent>
 
