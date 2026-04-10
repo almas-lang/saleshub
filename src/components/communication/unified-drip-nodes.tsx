@@ -627,6 +627,7 @@ function ConditionNode({ id, data }: NodeProps) {
             <SelectItem value="booking_created">Has Booking</SelectItem>
             <SelectItem value="booking_noshow">No-show (missed call)</SelectItem>
             <SelectItem value="booking_completed">Call completed</SelectItem>
+            <SelectItem value="booking_rescheduled">Rescheduled (new booking)</SelectItem>
             <SelectItem value="stage_is">Stage is</SelectItem>
             <SelectItem value="replied">Replied</SelectItem>
           </SelectContent>

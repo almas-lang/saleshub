@@ -100,7 +100,7 @@ export interface DelayNodeData {
 
 export interface ConditionNodeData {
   nodeType: "condition";
-  check: "booking_created" | "booking_noshow" | "booking_completed" | "replied" | "stage_is";
+  check: "booking_created" | "booking_noshow" | "booking_completed" | "booking_rescheduled" | "replied" | "stage_is";
   stageId?: string;
   stageName?: string;
 }

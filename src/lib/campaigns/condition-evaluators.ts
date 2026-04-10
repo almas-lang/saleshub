@@ -38,6 +38,18 @@ export async function evaluateCondition(
       return (count ?? 0) > 0;
     }
 
+    case "booking_rescheduled": {
+      // True if the contact has an upcoming confirmed booking (they rebooked after a no-show)
+      const now = new Date().toISOString();
+      const { count } = await supabaseAdmin
+        .from("bookings")
+        .select("id", { count: "exact", head: true })
+        .eq("contact_id", contactId)
+        .eq("status", "confirmed")
+        .gte("starts_at", now);
+      return (count ?? 0) > 0;
+    }
+
     case "booking_completed": {
       const { count } = await supabaseAdmin
         .from("bookings")
