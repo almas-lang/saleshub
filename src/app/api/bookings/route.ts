@@ -131,7 +131,7 @@ export async function POST(request: Request) {
   }
 
   const emailByType = findByType("email");
-  const email = emailByType || formData["Email"] || formData["email"] || "";
+  const email = (emailByType || formData["Email"] || formData["email"] || "").toLowerCase().trim();
   const phoneByType = findByType("phone");
   const rawPhone = (phoneByType || formData["Whatsapp/Phone number"] || formData["Phone Number"] || formData["phone"] || "").replace(/\s+/g, "");
   // Normalize to E.164-ish: prepend +91 if no country code present
@@ -177,12 +177,29 @@ export async function POST(request: Request) {
   }
 
   // ── Step 2: Find or create contact ─────────────
-  const { data: existingContact } = await supabaseAdmin
+  let existingContact: { id: string; funnel_id: string | null; current_stage_id: string | null; metadata: unknown; linkedin_url: string | null; phone: string | null } | null = null;
+
+  // Check by email first
+  const { data: byEmail } = await supabaseAdmin
     .from("contacts")
     .select("id, funnel_id, current_stage_id, metadata, linkedin_url, phone")
     .eq("email", email)
     .is("deleted_at", null)
     .maybeSingle();
+
+  existingContact = byEmail;
+
+  // If no email match and phone provided, fall back to phone lookup
+  if (!existingContact && phone) {
+    const { data: byPhone } = await supabaseAdmin
+      .from("contacts")
+      .select("id, funnel_id, current_stage_id, metadata, linkedin_url, phone")
+      .eq("phone", phone)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    existingContact = byPhone;
+  }
 
   let contactId: string;
   let contactFunnelId: string | null;
