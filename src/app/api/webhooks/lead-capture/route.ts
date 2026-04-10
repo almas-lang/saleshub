@@ -114,7 +114,8 @@ export async function POST(request: NextRequest) {
   if (lead.resume_url) extraMeta.resume_url = lead.resume_url;
 
   // ── Step 4: Deduplication ──────────────────────────
-  let existingContact: { id: string; phone: string | null; funnel_id: string | null; metadata: Record<string, unknown> | null } | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let existingContact: { id: string; phone: string | null; funnel_id: string | null; metadata: any } | null = null;
 
   // Check by email first
   const { data: byEmail } = await supabaseAdmin
