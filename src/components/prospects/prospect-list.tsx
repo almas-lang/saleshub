@@ -19,6 +19,7 @@ import {
   Tag,
   X,
   Upload,
+  Download,
   ExternalLink,
   Columns3,
   Archive,
@@ -55,6 +56,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ProspectFilters } from "./prospect-filters";
@@ -165,8 +174,14 @@ export function ProspectList({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState(searchParams.get("search") ?? "");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAllMatching, setSelectAllMatching] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportColumns, setExportColumns] = useState<Set<string>>(
+    () => new Set(["first_name", "email", "phone", "source", "stage", "tags", "created_at"])
+  );
 
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     () => new Set(ALL_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
@@ -263,6 +278,7 @@ export function ProspectList({
   function toggleAll() {
     if (allSelected) {
       setSelectedIds(new Set());
+      setSelectAllMatching(false);
     } else {
       setSelectedIds(new Set(prospects.map((p) => p.id)));
     }
@@ -411,6 +427,81 @@ export function ProspectList({
     booked: searchParams.get("booked") ?? "",
   };
 
+  const EXPORT_COLUMN_OPTIONS = [
+    { key: "first_name", label: "Name" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "company_name", label: "Company" },
+    { key: "source", label: "Source" },
+    { key: "stage", label: "Stage" },
+    { key: "funnel", label: "Funnel" },
+    { key: "assigned_to", label: "Assigned To" },
+    { key: "tags", label: "Tags" },
+    { key: "created_at", label: "Created" },
+    { key: "linkedin_url", label: "LinkedIn" },
+    { key: "utm_source", label: "UTM Source" },
+    { key: "utm_medium", label: "UTM Medium" },
+    { key: "utm_campaign", label: "UTM Campaign" },
+  ];
+
+  const exportCount = selectAllMatching ? total : selectedIds.size;
+
+  async function handleExport() {
+    setExportLoading(true);
+    try {
+      const payload: Record<string, unknown> = {
+        columns: Array.from(exportColumns),
+      };
+
+      if (selectAllMatching) {
+        // Export all matching current filters
+        payload.filters = {
+          tab,
+          search: searchParams.get("search") ?? "",
+          ...filters,
+        };
+      } else if (selectedIds.size > 0) {
+        // Export specific selected IDs
+        payload.contact_ids = Array.from(selectedIds);
+      } else {
+        // Export all with current filters (from toolbar button)
+        payload.filters = {
+          tab,
+          search: searchParams.get("search") ?? "",
+          ...filters,
+        };
+      }
+
+      const res = await fetch("/api/contacts/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error ?? "Export failed");
+        return;
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") ?? "prospects.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportOpen(false);
+      toast.success(`Exported ${selectAllMatching ? "all matching" : selectedIds.size > 0 ? `${selectedIds.size} selected` : "all"} prospects`);
+    } catch {
+      toast.error("Export failed");
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
   return (
     <>
       {/* Search + Filters + Actions — single toolbar row */}
@@ -470,6 +561,15 @@ export function ProspectList({
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-9 shrink-0"
+            onClick={() => setExportOpen(true)}
+            title="Export CSV"
+          >
+            <Download className="size-4" />
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href="/prospects/import">
               <Upload className="mr-1.5 size-3.5" />
@@ -515,6 +615,36 @@ export function ProspectList({
         />
       ) : (
         <>
+          {/* "Select all matching" banner — Gmail-style */}
+          {allSelected && total > prospects.length && (
+            <div className="hidden items-center justify-center gap-1 rounded-lg border border-primary/20 bg-primary/5 px-4 py-2 text-sm lg:flex">
+              {selectAllMatching ? (
+                <>
+                  <span className="font-medium">All {total} matching prospects</span> are selected.
+                  <button
+                    className="ml-1 font-medium text-primary hover:underline"
+                    onClick={() => {
+                      setSelectAllMatching(false);
+                      setSelectedIds(new Set(prospects.map((p) => p.id)));
+                    }}
+                  >
+                    Clear selection
+                  </button>
+                </>
+              ) : (
+                <>
+                  All {prospects.length} on this page are selected.
+                  <button
+                    className="ml-1 font-medium text-primary hover:underline"
+                    onClick={() => setSelectAllMatching(true)}
+                  >
+                    Select all {total} matching prospects
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* Desktop table */}
           <div className="hidden overflow-x-auto rounded-xl border lg:block">
             <Table>
@@ -1004,7 +1134,7 @@ export function ProspectList({
         <div className="sticky bottom-0 z-40 -mx-6 border-t bg-card px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.15)] animate-in slide-in-from-bottom-4">
           <div className="mx-auto flex max-w-screen-xl items-center gap-3">
             <span className="text-sm font-medium">
-              {selectedIds.size} selected
+              {selectAllMatching ? `All ${total}` : selectedIds.size} selected
             </span>
 
             <div className="ml-2 flex flex-wrap items-center gap-2">
@@ -1084,6 +1214,17 @@ export function ProspectList({
               <Button
                 variant="outline"
                 size="sm"
+                className="h-8 text-xs"
+                disabled={bulkLoading}
+                onClick={() => setExportOpen(true)}
+              >
+                <Download className="mr-1.5 size-3.5" />
+                Export
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
                 className="h-8 text-xs text-destructive"
                 disabled={bulkLoading}
                 onClick={() => setBulkDeleteOpen(true)}
@@ -1097,7 +1238,10 @@ export function ProspectList({
               variant="ghost"
               size="sm"
               className="ml-auto h-8 text-xs"
-              onClick={() => setSelectedIds(new Set())}
+              onClick={() => {
+                setSelectedIds(new Set());
+                setSelectAllMatching(false);
+              }}
             >
               <X className="mr-1 size-3.5" />
               Clear
@@ -1130,6 +1274,77 @@ export function ProspectList({
         }}
         destructive
       />
+
+      {/* Export Dialog — Column Picker */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export Prospects</DialogTitle>
+            <DialogDescription>
+              {selectAllMatching
+                ? `Export all ${total} matching prospects as CSV.`
+                : selectedIds.size > 0
+                  ? `Export ${selectedIds.size} selected prospect${selectedIds.size !== 1 ? "s" : ""} as CSV.`
+                  : `Export all ${total} prospect${total !== 1 ? "s" : ""} as CSV.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Columns to export</span>
+              <div className="flex gap-2">
+                <button
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setExportColumns(new Set(EXPORT_COLUMN_OPTIONS.map((c) => c.key)))}
+                >
+                  Select all
+                </button>
+                <span className="text-xs text-muted-foreground">|</span>
+                <button
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setExportColumns(new Set())}
+                >
+                  Unselect all
+                </button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {EXPORT_COLUMN_OPTIONS.map((col) => (
+                <label
+                  key={col.key}
+                  className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50 cursor-pointer"
+                >
+                  <Checkbox
+                    checked={exportColumns.has(col.key)}
+                    onCheckedChange={(checked) => {
+                      setExportColumns((prev) => {
+                        const next = new Set(prev);
+                        if (checked) {
+                          next.add(col.key);
+                        } else {
+                          next.delete(col.key);
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                  {col.label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleExport}
+              disabled={exportLoading || exportColumns.size === 0}
+            >
+              {exportLoading ? "Exporting..." : `Export${exportCount > 0 ? ` (${exportCount})` : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ProspectForm
         open={formOpen || !!editingProspect}
