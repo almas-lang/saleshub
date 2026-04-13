@@ -313,14 +313,6 @@ export function BookingWidget({
       setMeetLink(result.data.meet_link);
       setCountdown(5);
       setStep("confirmed");
-      if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).fbq) {
-        (window as unknown as Record<string, ((...args: unknown[]) => void)>).fbq("track", "Lead", {
-          content_name: title,
-          ...(trackingParams.utm_source && {
-            utm_source: trackingParams.utm_source,
-          }),
-        });
-      }
     } else if (
       (result as unknown as { data?: { code?: string } }).data?.code === "SLOT_TAKEN" ||
       result.error?.includes("just booked")
