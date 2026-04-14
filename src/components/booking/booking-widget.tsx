@@ -120,11 +120,29 @@ export function BookingWidget({
     const defaults: Record<string, string> = {};
     for (const field of formFields) {
       if (field.defaultValue) {
-        // Strip +91 prefix from phone defaults since it's shown as a label
         if (field.type === "phone") {
           defaults[field.label] = field.defaultValue.replace(/^\+91\s*/, "");
         } else {
           defaults[field.label] = field.defaultValue;
+        }
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const prefillById: Record<string, string | null> = {
+        f1: sp.get("first_name"),
+        f2: sp.get("last_name"),
+        f3: sp.get("email"),
+        f4: sp.get("phone"),
+      };
+      for (const field of formFields) {
+        const raw = prefillById[field.id];
+        if (!raw) continue;
+        if (field.type === "phone") {
+          defaults[field.label] = raw.replace(/^\+?91\s*/, "").trim();
+        } else {
+          defaults[field.label] = raw;
         }
       }
     }
