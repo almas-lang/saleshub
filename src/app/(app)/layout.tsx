@@ -20,14 +20,23 @@ export default async function AppLayout({
 
   const { data: disconnected } = await supabaseAdmin
     .from("team_members")
-    .select("id, name, email, google_disconnect_reason, google_disconnected_at")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .select("id, name, email, google_disconnect_reason, google_disconnected_at" as any)
     .eq("is_active", true)
     .eq("google_calendar_connected", false)
     .not("google_refresh_token", "is", null);
 
+  type DisconnectedRow = {
+    id: string;
+    name: string | null;
+    email: string;
+    google_disconnect_reason: string | null;
+    google_disconnected_at: string | null;
+  };
+
   return (
     <AppShell userEmail={user.email ?? ""}>
-      <CalendarDisconnectAlert members={disconnected ?? []} />
+      <CalendarDisconnectAlert members={(disconnected as unknown as DisconnectedRow[]) ?? []} />
       {children}
     </AppShell>
   );
