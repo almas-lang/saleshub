@@ -957,6 +957,9 @@ function FormFieldInput({
 
   const handlePopupOpenChange = (open: boolean) => {
     if (open) return;
+    if (!continuingRef.current) {
+      onChange("");
+    }
     continuingRef.current = false;
     setPopupVariant(null);
     setPopupScreen(1);
