@@ -10,6 +10,7 @@
 
 import { OAuth2Client } from "google-auth-library";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { sendEmail } from "@/lib/email/client";
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -28,6 +29,67 @@ export interface GoogleAuthResult {
 }
 
 // ── Helpers ─────────────────────────────────────────
+
+/**
+ * Mark a team member as disconnected and notify admins by email.
+ * Only sends email on the *transition* from connected → disconnected,
+ * so failed retries don't spam.
+ */
+async function markDisconnectedAndNotify(teamMemberId: string, reason: string) {
+  const { data: member } = await supabaseAdmin
+    .from("team_members")
+    .select("name, email, google_calendar_connected")
+    .eq("id", teamMemberId)
+    .single();
+
+  if (!member?.google_calendar_connected) return;
+
+  await supabaseAdmin
+    .from("team_members")
+    .update({ google_calendar_connected: false })
+    .eq("id", teamMemberId);
+
+  try {
+    const { data: admins } = await supabaseAdmin
+      .from("team_members")
+      .select("email")
+      .eq("role", "admin")
+      .eq("is_active", true);
+
+    const recipients = Array.from(
+      new Set([
+        ...((admins ?? []).map((a) => a.email).filter(Boolean) as string[]),
+        member.email,
+      ].filter(Boolean) as string[])
+    );
+
+    if (recipients.length === 0) return;
+
+    const appUrl =
+      process.env.NEXT_PUBLIC_APP_URL ?? "https://app.xperiencewave.com";
+    const connectUrl = `${appUrl}/settings/integrations/connect`;
+
+    await sendEmail({
+      to: recipients,
+      subject: `⚠️ Google Calendar disconnected for ${member.name ?? member.email}`,
+      html: `
+        <div style="font-family:system-ui,sans-serif;max-width:560px;margin:auto;padding:24px;">
+          <h2 style="color:#b91c1c;margin:0 0 12px;">Calendar disconnected</h2>
+          <p>Google Calendar for <strong>${member.name ?? member.email}</strong> (${member.email}) was just disconnected.</p>
+          <p style="color:#555;">Reason: ${reason}</p>
+          <p><strong>Bookings will not show available time slots until this is reconnected.</strong></p>
+          <p style="margin:24px 0;">
+            <a href="${connectUrl}" style="background:#4f46e5;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Reconnect now</a>
+          </p>
+          <p style="color:#888;font-size:12px;">SalesHub auto-notification</p>
+        </div>
+      `,
+      tags: [{ name: "type", value: "calendar_disconnect" }],
+    });
+  } catch (err) {
+    console.error("[Google Auth] notify email failed:", err);
+  }
+}
 
 /** Create a fresh OAuth2 client */
 export function createOAuth2Client() {
@@ -69,11 +131,10 @@ export async function getAuthenticatedClient(teamMemberId: string) {
   if (isExpired) {
     const refreshed = await refreshToken(teamMemberId, oauth2Client);
     if (!refreshed.success) {
-      // Mark as disconnected so the UI can show a warning
-      await supabaseAdmin
-        .from("team_members")
-        .update({ google_calendar_connected: false })
-        .eq("id", teamMemberId);
+      await markDisconnectedAndNotify(
+        teamMemberId,
+        refreshed.error ?? "Token refresh failed"
+      );
       console.error(
         `[Google Auth] Token refresh failed for ${teamMemberId}, marking disconnected`
       );
@@ -206,14 +267,10 @@ export async function refreshToken(
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[Google Auth] refresh error:", message);
-    // Mark as disconnected on refresh failure (best-effort)
     try {
-      await supabaseAdmin
-        .from("team_members")
-        .update({ google_calendar_connected: false })
-        .eq("id", teamMemberId);
+      await markDisconnectedAndNotify(teamMemberId, message);
     } catch {
-      // Ignore DB errors during error handling
+      // Ignore notify errors during error handling
     }
     return { success: false, error: message };
   }
