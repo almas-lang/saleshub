@@ -10,6 +10,7 @@ import {
   Calendar,
   ExternalLink,
   Copy,
+  CopyPlus,
   Clock,
   Users,
   Link as LinkIcon,
@@ -66,6 +67,15 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
   }
 
   const visiblePages = pages.filter((p) => !removedIds.has(p.id));
+
+  function handleDuplicate(page: BookingPageWithCount) {
+    throwOnError(safeFetch(`/api/booking-pages/${page.id}/duplicate`, { method: "POST" }))
+      .then(() => {
+        toast.success("Booking page duplicated");
+        router.refresh();
+      })
+      .catch((err) => toast.error(err.message));
+  }
 
   function copyLink(slug: string) {
     const url = `${window.location.origin}/book/${slug}`;
@@ -136,6 +146,15 @@ export function BookingPageList({ pages }: { pages: BookingPageWithCount[] }) {
                         >
                           <Pencil className="mr-2 size-4" />
                           Edit details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDuplicate(page);
+                          }}
+                        >
+                          <CopyPlus className="mr-2 size-4" />
+                          Duplicate
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={(e) => {
