@@ -11,6 +11,7 @@
 import { OAuth2Client } from "google-auth-library";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendEmail } from "@/lib/email/client";
+import { logger } from "@/lib/logger";
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID!;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET!;
@@ -52,6 +53,13 @@ async function markDisconnectedAndNotify(teamMemberId: string, reason: string) {
       google_disconnected_at: new Date().toISOString(),
     })
     .eq("id", teamMemberId);
+
+  await logger.error("google-auth", `Calendar disconnected for ${member.email}`, {
+    teamMemberId,
+    email: member.email,
+    name: member.name,
+    reason,
+  });
 
   try {
     const { data: admins } = await supabaseAdmin
