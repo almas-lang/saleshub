@@ -39,6 +39,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface TimeSlot {
   start: string;
@@ -517,7 +524,7 @@ export function BookingWidget({
             </div>
           )}
 
-          {/* Content area — fixed height for steps 1-2 on desktop, grows for step 3 */}
+          {/* Content area (fixed height for steps 1-2 on desktop, grows for step 3) */}
           <div className={`flex-1 p-5 sm:p-6 ${step !== "form" && step !== "confirmed" ? "md:h-[520px] md:overflow-y-auto" : ""}`}>
             {/* ── Step 1: Date ── */}
             {step === "date" && (
@@ -886,18 +893,22 @@ function FormFieldInput({
   const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
   const inputBase = `h-11 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
 
+  const continuingRef = useRef(false);
+
   // Conditional Ripple redirect for low-experience leads
   const [rippleDismissed, setRippleDismissed] = useState(false);
   const isTargetPage = slug === "design-career-strategy-call";
   const isExperienceField = field.id === "f6" || field.label.toLowerCase().includes("experience");
   const isLowExperience = isTargetPage && isExperienceField && (value === "Fresher" || value === "< 2 years" || value === "Less than 2 years");
-  const showRippleMessage = isLowExperience && !rippleDismissed;
 
   // Conditional explorer redirect for "researching" timeline leads
   const [explorerDismissed, setExplorerDismissed] = useState(false);
   const isTimelineField = field.id === "f12" || field.label.toLowerCase().includes("when would you want to start") || field.label.toLowerCase().includes("how soon");
   const isResearching = isTargetPage && isTimelineField && value.toLowerCase().includes("researching");
-  const showExplorerMessage = isResearching && !explorerDismissed;
+
+  type PopupVariant = "ripple" | "explorer" | null;
+  const [popupVariant, setPopupVariant] = useState<PopupVariant>(null);
+  const [popupScreen, setPopupScreen] = useState<1 | 2>(1);
 
   useEffect(() => {
     if (!isLowExperience) setRippleDismissed(false);
@@ -907,10 +918,52 @@ function FormFieldInput({
     if (!isResearching) setExplorerDismissed(false);
   }, [isResearching]);
 
+  useEffect(() => {
+    if (isLowExperience && !rippleDismissed && popupVariant !== "ripple") {
+      setPopupVariant("ripple");
+      setPopupScreen(1);
+    }
+  }, [isLowExperience, rippleDismissed, popupVariant]);
+
+  useEffect(() => {
+    if (isResearching && !explorerDismissed && popupVariant !== "explorer") {
+      setPopupVariant("explorer");
+      setPopupScreen(1);
+    }
+  }, [isResearching, explorerDismissed, popupVariant]);
+
   const fireGA4 = (event: string) => {
     if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).gtag) {
       (window as unknown as Record<string, ((...args: unknown[]) => void)>).gtag("event", event);
     }
+  };
+
+  const handleContinueBooking = () => {
+    if (popupVariant === "ripple") {
+      fireGA4("booking_override_continue");
+      setRippleDismissed(true);
+    } else if (popupVariant === "explorer") {
+      fireGA4("booking_explorer_override");
+      setExplorerDismissed(true);
+    }
+    continuingRef.current = true;
+    setPopupVariant(null);
+    setPopupScreen(1);
+  };
+
+  const handleShowAlternative = () => {
+    setPopupScreen(2);
+  };
+
+  const handlePopupOpenChange = (open: boolean) => {
+    if (open) return;
+    if (continuingRef.current) {
+      continuingRef.current = false;
+      setPopupVariant(null);
+      setPopupScreen(1);
+      return;
+    }
+    window.location.href = "https://xperiencewave.com/freetraining";
   };
 
   return (
@@ -1032,87 +1085,112 @@ function FormFieldInput({
               </label>
             ))}
           </RadioGroup>
-          {showRippleMessage && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              <p>
-                This strategy call is designed for designers with 2+ years who
-                want to move into senior &amp; leadership roles. But we have
-                something for you — our <strong>Ripple</strong> program is built
-                specifically for designers early in their career.
-              </p>
-              <div className="mt-3 flex flex-col gap-2">
-                <a
-                  href="https://xperiencewave.com/programs/career-transition-ux-mentorship"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => fireGA4("booking_ripple_redirect")}
-                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
-                >
-                  Learn about Ripple &rarr;
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    fireGA4("booking_override_continue");
-                    setRippleDismissed(true);
-                  }}
-                  className="text-left font-medium text-amber-700 underline underline-offset-2 hover:text-amber-800"
-                >
-                  I still want to book — I&rsquo;m serious about investing in my
-                  career
-                </button>
-              </div>
-            </div>
-          )}
-          {showExplorerMessage && (
-            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-              <p>
-                We totally understand. Our strategy call works best for
-                designers ready to take action soon. In the meantime, here are
-                some free resources:
-              </p>
-              <div className="mt-3 flex flex-col gap-2">
-                <a
-                  href="https://xperiencewave.com/resources/blogs/ux-career-ladder-levels-india"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => fireGA4("booking_explorer_redirect")}
-                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
-                >
-                  Read: The UX Career Ladder in India &rarr;
-                </a>
-                <a
-                  href="https://xperiencewave.com/resources/blogs/why-courses-dont-work"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => fireGA4("booking_explorer_redirect")}
-                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
-                >
-                  Read: Why UX Courses Don&rsquo;t Work for Senior Roles &rarr;
-                </a>
-                <a
-                  href="https://xperiencewave.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => fireGA4("booking_explorer_redirect")}
-                  className="font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700"
-                >
-                  Watch more success stories &rarr;
-                </a>
-                <button
-                  type="button"
-                  onClick={() => {
-                    fireGA4("booking_explorer_override");
-                    setExplorerDismissed(true);
-                  }}
-                  className="text-left font-medium text-amber-700 underline underline-offset-2 hover:text-amber-800"
-                >
-                  I&rsquo;m actually more ready than I think — book the call
-                  anyway
-                </button>
-              </div>
-            </div>
-          )}
+          <Dialog open={popupVariant !== null} onOpenChange={handlePopupOpenChange}>
+            <DialogContent className="sm:max-w-md">
+              {popupVariant === "ripple" && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="text-gray-900">This call may not be the right fit</DialogTitle>
+                    <DialogDescription className="text-gray-600">
+                      This strategy call is built for designers with 2+ years moving into senior and leadership roles. Based on your answer, our <strong className="text-gray-900">Ripple</strong> program is a better fit for where you are today.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <a
+                      href="https://xperiencewave.com/programs/career-transition-ux-mentorship"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => fireGA4("booking_ripple_redirect")}
+                      className="inline-flex h-10 items-center justify-center rounded-md bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                      Learn about Ripple
+                    </a>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleContinueBooking}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      Continue with booking
+                    </Button>
+                  </div>
+                </>
+              )}
+              {popupVariant === "explorer" && popupScreen === 1 && (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="text-gray-900">Still exploring?</DialogTitle>
+                    <DialogDescription className="text-gray-600">
+                      Our strategy call works best for designers ready to take action soon. If you&rsquo;re still researching, we have free resources that will help you decide.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <Button
+                      type="button"
+                      onClick={handleShowAlternative}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    >
+                      Show me free resources
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={handleContinueBooking}
+                      className="text-gray-600 hover:text-gray-900"
+                    >
+                      Continue with booking
+                    </Button>
+                  </div>
+                </>
+              )}
+              {popupVariant === "explorer" && popupScreen === 2 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setPopupScreen(1)}
+                    className="mb-1 inline-flex items-center gap-1 self-start text-sm font-medium text-gray-500 hover:text-gray-900"
+                  >
+                    <ArrowLeft className="size-4" /> Back
+                  </button>
+                  <DialogHeader>
+                    <DialogTitle className="text-gray-900">Free resources to explore</DialogTitle>
+                    <DialogDescription className="text-gray-600">
+                      Start here to understand where you stand and what&rsquo;s next in your UX career.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="mt-2 flex flex-col gap-2">
+                    <a
+                      href="https://xperiencewave.com/resources/blogs/ux-career-ladder-levels-india"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => fireGA4("booking_explorer_redirect")}
+                      className="rounded-md border border-gray-200 px-4 py-3 text-sm font-medium text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50"
+                    >
+                      Read: The UX Career Ladder in India &rarr;
+                    </a>
+                    <a
+                      href="https://xperiencewave.com/resources/blogs/why-courses-dont-work"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => fireGA4("booking_explorer_redirect")}
+                      className="rounded-md border border-gray-200 px-4 py-3 text-sm font-medium text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50"
+                    >
+                      Read: Why UX Courses Don&rsquo;t Work for Senior Roles &rarr;
+                    </a>
+                    <a
+                      href="https://xperiencewave.com"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => fireGA4("booking_explorer_redirect")}
+                      className="rounded-md border border-gray-200 px-4 py-3 text-sm font-medium text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50"
+                    >
+                      Watch more success stories &rarr;
+                    </a>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
