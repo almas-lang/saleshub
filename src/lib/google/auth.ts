@@ -47,11 +47,11 @@ async function markDisconnectedAndNotify(teamMemberId: string, reason: string) {
 
   await supabaseAdmin
     .from("team_members")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .update({
       google_calendar_connected: false,
       google_disconnect_reason: reason,
       google_disconnected_at: new Date().toISOString(),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any)
     .eq("id", teamMemberId);
 
