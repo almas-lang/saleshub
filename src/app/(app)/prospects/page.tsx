@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { ContactWithStage } from "@/types/contacts";
 import { ProspectList } from "@/components/prospects/prospect-list";
 import { ProspectKanban } from "@/components/prospects/prospect-kanban";
+import { AutoRefresh } from "@/components/prospects/auto-refresh";
 
 export default async function ProspectsPage({
   searchParams,
@@ -342,6 +343,8 @@ export default async function ProspectsPage({
           </div>
         </div>
       </div>
+
+      <AutoRefresh intervalMs={30000} />
 
       <Suspense>
         {view === "kanban" ? (
