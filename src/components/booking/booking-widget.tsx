@@ -957,13 +957,9 @@ function FormFieldInput({
 
   const handlePopupOpenChange = (open: boolean) => {
     if (open) return;
-    if (continuingRef.current) {
-      continuingRef.current = false;
-      setPopupVariant(null);
-      setPopupScreen(1);
-      return;
-    }
-    window.location.href = "https://xperiencewave.com/freetraining";
+    continuingRef.current = false;
+    setPopupVariant(null);
+    setPopupScreen(1);
   };
 
   return (
