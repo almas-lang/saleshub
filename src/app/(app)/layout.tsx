@@ -20,7 +20,7 @@ export default async function AppLayout({
 
   const { data: disconnected } = await supabaseAdmin
     .from("team_members")
-    .select("id, name, email")
+    .select("id, name, email, google_disconnect_reason, google_disconnected_at")
     .eq("is_active", true)
     .eq("google_calendar_connected", false)
     .not("google_refresh_token", "is", null);

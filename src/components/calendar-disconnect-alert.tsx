@@ -16,6 +16,8 @@ export interface DisconnectedMember {
   id: string;
   name: string | null;
   email: string;
+  google_disconnect_reason?: string | null;
+  google_disconnected_at?: string | null;
 }
 
 export function CalendarDisconnectAlert({
@@ -44,10 +46,20 @@ export function CalendarDisconnectAlert({
 
         <ul className="my-3 space-y-1 rounded-md border bg-muted/40 p-3 text-sm">
           {members.map((m) => (
-            <li key={m.id} className="flex items-center gap-2">
-              <span className="size-1.5 rounded-full bg-red-500" />
-              <span className="font-medium">{m.name ?? m.email}</span>
-              <span className="text-muted-foreground">— {m.email}</span>
+            <li key={m.id} className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="size-1.5 rounded-full bg-red-500" />
+                <span className="font-medium">{m.name ?? m.email}</span>
+                <span className="text-muted-foreground">— {m.email}</span>
+              </div>
+              {m.google_disconnect_reason && (
+                <div className="ml-3.5 text-xs text-muted-foreground">
+                  Reason: <span className="font-mono">{m.google_disconnect_reason}</span>
+                  {m.google_disconnected_at && (
+                    <> · {new Date(m.google_disconnected_at).toLocaleString()}</>
+                  )}
+                </div>
+              )}
             </li>
           ))}
         </ul>
