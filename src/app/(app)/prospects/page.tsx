@@ -28,7 +28,7 @@ export default async function ProspectsPage({
   const assignedTo = params.assigned_to ?? "";
   const tags = params.tags ?? "";
   const booked = params.booked ?? "";
-  const sort = params.sort ?? "created_at";
+  const sort = params.sort ?? "updated_at";
   const order = params.order ?? "desc";
 
   const from = (page - 1) * perPage;
