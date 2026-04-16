@@ -68,6 +68,15 @@ export async function POST(request: Request) {
   const startDate = parseDateInTz(startStr, tz);
   const endDate = new Date(startDate.getTime() + duration * 60 * 1000);
 
+  // Enforce 3-hour minimum booking notice
+  const earliestBookable = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  if (startDate < earliestBookable) {
+    return NextResponse.json(
+      { error: "Bookings must be made at least 3 hours in advance. Please pick a later time." },
+      { status: 400 }
+    );
+  }
+
   // Determine assigned team member — must have Google Calendar connected
   // to be able to create the calendar event.
   const assignedIds: string[] = page.assigned_to ?? [];

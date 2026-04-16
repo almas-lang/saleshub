@@ -116,6 +116,20 @@ export function BookingWidget({
       setStep(selectedDate ? "time" : "date");
     }
   }, [isDesktop]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-select today (or next bookable day) and load its slots on mount
+  useEffect(() => {
+    if (!availability) return;
+    let d = startOfDay(new Date());
+    const limit = (availability.booking_window_days || 60) + 1;
+    for (let i = 0; i < limit; i++) {
+      if (!isDayDisabled(d)) {
+        handleDateSelect(d);
+        return;
+      }
+      d = addDays(d, 1);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const formDefaults = useMemo(() => {
     const defaults: Record<string, string> = {};
     for (const field of formFields) {

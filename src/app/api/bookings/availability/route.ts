@@ -168,11 +168,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ data: [] });
   }
 
-  // Filter out past slots (if date is today)
+  // Filter out past slots and enforce a 3-hour minimum booking notice
   const now = new Date();
+  const earliestBookable = new Date(now.getTime() + 3 * 60 * 60 * 1000);
   const futureSlots = slots.filter((s) => {
     const slotTime = parseDateInTz(s.start, tz);
-    return slotTime > now;
+    return slotTime >= earliestBookable;
   });
 
   if (futureSlots.length === 0) {
