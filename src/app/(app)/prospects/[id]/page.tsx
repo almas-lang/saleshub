@@ -99,6 +99,23 @@ export default async function ProspectDetailPage({
     tasks: (tasksResult.data ?? []) as Task[],
   } as ContactWithStage & { activities: ActivityWithUser[]; tasks: Task[] };
 
+  // Look up the form-field order from the booking page the prospect came from,
+  // so Qualifying Data renders in the same order as the form config.
+  const bookingPageSlug =
+    (contactResult.data.metadata as Record<string, unknown> | null)?.booking_page as
+      | string
+      | undefined;
+  let formFieldOrder: string[] = [];
+  if (bookingPageSlug) {
+    const { data: pageData } = await supabase
+      .from("booking_pages")
+      .select("form_fields")
+      .eq("slug", bookingPageSlug)
+      .maybeSingle();
+    const fields = (pageData?.form_fields ?? []) as { label?: string }[];
+    formFieldOrder = fields.map((f) => f.label ?? "").filter(Boolean);
+  }
+
   const funnelList = (funnelsResult.data ?? []).map((f) => ({ id: f.id, name: f.name }));
 
   const stageList = (funnelsResult.data ?? []).flatMap((f) =>
@@ -154,6 +171,7 @@ export default async function ProspectDetailPage({
         stages={stageList}
         teamMembers={teamMemberList}
         formResponses={formResponses}
+        formFieldOrder={formFieldOrder}
         activitySummary={{
           totalInteractions,
           daysInPipeline,

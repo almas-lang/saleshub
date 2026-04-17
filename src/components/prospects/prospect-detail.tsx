@@ -108,6 +108,7 @@ interface ProspectDetailProps {
   stages: StageOption[];
   teamMembers: TeamMemberOption[];
   formResponses: ContactFormResponse[];
+  formFieldOrder?: string[];
   activitySummary: ActivitySummaryData;
   waSends: WASendWithDetails[];
   emailSendRecords: EmailSendWithDetails[];
@@ -146,6 +147,7 @@ export function ProspectDetail({
   stages,
   teamMembers,
   formResponses,
+  formFieldOrder,
   activitySummary,
   waSends,
   emailSendRecords,
@@ -637,6 +639,15 @@ export function ProspectDetail({
                         ([k, v]) => v?.trim() && !SKIP_KEYS.has(k.toLowerCase())
                       )
                     : [];
+
+                  if (formFieldOrder && formFieldOrder.length > 0) {
+                    const rank = new Map(formFieldOrder.map((label, i) => [label, i]));
+                    entries.sort(([a], [b]) => {
+                      const ra = rank.get(a) ?? Number.MAX_SAFE_INTEGER;
+                      const rb = rank.get(b) ?? Number.MAX_SAFE_INTEGER;
+                      return ra - rb;
+                    });
+                  }
 
                   if (entries.length > 0) {
                     return (
