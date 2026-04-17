@@ -1003,10 +1003,12 @@ function FormFieldInput({
         htmlFor={`${id}-input`}
         className="text-sm font-medium text-gray-700"
       >
-        {field.label}
-        {field.required && (
-          <span className="ml-0.5 text-red-400">*</span>
-        )}
+        <span>
+          {field.label}
+          {field.required && (
+            <span className="ml-0.5 text-red-400">*</span>
+          )}
+        </span>
       </Label>
       {hasError && !value?.trim() && (
         <p className="text-xs font-medium text-red-500">
