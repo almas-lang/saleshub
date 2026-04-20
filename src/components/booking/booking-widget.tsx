@@ -368,21 +368,6 @@ export function BookingWidget({
     return false;
   }
 
-  // Pre-select today on mobile only — desktop should land on the empty calendar.
-  useEffect(() => {
-    if (!availability) return;
-    if (typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches) return;
-    let d = startOfDay(new Date());
-    const limit = (availability.booking_window_days || 60) + 1;
-    for (let i = 0; i < limit; i++) {
-      if (!isDayDisabled(d)) {
-        handleDateSelect(d);
-        return;
-      }
-      d = addDays(d, 1);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Sidebar ──
   const sidebar = (
     <div className="flex flex-col gap-4 border-b border-gray-100 bg-gray-50/60 p-5 sm:gap-5 sm:p-6 md:w-[280px] md:shrink-0 md:border-b-0 md:border-r lg:w-[300px]">
