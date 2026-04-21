@@ -637,8 +637,6 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
           onOpenChange={setConvertOpen}
           contactId={contact.id}
           contactName={clientName}
-          contactEmail={contact.email}
-          contactPhone={contact.phone}
           teamMembers={teamMembers}
         />
       )}
