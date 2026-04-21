@@ -64,6 +64,10 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
   const [installmentRows, setInstallmentRows] = useState<
     { amount: number; due_date: string; status: "pending" | "paid" }[]
   >([]);
+  const [markInstPaidId, setMarkInstPaidId] = useState<string | null>(null);
+  const [instPaidDate, setInstPaidDate] = useState<Date>(new Date());
+  const [instPaymentRef, setInstPaymentRef] = useState("");
+  const [markingInstPaid, setMarkingInstPaid] = useState(false);
 
   const items = parseInvoiceItems(invoice.items);
 
@@ -169,6 +173,37 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
     setInstallmentCount(2);
     initInstallments(2);
     setInstallmentOpen(true);
+  }
+
+  function openMarkInstPaid(instId: string) {
+    setMarkInstPaidId(instId);
+    setInstPaidDate(new Date());
+    setInstPaymentRef("");
+  }
+
+  async function handleMarkInstallmentPaid() {
+    if (!markInstPaidId) return;
+    setMarkingInstPaid(true);
+    const result = await safeFetch(
+      `/api/invoices/${invoice.id}/installments/${markInstPaidId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "paid",
+          paid_at: instPaidDate.toISOString(),
+          payment_id: instPaymentRef.trim() || undefined,
+        }),
+      }
+    );
+    setMarkingInstPaid(false);
+    if (!result.ok) {
+      toast.error(typeof result.error === "string" ? result.error : "Failed to mark paid");
+      return;
+    }
+    toast.success("Installment marked as paid");
+    setMarkInstPaidId(null);
+    router.refresh();
   }
 
   async function handleAddInstallments() {
@@ -385,18 +420,30 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
                         </div>
                       </div>
                       {!isPaid && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 px-1.5 text-xs shrink-0"
-                          onClick={() => {
-                            const link = `${window.location.origin}/pay/${invoice.id}?inst=${inst.id}`;
-                            navigator.clipboard.writeText(link);
-                            toast.success("Pay link copied");
-                          }}
-                        >
-                          <Copy className="size-3" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-xs"
+                            title="Copy pay link"
+                            onClick={() => {
+                              const link = `${window.location.origin}/pay/${invoice.id}?inst=${inst.id}`;
+                              navigator.clipboard.writeText(link);
+                              toast.success("Pay link copied");
+                            }}
+                          >
+                            <Copy className="size-3" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-xs"
+                            title="Mark paid"
+                            onClick={() => openMarkInstPaid(inst.id)}
+                          >
+                            <CheckCircle2 className="size-3" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   );
@@ -499,6 +546,72 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
             <AlertDialogAction onClick={handleMarkPaid}>
               <CheckCircle2 className="mr-1.5 size-3.5" />
               Mark Paid
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mark Installment Paid */}
+      <AlertDialog
+        open={markInstPaidId !== null}
+        onOpenChange={(open) => !open && setMarkInstPaidId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Mark Installment Paid</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const inst = invoice.installments?.find((i) => i.id === markInstPaidId);
+                return inst
+                  ? `Installment #${inst.installment_number} (${formatCurrency(inst.amount)}) for ${invoice.invoice_number}.`
+                  : "";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-2 space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">Payment Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !instPaidDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 size-4" />
+                    {instPaidDate ? format(instPaidDate, "dd MMM yyyy") : "Select date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={instPaidDate}
+                    onSelect={(date) => date && setInstPaidDate(date)}
+                    disabled={(date) => date > new Date()}
+                    defaultMonth={instPaidDate}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-sm" htmlFor="inst-payment-ref">
+                UPI Reference ID <span className="text-muted-foreground font-normal">(optional)</span>
+              </Label>
+              <Input
+                id="inst-payment-ref"
+                value={instPaymentRef}
+                onChange={(e) => setInstPaymentRef(e.target.value)}
+                placeholder="e.g. 412345678901"
+              />
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={markingInstPaid}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleMarkInstallmentPaid} disabled={markingInstPaid}>
+              <CheckCircle2 className="mr-1.5 size-3.5" />
+              {markingInstPaid ? "Marking..." : "Mark Paid"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
