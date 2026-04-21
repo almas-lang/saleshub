@@ -11,10 +11,10 @@ export default async function InvoiceDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [invoiceResult, installmentsResult] = await Promise.all([
+  const [invoiceResult, installmentsResult, teamMembersResult] = await Promise.all([
     supabase
       .from("invoices")
-      .select("*, contacts(id, first_name, last_name, email, phone, company_name)")
+      .select("*, contacts(id, first_name, last_name, email, phone, company_name, type)")
       .eq("id", id)
       .single(),
     supabase
@@ -22,6 +22,11 @@ export default async function InvoiceDetailPage({
       .select("*")
       .eq("invoice_id", id)
       .order("installment_number", { ascending: true }),
+    supabase
+      .from("team_members")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name"),
   ]);
 
   if (invoiceResult.error || !invoiceResult.data) {
@@ -33,5 +38,5 @@ export default async function InvoiceDetailPage({
     installments: installmentsResult.data ?? [],
   } as InvoiceWithContact;
 
-  return <InvoiceDetail invoice={invoice} />;
+  return <InvoiceDetail invoice={invoice} teamMembers={teamMembersResult.data ?? []} />;
 }

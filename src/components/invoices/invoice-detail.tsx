@@ -44,13 +44,16 @@ import {
 import { InvoiceStatusBadge } from "./invoice-status-badge";
 import { InvoicePreview } from "./invoice-preview";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { ConvertToCustomerModal } from "@/components/customers/convert-to-customer-modal";
+import { UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface InvoiceDetailProps {
   invoice: InvoiceWithContact;
+  teamMembers?: { id: string; name: string }[];
 }
 
-export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
+export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
   const [sendDialogOpen, setSendDialogOpen] = useState(false);
@@ -68,6 +71,7 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
   const [instPaidDate, setInstPaidDate] = useState<Date>(new Date());
   const [instPaymentRef, setInstPaymentRef] = useState("");
   const [markingInstPaid, setMarkingInstPaid] = useState(false);
+  const [convertOpen, setConvertOpen] = useState(false);
 
   const items = parseInvoiceItems(invoice.items);
 
@@ -295,6 +299,15 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
             >
               <SplitSquareHorizontal className="mr-1.5 size-3.5" />
               Add Installments
+            </Button>
+          )}
+          {invoice.status === "paid" && contact && contact.type === "prospect" && (
+            <Button
+              size="sm"
+              onClick={() => setConvertOpen(true)}
+            >
+              <UserPlus className="mr-1.5 size-3.5" />
+              Convert to Customer
             </Button>
           )}
           <Button variant="outline" size="sm" asChild>
@@ -616,6 +629,19 @@ export function InvoiceDetail({ invoice }: InvoiceDetailProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Convert to Customer */}
+      {contact && (
+        <ConvertToCustomerModal
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          contactId={contact.id}
+          contactName={clientName}
+          contactEmail={contact.email}
+          contactPhone={contact.phone}
+          teamMembers={teamMembers}
+        />
+      )}
 
       {/* Delete Confirmation */}
       <ConfirmDialog

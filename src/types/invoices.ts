@@ -66,6 +66,7 @@ export type InvoiceWithContact = Invoice & {
     email: string | null;
     phone: string | null;
     company_name: string | null;
+    type?: Enums<"contact_type"> | null;
   } | null;
   installments?: Installment[];
 };
