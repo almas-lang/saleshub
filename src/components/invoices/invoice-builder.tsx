@@ -485,8 +485,8 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
         <div className="space-y-3">
           <Label>Line Items</Label>
           <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
-            <div className="col-span-6">Description</div>
-            <div className="col-span-1 text-right">Qty</div>
+            <div className="col-span-5">Description</div>
+            <div className="col-span-2 text-right">Qty</div>
             <div className="col-span-3 text-right">Rate (₹){gstInclusive ? " incl. GST" : ""}</div>
             <div className="col-span-1 text-right">Amt</div>
             <div className="col-span-1" />

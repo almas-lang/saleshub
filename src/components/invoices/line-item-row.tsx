@@ -16,14 +16,14 @@ interface LineItemRowProps {
 export function LineItemRow({ item, index, onChange, onRemove, canRemove }: LineItemRowProps) {
   return (
     <div className="grid grid-cols-12 gap-2 items-center">
-      <div className="col-span-6">
+      <div className="col-span-5">
         <Input
           placeholder="Description"
           value={item.description}
           onChange={(e) => onChange(index, "description", e.target.value)}
         />
       </div>
-      <div className="col-span-1">
+      <div className="col-span-2">
         <Input
           type="number"
           min={1}
