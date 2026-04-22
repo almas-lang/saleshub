@@ -28,6 +28,7 @@ import { cn, timeAgo, formatPhone } from "@/lib/utils";
 import { safeFetch } from "@/lib/fetch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
@@ -144,45 +145,114 @@ function MessageContent({
   isOutbound: boolean;
   isMedia: boolean;
 }) {
+  const mediaId = (msg.metadata as Record<string, unknown>)?.media_id as string | undefined;
+  const isImage = msg.message_type === "image" && mediaId;
+  const isVideo = msg.message_type === "video" && mediaId;
+  const isAudio = msg.message_type === "audio" && mediaId;
+  const isSticker = msg.message_type === "sticker" && mediaId;
+  const reactions = (msg.metadata as Record<string, unknown>)?.reactions as string[] | undefined;
+
   return (
-    <div
-      className={cn(
-        "max-w-[75%] rounded-2xl px-3.5 py-2 text-sm",
-        isOutbound
-          ? "bg-emerald-600 text-white rounded-br-md"
-          : "bg-muted text-foreground rounded-bl-md"
-      )}
-    >
-      {isMedia && (
-        <div className="flex items-center gap-1.5 mb-1 opacity-80">
-          <MediaTypeIcon type={msg.message_type} />
-          <span className="text-xs capitalize">{msg.message_type}</span>
-        </div>
-      )}
-      {msg.body ? (
-        <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-      ) : isMedia ? (
-        <p className="italic opacity-70">{msg.message_type} message</p>
-      ) : null}
+    <div className="flex flex-col">
       <div
         className={cn(
-          "flex items-center gap-1 mt-1",
-          isOutbound ? "justify-end" : "justify-start"
+          "max-w-[75%] rounded-2xl text-sm overflow-hidden",
+          isOutbound
+            ? "bg-emerald-600 text-white rounded-br-md"
+            : "bg-muted text-foreground rounded-bl-md",
+          // No horizontal padding for image-only messages (no caption)
+          (isImage || isSticker) && !msg.body ? "" : "px-3.5 py-2"
         )}
       >
-        <span
+        {/* Render image */}
+        {(isImage || isSticker) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={`/api/whatsapp/media/${mediaId}`}
+            alt={msg.body || "Image"}
+            className={cn(
+              "max-w-[280px] max-h-[300px] object-contain",
+              msg.body ? "rounded-t-2xl" : "rounded-2xl"
+            )}
+            loading="lazy"
+          />
+        )}
+
+        {/* Render video */}
+        {isVideo && (
+          <div className={cn(msg.body ? "px-3.5 pt-2" : "px-3.5 py-2")}>
+            <a
+              href={`/api/whatsapp/media/${mediaId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 underline opacity-80"
+            >
+              <Video className="h-4 w-4" />
+              <span className="text-xs">Play video</span>
+            </a>
+          </div>
+        )}
+
+        {/* Render audio */}
+        {isAudio && (
+          <div className={cn(msg.body ? "px-3.5 pt-2" : "px-3.5 py-2")}>
+            <audio controls preload="none" className="max-w-[240px] h-8">
+              <source src={`/api/whatsapp/media/${mediaId}`} />
+            </audio>
+          </div>
+        )}
+
+        {/* Non-image/video/audio/sticker media: show icon + label */}
+        {isMedia && !isImage && !isVideo && !isAudio && !isSticker && (
+          <div className="flex items-center gap-1.5 mb-1 opacity-80">
+            <MediaTypeIcon type={msg.message_type} />
+            <span className="text-xs capitalize">{msg.message_type}</span>
+          </div>
+        )}
+
+        {/* Caption / body text */}
+        {msg.body ? (
+          <p className={cn(
+            "whitespace-pre-wrap break-words",
+            (isImage || isSticker) ? "px-3.5 py-2" : ""
+          )}>{msg.body}</p>
+        ) : isMedia && !isImage && !isSticker && !isVideo && !isAudio ? (
+          <p className="italic opacity-70">{msg.message_type} message</p>
+        ) : null}
+
+        {/* Timestamp */}
+        <div
           className={cn(
-            "text-[10px]",
-            isOutbound ? "text-white/70" : "text-muted-foreground"
+            "flex items-center gap-1 mt-1",
+            isOutbound ? "justify-end" : "justify-start",
+            (isImage || isSticker) && !msg.body ? "px-3.5 pb-2" : ""
           )}
         >
-          {new Date(msg.created_at).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}
-        </span>
-        {isOutbound && <MessageStatus status={msg.status} />}
+          <span
+            className={cn(
+              "text-[10px]",
+              isOutbound ? "text-white/70" : "text-muted-foreground"
+            )}
+          >
+            {new Date(msg.created_at).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+          {isOutbound && <MessageStatus status={msg.status} />}
+        </div>
       </div>
+
+      {/* Reactions */}
+      {reactions && reactions.length > 0 && (
+        <div className={cn("flex gap-0.5 mt-0.5", isOutbound ? "justify-end" : "justify-start")}>
+          <div className="flex items-center gap-0.5 bg-muted border rounded-full px-1.5 py-0.5">
+            {reactions.map((emoji, i) => (
+              <span key={i} className="text-sm">{emoji}</span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -260,9 +330,19 @@ function ConversationItem({
       : "?";
 
   const preview =
-    conv.last_message_type !== "text" && conv.last_message_type !== "template"
-      ? `[${conv.last_message_type}]`
-      : conv.last_message ?? "";
+    conv.last_message_type === "text" || conv.last_message_type === "template"
+      ? conv.last_message ?? ""
+      : conv.last_message_type === "image"
+        ? "📷 Photo"
+        : conv.last_message_type === "video"
+          ? "🎥 Video"
+          : conv.last_message_type === "audio"
+            ? "🎵 Audio"
+            : conv.last_message_type === "document"
+              ? "📄 Document"
+              : conv.last_message_type === "sticker"
+                ? "Sticker"
+                : conv.last_message ?? `[${conv.last_message_type}]`;
 
   return (
     <div
@@ -384,7 +464,7 @@ export default function WhatsAppChatPage() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const prevInboundCountRef = useRef(0);
 
@@ -805,7 +885,7 @@ export default function WhatsAppChatPage() {
                 >
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                 </Button>
-                <Input
+                <Textarea
                   ref={inputRef}
                   placeholder={
                     selectedImage
@@ -821,7 +901,8 @@ export default function WhatsAppChatPage() {
                     }
                   }}
                   disabled={sending}
-                  className="flex-1"
+                  rows={1}
+                  className="flex-1 min-h-[36px] max-h-[120px] resize-none py-2"
                 />
                 <Button
                   size="icon"

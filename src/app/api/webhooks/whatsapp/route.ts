@@ -181,9 +181,41 @@ async function handleIncomingMessage(message: {
   video?: { caption?: string; id: string; mime_type: string };
   document?: { caption?: string; filename?: string; id: string; mime_type: string };
   audio?: { id: string; mime_type: string };
+  reaction?: { message_id: string; emoji: string };
+  sticker?: { id: string; mime_type: string };
 }, profileName: string | null) {
   const senderPhone = formatForWA(message.from);
   const senderPhonePlus = `+${senderPhone}`;
+
+  // Handle reactions: update the reacted-to message's metadata instead of creating a new message
+  if (message.type === "reaction" && message.reaction) {
+    const { message_id: reactedToWaId, emoji } = message.reaction;
+    // Find the message being reacted to
+    const { data: reactedMsg } = await supabaseAdmin
+      .from("wa_messages")
+      .select("id, metadata")
+      .eq("wa_message_id", reactedToWaId)
+      .maybeSingle();
+
+    if (reactedMsg) {
+      const existingMeta = (reactedMsg.metadata as Record<string, unknown>) ?? {};
+      const reactions = (existingMeta.reactions as string[]) ?? [];
+      if (emoji) {
+        // Add reaction (empty emoji = reaction removed)
+        if (!reactions.includes(emoji)) reactions.push(emoji);
+      } else {
+        // Remove reaction from this sender (Meta sends empty emoji for removal)
+        // We can't track per-sender here so we just leave it
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabaseAdmin as any)
+        .from("wa_messages")
+        .update({ metadata: { ...existingMeta, reactions } })
+        .eq("id", reactedMsg.id);
+    }
+    return;
+  }
+
   const messageText =
     message.type === "text" ? message.text?.body ?? "" : `[${message.type}]`;
 
@@ -259,12 +291,14 @@ async function handleIncomingMessage(message: {
               message.image?.id ??
               message.video?.id ??
               message.document?.id ??
-              message.audio?.id,
+              message.audio?.id ??
+              message.sticker?.id,
             mime_type:
               message.image?.mime_type ??
               message.video?.mime_type ??
               message.document?.mime_type ??
-              message.audio?.mime_type,
+              message.audio?.mime_type ??
+              message.sticker?.mime_type,
             filename: message.document?.filename,
           }
         : null,
