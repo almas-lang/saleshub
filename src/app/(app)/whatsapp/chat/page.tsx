@@ -22,6 +22,8 @@ import {
   Archive,
   ArchiveRestore,
   X,
+  Smile,
+  Reply,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, timeAgo, formatPhone } from "@/lib/utils";
@@ -36,8 +38,60 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { playNotificationSound } from "@/lib/notification-sound";
+
+// ── Emoji Picker ──
+
+const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
+  {
+    label: "Smileys",
+    emojis: ["😀", "😃", "😄", "😁", "😆", "😅", "🤣", "😂", "🙂", "😊", "😇", "🥰", "😍", "🤩", "😘", "😗", "😚", "😙", "🥲", "😋", "😛", "😜", "🤪", "😝", "🤑", "🤗", "🤭", "🫢", "🤫", "🤔", "🫡"],
+  },
+  {
+    label: "Gestures",
+    emojis: ["👍", "👎", "👌", "🤌", "🤏", "✌️", "🤞", "🫰", "🤟", "🤘", "🤙", "👋", "🤚", "🖐️", "✋", "🖖", "🫶", "👏", "🙌", "🤝", "🙏", "💪", "🫵"],
+  },
+  {
+    label: "Hearts",
+    emojis: ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "🤎", "💔", "❤️‍🔥", "💕", "💞", "💓", "💗", "💖", "💘", "💝"],
+  },
+  {
+    label: "Objects",
+    emojis: ["🎉", "🎊", "🎈", "🎁", "🏆", "⭐", "🌟", "💯", "✅", "❌", "⚡", "🔥", "💡", "📌", "📎", "📞", "💻", "📧", "🗓️", "⏰", "🚀", "💰", "📊", "📈"],
+  },
+];
+
+function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void }) {
+  return (
+    <div className="w-72 max-h-64 overflow-y-auto p-2">
+      {EMOJI_CATEGORIES.map((cat) => (
+        <div key={cat.label} className="mb-2">
+          <p className="text-[10px] font-medium text-muted-foreground mb-1 px-1">
+            {cat.label}
+          </p>
+          <div className="flex flex-wrap gap-0.5">
+            {cat.emojis.map((emoji) => (
+              <button
+                key={emoji}
+                type="button"
+                className="h-8 w-8 flex items-center justify-center rounded hover:bg-muted text-lg"
+                onClick={() => onSelect(emoji)}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Types ──
 
@@ -103,33 +157,64 @@ function MediaTypeIcon({ type }: { type: string }) {
   }
 }
 
+// ── Reply Context ──
+
+interface ReplyTarget {
+  id: string;
+  wa_message_id: string | null;
+  body: string | null;
+  direction: "inbound" | "outbound";
+  message_type: string;
+}
+
 // ── Message Bubble ──
 
 function MessageBubble({
   msg,
   onDelete,
+  onReply,
+  allMessages,
 }: {
   msg: WAMessage;
   onDelete: (id: string) => void;
+  onReply: (target: ReplyTarget) => void;
+  allMessages: WAMessage[];
 }) {
   const isOutbound = msg.direction === "outbound";
   const isMedia = msg.message_type !== "text" && msg.message_type !== "template";
+
+  // Check if this message is a reply to another message
+  const replyToWaId = (msg.metadata as Record<string, unknown>)?.context_message_id as string | undefined;
+  const replyToMsg = replyToWaId
+    ? allMessages.find((m) => m.wa_message_id === replyToWaId)
+    : undefined;
 
   return (
     <div
       className={cn("group flex", isOutbound ? "justify-end" : "justify-start")}
     >
-      {/* Delete menu — left side for outbound, right side for inbound */}
       {!isOutbound && (
         <div className="flex items-start">
-          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} />
-          <MessageActions msgId={msg.id} onDelete={onDelete} />
+          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} replyToMsg={replyToMsg} />
+          <MessageActions msgId={msg.id} onDelete={onDelete} onReply={() => onReply({
+            id: msg.id,
+            wa_message_id: msg.wa_message_id,
+            body: msg.body,
+            direction: msg.direction,
+            message_type: msg.message_type,
+          })} />
         </div>
       )}
       {isOutbound && (
         <div className="flex items-start">
-          <MessageActions msgId={msg.id} onDelete={onDelete} />
-          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} />
+          <MessageActions msgId={msg.id} onDelete={onDelete} onReply={() => onReply({
+            id: msg.id,
+            wa_message_id: msg.wa_message_id,
+            body: msg.body,
+            direction: msg.direction,
+            message_type: msg.message_type,
+          })} />
+          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} replyToMsg={replyToMsg} />
         </div>
       )}
     </div>
@@ -140,10 +225,12 @@ function MessageContent({
   msg,
   isOutbound,
   isMedia,
+  replyToMsg,
 }: {
   msg: WAMessage;
   isOutbound: boolean;
   isMedia: boolean;
+  replyToMsg?: WAMessage;
 }) {
   const mediaId = (msg.metadata as Record<string, unknown>)?.media_id as string | undefined;
   const isImage = msg.message_type === "image" && mediaId;
@@ -164,6 +251,31 @@ function MessageContent({
           (isImage || isSticker) && !msg.body ? "" : "px-3.5 py-2"
         )}
       >
+        {/* Reply context */}
+        {replyToMsg && (
+          <div className={cn(
+            "rounded-lg px-2.5 py-1.5 mb-1.5 border-l-2 text-xs",
+            isOutbound
+              ? "bg-emerald-700/50 border-emerald-300/60"
+              : "bg-muted-foreground/10 border-muted-foreground/40",
+            (isImage || isSticker) && !msg.body ? "mx-3 mt-2" : ""
+          )}>
+            <p className={cn(
+              "font-medium text-[10px]",
+              isOutbound ? "text-emerald-200" : "text-muted-foreground"
+            )}>
+              {replyToMsg.direction === "outbound" ? "You" : "Them"}
+            </p>
+            <p className={cn(
+              "truncate",
+              isOutbound ? "text-white/80" : "text-foreground/70"
+            )}>
+              {replyToMsg.body
+                || (replyToMsg.message_type === "image" ? "📷 Photo" : `[${replyToMsg.message_type}]`)}
+            </p>
+          </div>
+        )}
+
         {/* Render image */}
         {(isImage || isSticker) && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -260,9 +372,11 @@ function MessageContent({
 function MessageActions({
   msgId,
   onDelete,
+  onReply,
 }: {
   msgId: string;
   onDelete: (id: string) => void;
+  onReply: () => void;
 }) {
   return (
     <DropdownMenu>
@@ -272,6 +386,10 @@ function MessageActions({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-32">
+        <DropdownMenuItem onClick={onReply}>
+          <Reply className="mr-2 h-3.5 w-3.5" />
+          Reply
+        </DropdownMenuItem>
         <DropdownMenuItem
           className="text-destructive focus:text-destructive"
           onClick={() => onDelete(msgId)}
@@ -462,6 +580,8 @@ export default function WhatsAppChatPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -587,7 +707,9 @@ export default function WhatsAppChatPage() {
       return;
     setSending(true);
     const text = replyText.trim();
+    const contextWaId = replyTo?.wa_message_id ?? undefined;
     setReplyText("");
+    setReplyTo(null);
 
     if (selectedImage) {
       // Send image
@@ -595,6 +717,7 @@ export default function WhatsAppChatPage() {
       formData.append("contact_id", activeContactId);
       formData.append("file", selectedImage);
       if (text) formData.append("caption", text);
+      if (contextWaId) formData.append("context_message_id", contextWaId);
 
       const result = await safeFetch<{ message: WAMessage }>(
         "/api/whatsapp/send-image",
@@ -622,6 +745,7 @@ export default function WhatsAppChatPage() {
           body: JSON.stringify({
             contact_id: activeContactId,
             message: text,
+            context_message_id: contextWaId,
           }),
         }
       );
@@ -638,6 +762,12 @@ export default function WhatsAppChatPage() {
       }
     }
     setSending(false);
+    inputRef.current?.focus();
+  }
+
+  // Handle reply selection
+  function handleReply(target: ReplyTarget) {
+    setReplyTo(target);
     inputRef.current?.focus();
   }
 
@@ -848,6 +978,8 @@ export default function WhatsAppChatPage() {
                             key={msg.id}
                             msg={msg}
                             onDelete={setDeleteTarget}
+                            onReply={handleReply}
+                            allMessages={messages}
                           />
                         ))}
                       </div>
@@ -866,9 +998,32 @@ export default function WhatsAppChatPage() {
               />
             )}
 
+            {/* Reply-to preview */}
+            {replyTo && (
+              <div className="flex items-center gap-2 px-3 py-2 border-t bg-muted/30">
+                <div className="flex-1 min-w-0 border-l-2 border-emerald-500 pl-2.5">
+                  <p className="text-[10px] font-medium text-emerald-600">
+                    Replying to {replyTo.direction === "outbound" ? "yourself" : "them"}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {replyTo.body
+                      || (replyTo.message_type === "image" ? "📷 Photo" : `[${replyTo.message_type}]`)}
+                  </p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0"
+                  onClick={() => setReplyTo(null)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+
             {/* Reply composer */}
             <div className="border-t p-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-end gap-2">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -885,6 +1040,31 @@ export default function WhatsAppChatPage() {
                 >
                   <ImageIcon className="h-4 w-4 text-muted-foreground" />
                 </Button>
+                <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-9 w-9"
+                      disabled={sending}
+                    >
+                      <Smile className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    side="top"
+                    align="start"
+                    className="w-auto p-0"
+                  >
+                    <EmojiPicker
+                      onSelect={(emoji) => {
+                        setReplyText((prev) => prev + emoji);
+                        setEmojiOpen(false);
+                        inputRef.current?.focus();
+                      }}
+                    />
+                  </PopoverContent>
+                </Popover>
                 <Textarea
                   ref={inputRef}
                   placeholder={

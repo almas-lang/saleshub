@@ -183,6 +183,7 @@ async function handleIncomingMessage(message: {
   audio?: { id: string; mime_type: string };
   reaction?: { message_id: string; emoji: string };
   sticker?: { id: string; mime_type: string };
+  context?: { message_id: string };
 }, profileName: string | null) {
   const senderPhone = formatForWA(message.from);
   const senderPhonePlus = `+${senderPhone}`;
@@ -284,24 +285,28 @@ async function handleIncomingMessage(message: {
     message_type: message.type,
     wa_message_id: message.id,
     status: null,
-    metadata:
-      message.type !== "text"
-        ? {
-            media_id:
-              message.image?.id ??
-              message.video?.id ??
-              message.document?.id ??
-              message.audio?.id ??
-              message.sticker?.id,
-            mime_type:
-              message.image?.mime_type ??
-              message.video?.mime_type ??
-              message.document?.mime_type ??
-              message.audio?.mime_type ??
-              message.sticker?.mime_type,
-            filename: message.document?.filename,
-          }
-        : null,
+    metadata: (() => {
+      const meta: Record<string, unknown> = {};
+      if (message.type !== "text") {
+        meta.media_id =
+          message.image?.id ??
+          message.video?.id ??
+          message.document?.id ??
+          message.audio?.id ??
+          message.sticker?.id;
+        meta.mime_type =
+          message.image?.mime_type ??
+          message.video?.mime_type ??
+          message.document?.mime_type ??
+          message.audio?.mime_type ??
+          message.sticker?.mime_type;
+        if (message.document?.filename) meta.filename = message.document.filename;
+      }
+      if (message.context?.message_id) {
+        meta.context_message_id = message.context.message_id;
+      }
+      return Object.keys(meta).length > 0 ? meta : null;
+    })(),
   });
 
   // Log activity

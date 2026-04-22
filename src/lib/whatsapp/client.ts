@@ -175,20 +175,26 @@ export async function sendTemplate(
  */
 export async function sendTextMessage(
   to: string,
-  text: string
+  text: string,
+  contextMessageId?: string
 ): Promise<WASendResult> {
   const phone = formatForWA(to);
+
+  const payload: Record<string, unknown> = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "text",
+    text: { body: text },
+  };
+  if (contextMessageId) {
+    payload.context = { message_id: contextMessageId };
+  }
 
   const result = await waFetch<{
     messages: { id: string }[];
   }>(MESSAGES_URL, {
     method: "POST",
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "text",
-      text: { body: text },
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!result.ok) {

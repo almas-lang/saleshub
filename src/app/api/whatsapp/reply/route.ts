@@ -20,9 +20,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { contact_id, message } = (await req.json()) as {
+  const { contact_id, message, context_message_id } = (await req.json()) as {
     contact_id: string;
     message: string;
+    context_message_id?: string;
   };
 
   if (!contact_id || !message?.trim()) {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Send via WhatsApp Cloud API (free-text, requires 24h window)
-  const result = await sendTextMessage(contact.phone, message.trim());
+  const result = await sendTextMessage(contact.phone, message.trim(), context_message_id);
 
   if (!result.success) {
     return NextResponse.json(
@@ -66,6 +67,7 @@ export async function POST(req: NextRequest) {
       message_type: "text",
       wa_message_id: result.messageId ?? null,
       status: "sent",
+      metadata: context_message_id ? { context_message_id } : null,
     })
     .select()
     .single();
