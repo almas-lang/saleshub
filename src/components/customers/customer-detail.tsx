@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProgramTracker } from "./program-tracker";
 import { EditCustomerDialog } from "./edit-customer-dialog";
 import { SendContractDialog } from "./send-contract-dialog";
+import { ContractStatus } from "./contract-status";
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
 
 interface Activity {
@@ -56,6 +57,7 @@ export function CustomerDetail({
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
   const [contractOpen, setContractOpen] = useState(false);
+  const [contractRefresh, setContractRefresh] = useState(0);
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
@@ -149,6 +151,9 @@ export function CustomerDetail({
           <span>Total Paid: {formatCurrency(totalPaid)}</span>
         </div>
       </div>
+
+      {/* Contract status */}
+      <ContractStatus customerId={customer.id} refreshKey={contractRefresh} />
 
       {/* Tabs */}
       <Tabs defaultValue="programs">
@@ -273,6 +278,7 @@ export function CustomerDetail({
         initialName={fullName}
         initialEmail={customer.email ?? ""}
         initialPhone={customer.phone ?? ""}
+        onSent={() => setContractRefresh((n) => n + 1)}
       />
     </div>
   );
