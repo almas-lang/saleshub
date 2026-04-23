@@ -24,12 +24,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SendContractDialog } from "./send-contract-dialog";
 
 interface ConvertToCustomerModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactId: string;
   contactName: string;
+  contactEmail?: string | null;
+  contactPhone?: string | null;
   teamMembers: { id: string; name: string }[];
 }
 
@@ -45,6 +48,8 @@ export function ConvertToCustomerModal({
   onOpenChange,
   contactId,
   contactName,
+  contactEmail,
+  contactPhone,
   teamMembers,
 }: ConvertToCustomerModalProps) {
   const router = useRouter();
@@ -56,6 +61,7 @@ export function ConvertToCustomerModal({
   const [mentorId, setMentorId] = useState("");
   const [notes, setNotes] = useState("");
   const [createInvoice, setCreateInvoice] = useState(true);
+  const [contractOpen, setContractOpen] = useState(false);
 
   async function handleSubmit() {
     if (!programName) {
@@ -89,9 +95,11 @@ export function ConvertToCustomerModal({
     toast.success(`${contactName} converted to customer!`);
     onOpenChange(false);
     router.refresh();
+    setContractOpen(true);
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -203,5 +211,15 @@ export function ConvertToCustomerModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <SendContractDialog
+      open={contractOpen}
+      onOpenChange={setContractOpen}
+      customerId={contactId}
+      initialName={contactName}
+      initialEmail={contactEmail ?? ""}
+      initialPhone={contactPhone ?? ""}
+    />
+    </>
   );
 }

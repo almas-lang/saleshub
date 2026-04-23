@@ -528,6 +528,53 @@ export type Database = {
           },
         ]
       }
+      contract_sends: {
+        Row: {
+          id: string
+          contact_id: string
+          sent_to_name: string
+          sent_to_email: string
+          sent_to_phone: string | null
+          sent_at: string
+          scheduled_at: string | null
+          resend_message_id: string | null
+          status: string
+          error: string | null
+        }
+        Insert: {
+          id?: string
+          contact_id: string
+          sent_to_name: string
+          sent_to_email: string
+          sent_to_phone?: string | null
+          sent_at?: string
+          scheduled_at?: string | null
+          resend_message_id?: string | null
+          status: string
+          error?: string | null
+        }
+        Update: {
+          id?: string
+          contact_id?: string
+          sent_to_name?: string
+          sent_to_email?: string
+          sent_to_phone?: string | null
+          sent_at?: string
+          scheduled_at?: string | null
+          resend_message_id?: string | null
+          status?: string
+          error?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_sends_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customer_programs: {
         Row: {
           amount: number | null
@@ -1879,6 +1926,7 @@ export type Database = {
         | "form_submitted"
         | "installment_reminder"
         | "wa_reply"
+        | "contract_sent"
       booking_outcome:
         | "qualified"
         | "not_qualified"
@@ -2065,6 +2113,7 @@ export const Constants = {
         "form_submitted",
         "installment_reminder",
         "wa_reply",
+        "contract_sent",
       ],
       booking_outcome: [
         "qualified",

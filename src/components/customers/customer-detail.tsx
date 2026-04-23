@@ -13,6 +13,7 @@ import {
   Pencil,
   FileText,
   Loader2,
+  FileSignature,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDate, formatCurrency, formatPhone } from "@/lib/utils";
@@ -26,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ProgramTracker } from "./program-tracker";
 import { EditCustomerDialog } from "./edit-customer-dialog";
+import { SendContractDialog } from "./send-contract-dialog";
 import { InvoiceStatusBadge } from "@/components/invoices/invoice-status-badge";
 
 interface Activity {
@@ -53,6 +55,7 @@ export function CustomerDetail({
 }: CustomerDetailProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
+  const [contractOpen, setContractOpen] = useState(false);
   const [note, setNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
 
@@ -109,10 +112,16 @@ export function CustomerDetail({
             </div>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-          <Pencil className="mr-1.5 size-3.5" />
-          Edit
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setContractOpen(true)}>
+            <FileSignature className="mr-1.5 size-3.5" />
+            Send contract
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil className="mr-1.5 size-3.5" />
+            Edit
+          </Button>
+        </div>
       </div>
 
       {/* Identity Zone */}
@@ -255,6 +264,15 @@ export function CustomerDetail({
         open={editOpen}
         onOpenChange={setEditOpen}
         customer={customer}
+      />
+
+      <SendContractDialog
+        open={contractOpen}
+        onOpenChange={setContractOpen}
+        customerId={customer.id}
+        initialName={fullName}
+        initialEmail={customer.email ?? ""}
+        initialPhone={customer.phone ?? ""}
       />
     </div>
   );

@@ -8,6 +8,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowUpDown,
+  MoreHorizontal,
+  FileSignature,
 } from "lucide-react";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import type { ContactWithStage } from "@/types/contacts";
@@ -33,6 +35,13 @@ import {
 } from "@/components/ui/table";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatCard } from "@/components/shared/stat-card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { SendContractDialog } from "./send-contract-dialog";
 
 interface CustomerWithPrograms extends ContactWithStage {
   programs: CustomerProgram[];
@@ -76,6 +85,7 @@ export function CustomerList({
 }: CustomerListProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
+  const [contractTarget, setContractTarget] = useState<CustomerWithPrograms | null>(null);
 
   function navigateWithParams(overrides: Record<string, string>) {
     const params = new URLSearchParams(window.location.search);
@@ -204,6 +214,7 @@ export function CustomerList({
                       <ArrowUpDown className="size-3" />
                     </button>
                   </TableHead>
+                  <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -285,6 +296,31 @@ export function CustomerList({
                           ? formatCurrency(customer.totalPaid)
                           : "—"}
                       </TableCell>
+                      <TableCell
+                        className="w-8 p-0 pr-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-8"
+                              aria-label="Row actions"
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setContractTarget(customer)}
+                            >
+                              <FileSignature className="mr-2 size-3.5" />
+                              Send contract
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -310,7 +346,7 @@ export function CustomerList({
                   className="rounded-xl border bg-card p-3 cursor-pointer active:bg-muted/50 transition-colors"
                   onClick={() => router.push(`/customers/${customer.id}`)}
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">
                         {customer.first_name} {customer.last_name ?? ""}
@@ -321,18 +357,42 @@ export function CustomerList({
                         </p>
                       )}
                     </div>
-                    {activeProgram?.status && (
-                      <Badge
-                        variant="outline"
-                        className={`shrink-0 text-[10px] ${
-                          activeProgram.status === "active"
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
-                            : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        {activeProgram.status}
-                      </Badge>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      {activeProgram?.status && (
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] ${
+                            activeProgram.status === "active"
+                              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {activeProgram.status}
+                        </Badge>
+                      )}
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              aria-label="Row actions"
+                            >
+                              <MoreHorizontal className="size-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setContractTarget(customer)}
+                            >
+                              <FileSignature className="mr-2 size-3.5" />
+                              Send contract
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
                   </div>
                   <div className="flex items-center justify-between mt-2 pt-2 border-t">
                     <div className="flex items-center gap-2">
@@ -457,6 +517,17 @@ export function CustomerList({
             </Button>
           </div>
         </div>
+      )}
+
+      {contractTarget && (
+        <SendContractDialog
+          open={!!contractTarget}
+          onOpenChange={(open) => !open && setContractTarget(null)}
+          customerId={contractTarget.id}
+          initialName={`${contractTarget.first_name} ${contractTarget.last_name ?? ""}`.trim()}
+          initialEmail={contractTarget.email ?? ""}
+          initialPhone={contractTarget.phone ?? ""}
+        />
       )}
     </div>
   );

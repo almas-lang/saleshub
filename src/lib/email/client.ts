@@ -22,6 +22,12 @@ const DEFAULT_FROM = "Xperience Wave <team@xperiencewave.com>";
 
 // ── Types ──────────────────────────────────────────
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer | Uint8Array;
+  contentType?: string;
+}
+
 export interface EmailSendOptions {
   to: string | string[];
   subject: string;
@@ -29,6 +35,9 @@ export interface EmailSendOptions {
   from?: string;
   replyTo?: string;
   tags?: { name: string; value: string }[];
+  attachments?: EmailAttachment[];
+  /** ISO 8601 timestamp (or relative string like "in 2 hours") — sends via Resend's scheduled queue. */
+  scheduledAt?: string;
 }
 
 export interface EmailSendResult {
@@ -70,6 +79,14 @@ export async function sendEmail(
       html: options.html,
       replyTo: options.replyTo,
       tags: options.tags,
+      attachments: options.attachments?.map((a) => ({
+        filename: a.filename,
+        content: Buffer.isBuffer(a.content)
+          ? a.content
+          : Buffer.from(a.content),
+        contentType: a.contentType ?? "application/pdf",
+      })),
+      scheduledAt: options.scheduledAt,
     });
 
     if (error) {

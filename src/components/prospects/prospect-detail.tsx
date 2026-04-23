@@ -1229,6 +1229,8 @@ export function ProspectDetail({
         onOpenChange={setConvertOpen}
         contactId={prospect.id}
         contactName={`${prospect.first_name} ${prospect.last_name ?? ""}`.trim()}
+        contactEmail={prospect.email}
+        contactPhone={prospect.phone}
         teamMembers={teamMembers}
       />
     </>
