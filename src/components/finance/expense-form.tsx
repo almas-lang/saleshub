@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { expenseSchema, type ExpenseValues } from "@/lib/validations";
@@ -86,6 +87,33 @@ export function ExpenseForm({
           contact_id: "",
         },
   });
+
+  // The dialog persists across opens, so re-sync the form whenever the
+  // edit target changes (or the dialog is reopened in add mode).
+  useEffect(() => {
+    if (!open) return;
+    form.reset(
+      editData
+        ? {
+            amount: editData.amount,
+            category: editData.category,
+            date: editData.date,
+            description: editData.description ?? "",
+            gst_applicable: editData.gst_applicable ?? false,
+            receipt_url: editData.receipt_url ?? "",
+            contact_id: editData.contact_id ?? "",
+          }
+        : {
+            amount: 0,
+            category: "",
+            date: new Date().toISOString().split("T")[0],
+            description: "",
+            gst_applicable: false,
+            receipt_url: "",
+            contact_id: "",
+          }
+    );
+  }, [open, editData, form]);
 
   const onSubmit = async (values: ExpenseValues) => {
     try {
