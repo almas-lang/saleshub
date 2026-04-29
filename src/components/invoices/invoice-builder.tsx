@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useDebounce } from "@/hooks/use-debounce";
 import { useRouter } from "next/navigation";
 import { Plus, Save, Send, Check, ChevronsUpDown, UserPlus, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -62,6 +63,10 @@ interface InvoiceBuilderProps {
   editInvoice?: EditInvoiceData;
 }
 
+interface ContactSearchResponse {
+  data: Contact[];
+}
+
 function emptyItem(): InvoiceLineItem {
   return { description: "", sac_code: DEFAULT_SAC_CODE, qty: 1, rate: 0, amount: 0 };
 }
@@ -73,6 +78,10 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
   const [saving, setSaving] = useState(false);
   const [contactId, setContactId] = useState(editInvoice?.contact_id ?? "");
   const [clientOpen, setClientOpen] = useState(false);
+  const [clientSearch, setClientSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<Contact[]>(contacts);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const debouncedClientSearch = useDebounce(clientSearch, 250);
   const [useCustomClient, setUseCustomClient] = useState(false);
   const [customFirstName, setCustomFirstName] = useState("");
   const [customLastName, setCustomLastName] = useState("");
@@ -95,7 +104,30 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
   const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [gstInclusive, setGstInclusive] = useState(false);
 
-  const selectedContact = contacts.find((c) => c.id === contactId);
+  const selectedContact =
+    contacts.find((c) => c.id === contactId) ??
+    searchResults.find((c) => c.id === contactId);
+
+  useEffect(() => {
+    let cancelled = false;
+    const q = debouncedClientSearch.trim();
+    setSearchLoading(true);
+    fetch(`/api/contacts/search?q=${encodeURIComponent(q)}&limit=50`)
+      .then((r) => (r.ok ? (r.json() as Promise<ContactSearchResponse>) : Promise.reject(r)))
+      .then((json) => {
+        if (cancelled) return;
+        setSearchResults(json.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setSearchResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSearchLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedClientSearch]);
 
   // When GST-inclusive, reverse-calculate base amounts from entered rates
   const effectiveItems = useMemo(() => {
@@ -359,15 +391,21 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Type a name..." />
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search by name, email, phone, or company..."
+                    value={clientSearch}
+                    onValueChange={setClientSearch}
+                  />
                   <CommandList>
-                    <CommandEmpty>No client found.</CommandEmpty>
+                    <CommandEmpty>
+                      {searchLoading ? "Searching..." : "No client found."}
+                    </CommandEmpty>
                     <CommandGroup>
-                      {contacts.map((c) => (
+                      {searchResults.map((c) => (
                         <CommandItem
                           key={c.id}
-                          value={contactLabel(c)}
+                          value={c.id}
                           onSelect={() => {
                             setContactId(c.id);
                             setClientOpen(false);

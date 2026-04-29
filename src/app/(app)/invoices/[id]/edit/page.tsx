@@ -21,7 +21,9 @@ export default async function EditInvoicePage({
       .from("contacts")
       .select("id, first_name, last_name, email, phone, company_name")
       .is("deleted_at", null)
-      .order("first_name", { ascending: true }),
+      .is("archived_at", null)
+      .order("first_name", { ascending: true })
+      .limit(50),
   ]);
 
   if (invoiceRes.error || !invoiceRes.data) {
@@ -29,6 +31,15 @@ export default async function EditInvoicePage({
   }
 
   const invoice = invoiceRes.data;
+
+  // Make sure the invoice's selected contact is in the initial list (it may
+  // fall outside the limit, or be archived/soft-deleted).
+  const initialContacts = contactsRes.data ?? [];
+  const joinedContact = invoice.contacts;
+  const contactsForBuilder =
+    joinedContact && !initialContacts.some((c) => c.id === joinedContact.id)
+      ? [joinedContact, ...initialContacts]
+      : initialContacts;
 
   // Only non-paid/cancelled invoices can be edited
   if (invoice.status === "paid" || invoice.status === "cancelled") {
@@ -44,7 +55,7 @@ export default async function EditInvoicePage({
         </p>
       </div>
       <InvoiceBuilder
-        contacts={contactsRes.data ?? []}
+        contacts={contactsForBuilder}
         editInvoice={{
           id: invoice.id,
           contact_id: invoice.contact_id,
