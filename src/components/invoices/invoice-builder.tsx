@@ -614,14 +614,15 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
               </div>
 
               <div className="grid grid-cols-12 gap-2 text-xs font-medium text-muted-foreground">
-                <div className="col-span-2">#</div>
-                <div className="col-span-5">Amount (₹)</div>
+                <div className="col-span-1">#</div>
+                <div className="col-span-4">Amount (₹)</div>
                 <div className="col-span-5">Due Date</div>
+                <div className="col-span-2 text-center">Paid</div>
               </div>
               {installments.map((inst, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-center">
-                  <div className="col-span-2 text-sm text-muted-foreground">{inst.installment_number}</div>
-                  <div className="col-span-5">
+                  <div className="col-span-1 text-sm text-muted-foreground">{inst.installment_number}</div>
+                  <div className="col-span-4">
                     <Input
                       type="number"
                       min={0}
@@ -643,6 +644,17 @@ export function InvoiceBuilder({ contacts, editInvoice }: InvoiceBuilderProps) {
                         updated[i] = { ...updated[i], due_date: e.target.value };
                         setInstallments(updated);
                       }}
+                    />
+                  </div>
+                  <div className="col-span-2 flex justify-center">
+                    <Checkbox
+                      checked={inst.paid === true}
+                      onCheckedChange={(checked) => {
+                        const updated = [...installments];
+                        updated[i] = { ...updated[i], paid: checked === true };
+                        setInstallments(updated);
+                      }}
+                      aria-label={`Installment ${inst.installment_number} paid`}
                     />
                   </div>
                 </div>

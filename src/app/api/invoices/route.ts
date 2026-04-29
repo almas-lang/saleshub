@@ -129,11 +129,15 @@ export async function POST(request: Request) {
 
   // Insert installments if provided
   if (hasInstallments && data) {
+    const nowIso = new Date().toISOString();
     const installmentRows = values.installments!.map((inst) => ({
       invoice_id: data.id,
       installment_number: inst.installment_number,
       amount: inst.amount,
       due_date: inst.due_date,
+      status: (inst.paid ? "paid" : "pending") as "paid" | "pending",
+      paid_at: inst.paid ? nowIso : null,
+      payment_gateway: inst.paid ? ("manual" as const) : null,
     }));
 
     const { error: instError } = await supabase
@@ -142,6 +146,20 @@ export async function POST(request: Request) {
 
     if (instError) {
       console.error("[Invoice API] Failed to insert installments:", instError.message);
+    }
+
+    // If every installment is marked paid, also flip the invoice to paid.
+    const allPaid = values.installments!.every((inst) => inst.paid);
+    if (allPaid && cleaned.status !== "paid") {
+      const paidAtIso = paidAt ? new Date(paidAt).toISOString() : nowIso;
+      await supabase
+        .from("invoices")
+        .update({
+          status: "paid",
+          paid_at: paidAtIso,
+          payment_gateway: "manual",
+        })
+        .eq("id", data.id);
     }
   }
 

@@ -462,6 +462,7 @@ export const installmentInputSchema = z.object({
   installment_number: z.number().int().min(1).max(4),
   amount: z.number().min(0),
   due_date: z.string().min(1),
+  paid: z.boolean().optional(),
 });
 
 export const invoiceSchema = z.object({

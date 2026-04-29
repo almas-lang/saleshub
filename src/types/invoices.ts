@@ -20,6 +20,7 @@ export interface InstallmentInput {
   installment_number: number;
   amount: number;
   due_date: string; // YYYY-MM-DD
+  paid?: boolean;
 }
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
