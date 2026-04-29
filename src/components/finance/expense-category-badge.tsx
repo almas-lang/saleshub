@@ -12,6 +12,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Communication (Phone/Internet)": "#06B6D4",
   "Training & Education": "#EC4899",
   "Taxes & Compliance": "#84CC16",
+  "Salary & Payroll": "#F97316",
   "Miscellaneous": "#9CA3AF",
 };
 

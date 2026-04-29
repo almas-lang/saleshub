@@ -35,7 +35,8 @@ const DEFAULT_CATEGORIES: ExpenseCategory[] = [
   { id: "7", name: "Communication (Phone/Internet)", icon: "Wifi", color: "#06B6D4", is_system: true, created_at: "" },
   { id: "8", name: "Training & Education", icon: "GraduationCap", color: "#EC4899", is_system: true, created_at: "" },
   { id: "9", name: "Taxes & Compliance", icon: "FileText", color: "#84CC16", is_system: true, created_at: "" },
-  { id: "10", name: "Miscellaneous", icon: "MoreHorizontal", color: "#9CA3AF", is_system: true, created_at: "" },
+  { id: "10", name: "Salary & Payroll", icon: "Users", color: "#F97316", is_system: true, created_at: "" },
+  { id: "11", name: "Miscellaneous", icon: "MoreHorizontal", color: "#9CA3AF", is_system: true, created_at: "" },
 ];
 
 interface ExpenseFormProps {
