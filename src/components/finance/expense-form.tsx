@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Upload, X, FileText } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { expenseSchema, type ExpenseValues } from "@/lib/validations";
 import { toast } from "sonner";
@@ -115,6 +116,33 @@ export function ExpenseForm({
     );
   }, [open, editData, form]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const receiptUrl = form.watch("receipt_url");
+
+  async function handleReceiptUpload(file: File) {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/expenses/receipt/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error ?? "Upload failed");
+      }
+      form.setValue("receipt_url", body.url, { shouldDirty: true });
+      toast.success("Receipt uploaded");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   const onSubmit = async (values: ExpenseValues) => {
     try {
       const url = isEdit
@@ -213,13 +241,54 @@ export function ExpenseForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="receipt_url">Receipt URL (optional)</Label>
-            <Input
-              id="receipt_url"
-              type="url"
-              placeholder="https://..."
-              {...form.register("receipt_url")}
+            <Label>Receipt / Bill (optional)</Label>
+            {receiptUrl ? (
+              <div className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+                <FileText className="size-4 shrink-0 text-muted-foreground" />
+                <a
+                  href={receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 truncate text-sm text-primary hover:underline"
+                >
+                  {receiptUrl.split("/").pop() ?? receiptUrl}
+                </a>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() =>
+                    form.setValue("receipt_url", "", { shouldDirty: true })
+                  }
+                  aria-label="Remove receipt"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-center"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                <Upload className="mr-2 size-4" />
+                {uploading ? "Uploading..." : "Upload PDF or image"}
+              </Button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleReceiptUpload(f);
+              }}
             />
+            <Input type="hidden" {...form.register("receipt_url")} />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
