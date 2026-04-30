@@ -333,7 +333,10 @@ export function ProspectDetail({
       {/* Back link */}
       <button
         className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-        onClick={() => router.back()}
+        onClick={() => {
+          router.back();
+          router.refresh();
+        }}
       >
         <ArrowLeft className="size-3.5" />
         Prospects
