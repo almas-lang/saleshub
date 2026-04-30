@@ -576,7 +576,7 @@ export function ProspectDetail({
                   <><Archive className="mr-2 size-4" /> Archive</>
                 )}
               </DropdownMenuItem>
-              {prospect.type === "prospect" && (
+              {!prospect.is_customer && (
                 <DropdownMenuItem onClick={() => setConvertOpen(true)}>
                   <UserCheck className="mr-2 size-4" />
                   Convert to Customer

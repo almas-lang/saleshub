@@ -46,6 +46,13 @@ async function contactMatchesFilter(
 export async function autoEnrollIntoDrips(contactId: string) {
   const now = new Date().toISOString();
 
+  const { data: contact } = await supabaseAdmin
+    .from("contacts")
+    .select("is_customer")
+    .eq("id", contactId)
+    .single();
+  if (contact?.is_customer) return;
+
   // Find active WhatsApp drip campaigns with lead_created trigger
   const { data: waCampaigns } = await supabaseAdmin
     .from("wa_campaigns")

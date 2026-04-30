@@ -39,6 +39,7 @@ export default async function EditUnifiedCampaignPage({
       .from("contacts")
       .select("source")
       .eq("type", "prospect")
+      .eq("is_customer", false)
       .is("deleted_at", null)
       .not("source", "is", null),
   ]);

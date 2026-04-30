@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   const contactUpdate: Record<string, unknown> = {
-    type: "customer",
+    is_customer: true,
     converted_at: new Date().toISOString(),
   };
   if (terminalStageId) {

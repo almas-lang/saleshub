@@ -92,7 +92,7 @@ export async function GET(request: Request) {
       supabaseAdmin
         .from("contacts")
         .select("*", { count: "exact", head: true })
-        .eq("type", "customer")
+        .eq("is_customer", true)
         .gte("converted_at", yesterdayStart)
         .lt("converted_at", todayStart),
 

@@ -9,6 +9,13 @@ export async function enrollContactByTrigger(
   triggerEvent: string,
   _triggerStageId?: string
 ): Promise<void> {
+  const { data: contactGate } = await supabaseAdmin
+    .from("contacts")
+    .select("is_customer")
+    .eq("id", contactId)
+    .single();
+  if (contactGate?.is_customer) return;
+
   // Find active unified campaigns matching this trigger
   const { data: campaigns } = await supabaseAdmin
     .from("unified_campaigns")

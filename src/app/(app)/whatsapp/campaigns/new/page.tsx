@@ -21,6 +21,7 @@ export default async function NewCampaignPage() {
       .from("contacts")
       .select("source")
       .eq("type", "prospect")
+      .eq("is_customer", false)
       .is("deleted_at", null)
       .not("source", "is", null),
   ]);

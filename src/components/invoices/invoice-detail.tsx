@@ -301,7 +301,7 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
               Add Installments
             </Button>
           )}
-          {invoice.status === "paid" && contact && contact.type === "prospect" && (
+          {invoice.status === "paid" && contact && !contact.is_customer && (
             <Button
               size="sm"
               onClick={() => setConvertOpen(true)}

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     supabaseAdmin
       .from("contacts")
       .select("id", { count: "exact" })
-      .eq("type", "customer")
+      .eq("is_customer", true)
       .gte("converted_at", from)
       .lte("converted_at", to)
       .is("deleted_at", null),

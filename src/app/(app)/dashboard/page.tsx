@@ -190,7 +190,7 @@ export default async function DashboardPage() {
     supabase
       .from("tasks")
       .select(
-        "id, title, due_at, priority, contacts(id, first_name, last_name, phone, type, funnel_id, funnels(name), funnel_stages(name, color))"
+        "id, title, due_at, priority, contacts(id, first_name, last_name, phone, is_customer, funnel_id, funnels(name), funnel_stages(name, color))"
       )
       .in("status", ["pending", "overdue"])
       .order("due_at", { ascending: true, nullsFirst: false })
@@ -213,10 +213,10 @@ export default async function DashboardPage() {
       .select(
         "id, first_name, last_name, phone, funnel_stages(name, color)"
       )
-      .eq("type", "customer")
-      .gte("updated_at", thisWeekStart)
+      .eq("is_customer", true)
+      .gte("converted_at", thisWeekStart)
       .is("deleted_at", null)
-      .order("updated_at", { ascending: false })
+      .order("converted_at", { ascending: false })
       .limit(3),
 
     // Today's new leads count
@@ -341,15 +341,15 @@ export default async function DashboardPage() {
     supabase
       .from("contacts")
       .select("*", { count: "exact", head: true })
-      .eq("type", "customer")
-      .gte("updated_at", thisMonthStart)
+      .eq("is_customer", true)
+      .gte("converted_at", thisMonthStart)
       .is("deleted_at", null),
 
     // Total prospects created this month (for conversion denominator)
     supabase
       .from("contacts")
       .select("*", { count: "exact", head: true })
-      .in("type", ["prospect", "customer"])
+      .eq("type", "prospect")
       .gte("created_at", thisMonthStart)
       .is("deleted_at", null),
 
@@ -357,16 +357,16 @@ export default async function DashboardPage() {
     supabase
       .from("contacts")
       .select("*", { count: "exact", head: true })
-      .eq("type", "customer")
-      .gte("updated_at", lastMonthStart)
-      .lt("updated_at", thisMonthStart)
+      .eq("is_customer", true)
+      .gte("converted_at", lastMonthStart)
+      .lt("converted_at", thisMonthStart)
       .is("deleted_at", null),
 
     // Total prospects created last month
     supabase
       .from("contacts")
       .select("*", { count: "exact", head: true })
-      .in("type", ["prospect", "customer"])
+      .eq("type", "prospect")
       .gte("created_at", lastMonthStart)
       .lt("created_at", thisMonthStart)
       .is("deleted_at", null),
@@ -491,14 +491,14 @@ export default async function DashboardPage() {
       first_name: string;
       last_name: string | null;
       phone: string | null;
-      type: string | null;
+      is_customer: boolean | null;
       funnel_id: string | null;
       funnels: { name: string } | null;
       funnel_stages: { name: string; color: string } | null;
     } | null;
 
     // Skip tasks for contacts that have been converted to customers
-    if (contact?.type === "customer") continue;
+    if (contact?.is_customer) continue;
 
     const isOverdue = task.due_at && new Date(task.due_at) < now;
 

@@ -14,6 +14,7 @@ export async function enrollAudience(
     .from("contacts")
     .select("id")
     .eq("type", "prospect")
+    .eq("is_customer", false)
     .is("deleted_at", null)
     .not("phone", "is", null);
 

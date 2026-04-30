@@ -14,7 +14,7 @@ export default async function InvoiceDetailPage({
   const [invoiceResult, installmentsResult, teamMembersResult] = await Promise.all([
     supabase
       .from("invoices")
-      .select("*, contacts(id, first_name, last_name, email, phone, company_name, type)")
+      .select("*, contacts(id, first_name, last_name, email, phone, company_name, type, is_customer)")
       .eq("id", id)
       .single(),
     supabase

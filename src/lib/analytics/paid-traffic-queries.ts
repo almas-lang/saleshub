@@ -86,7 +86,7 @@ export async function getPaidTrafficData(
       supabaseAdmin
         .from("contacts")
         .select("id, converted_at")
-        .eq("type", "customer")
+        .eq("is_customer", true)
         .gte("converted_at", fromTs)
         .lte("converted_at", toTs)
         .is("deleted_at", null),

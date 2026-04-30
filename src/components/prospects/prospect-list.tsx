@@ -713,7 +713,14 @@ export function ProspectList({
                         case "first_name":
                           return (
                             <TableCell key={col.key} className="font-medium">
-                              {prospect.first_name} {prospect.last_name ?? ""}
+                              <span className="inline-flex items-center gap-1.5">
+                                {prospect.first_name} {prospect.last_name ?? ""}
+                                {prospect.is_customer && (
+                                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                                    Customer
+                                  </span>
+                                )}
+                              </span>
                             </TableCell>
                           );
                         case "email":
@@ -926,8 +933,15 @@ export function ProspectList({
 
                   <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate font-medium">
-                        {prospect.first_name} {prospect.last_name ?? ""}
+                      <span className="flex min-w-0 items-center gap-1.5 truncate font-medium">
+                        <span className="truncate">
+                          {prospect.first_name} {prospect.last_name ?? ""}
+                        </span>
+                        {prospect.is_customer && (
+                          <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                            Customer
+                          </span>
+                        )}
                       </span>
                       {prospect.funnel_stages && (
                         <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium">

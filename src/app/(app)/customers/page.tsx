@@ -29,7 +29,7 @@ export default async function CustomersPage({
       "*, funnel_stages(id, name, color), funnels(id, name), team_members(id, name)",
       { count: "exact" }
     )
-    .eq("type", "customer")
+    .eq("is_customer", true)
     .is("deleted_at", null);
 
   if (search) {

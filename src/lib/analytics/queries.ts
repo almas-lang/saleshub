@@ -28,7 +28,7 @@ export async function getAnalyticsOverview(
     supabase
       .from("contacts")
       .select("id, converted_at")
-      .eq("type", "customer")
+      .eq("is_customer", true)
       .gte("converted_at", from)
       .lte("converted_at", to)
       .is("deleted_at", null),
@@ -127,7 +127,7 @@ export async function getLeadAnalytics(
     supabase
       .from("contacts")
       .select("id, source, utm_campaign")
-      .eq("type", "customer")
+      .eq("is_customer", true)
       .gte("converted_at", from)
       .lte("converted_at", to)
       .is("deleted_at", null),
@@ -214,7 +214,7 @@ export async function getPipelineAnalytics(
       .order("order"),
     supabase
       .from("contacts")
-      .select("id, current_stage_id, type")
+      .select("id, current_stage_id, is_customer")
       .eq("funnel_id", funnelId)
       .is("deleted_at", null),
   ]);
@@ -234,7 +234,7 @@ export async function getPipelineAnalytics(
   }
 
   const totalContacts = contacts.length;
-  const converted = contacts.filter((c) => c.type === "customer").length;
+  const converted = contacts.filter((c) => c.is_customer).length;
 
   const stages = stagesList.map((s) => {
     const count = stageCountMap.get(s.id) ?? 0;
@@ -346,7 +346,7 @@ export async function getTeamAnalytics(
       .lte("updated_at", to),
     supabase
       .from("contacts")
-      .select("id, assigned_to, type, converted_at")
+      .select("id, assigned_to, type, is_customer, converted_at")
       .is("deleted_at", null)
       .gte("created_at", from)
       .lte("created_at", to),
@@ -369,7 +369,7 @@ export async function getTeamAnalytics(
       (c) => c.assigned_to === m.id && c.type === "prospect"
     ).length;
     const conversions = contacts.filter(
-      (c) => c.assigned_to === m.id && c.type === "customer"
+      (c) => c.assigned_to === m.id && c.is_customer
     ).length;
     const revenue = invoices
       .filter((i) => {
@@ -392,7 +392,7 @@ export async function getTeamAnalytics(
     members: memberStats,
     totalTasks: tasks.length,
     totalLeads: contacts.filter((c) => c.type === "prospect").length,
-    totalConversions: contacts.filter((c) => c.type === "customer").length,
+    totalConversions: contacts.filter((c) => c.is_customer).length,
     totalRevenue: invoices.reduce((s, i) => s + (i.total ?? 0), 0),
   };
 }

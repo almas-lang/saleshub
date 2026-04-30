@@ -425,6 +425,7 @@ export type Database = {
           first_name: string
           funnel_id: string | null
           id: string
+          is_customer: boolean
           last_name: string | null
           linkedin_url: string | null
           metadata: Json | null
@@ -454,6 +455,7 @@ export type Database = {
           first_name: string
           funnel_id?: string | null
           id?: string
+          is_customer?: boolean
           last_name?: string | null
           linkedin_url?: string | null
           metadata?: Json | null
@@ -483,6 +485,7 @@ export type Database = {
           first_name?: string
           funnel_id?: string | null
           id?: string
+          is_customer?: boolean
           last_name?: string | null
           linkedin_url?: string | null
           metadata?: Json | null

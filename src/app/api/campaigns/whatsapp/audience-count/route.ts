@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     .from("contacts")
     .select("id", { count: "exact", head: true })
     .eq("type", "prospect")
+    .eq("is_customer", false)
     .is("deleted_at", null)
     .not("phone", "is", null);
 
