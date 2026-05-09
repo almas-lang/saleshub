@@ -68,7 +68,10 @@ export async function POST(request: Request) {
 
       await supabase.from("bank_transactions").insert({
         date: row.settlement_date, description: `Cashfree: ${row.order_id}`,
-        debit: 0, credit: row.settlement_amount, reference: row.utr,
+        debit: 0,
+        credit: row.order_amount, // Show the full order amount (what customer paid), not settlement amount
+        balance: row.settlement_amount, // Store settlement amount in balance field for bank matching reference
+        reference: row.utr,
         bank_name: "Cashfree", month, batch_id: batchId,
         reconciled: matched, matched_type: matched ? "invoice" : null, matched_id: matchedId,
       });
@@ -155,7 +158,8 @@ export async function POST(request: Request) {
         .gte("date", from).lte("date", to),
       supabase.from("salary_payments").select("id, amount, paid_date").gte("paid_date", from).lte("paid_date", to),
       // Fetch Cashfree transaction report entries (from this batch) for UTR-based matching
-      supabase.from("bank_transactions").select("id, reference, credit, matched_id")
+      // Fetch Cashfree entries — credit = order amount, balance = settlement amount
+      supabase.from("bank_transactions").select("id, reference, credit, balance, matched_id")
         .eq("bank_name", "Cashfree").eq("batch_id", batchId).eq("reconciled", true).not("reference", "is", null),
     ]);
 
@@ -164,9 +168,11 @@ export async function POST(request: Request) {
     const cfMatchByUTR = new Map<string, string | null>();
 
     // From Cashfree transaction report entries (Step 1)
+    // Use balance field (settlement amount) for bank matching, since bank receives settlement not order amount
     for (const e of cfRes.data ?? []) {
       if (!e.reference) continue;
-      cfByUTR.set(e.reference, (cfByUTR.get(e.reference) ?? 0) + e.credit);
+      const settlementAmt = e.balance ?? e.credit; // balance = settlement amount, credit = order amount
+      cfByUTR.set(e.reference, (cfByUTR.get(e.reference) ?? 0) + settlementAmt);
       if (e.matched_id && !cfMatchByUTR.has(e.reference)) cfMatchByUTR.set(e.reference, e.matched_id);
     }
 

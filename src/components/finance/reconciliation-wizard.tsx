@@ -465,7 +465,17 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, o
               <TableCell className="text-right font-mono text-sm font-medium">
                 {type === "credit" || (type === "both" && txn.credit > 0) ? <span className="text-emerald-600">+{formatCurrency(txn.credit)}</span> : <span className="text-red-600">-{formatCurrency(txn.debit)}</span>}
               </TableCell>
-              <TableCell>{m ? <Badge variant="outline" className={`text-[10px] ${m.c}`}>{m.l}</Badge> : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
+              <TableCell>
+                {m ? (
+                  txn.matched_id && (txn.matched_type === "invoice" || txn.matched_type === "cashfree_settlement") ? (
+                    <a href={`/invoices/${txn.matched_id}`} target="_blank" rel="noopener" className="hover:opacity-80">
+                      <Badge variant="outline" className={`text-[10px] ${m.c} cursor-pointer`}>{m.l} ↗</Badge>
+                    </a>
+                  ) : (
+                    <Badge variant="outline" className={`text-[10px] ${m.c}`}>{m.l}</Badge>
+                  )
+                ) : <span className="text-xs text-muted-foreground">—</span>}
+              </TableCell>
               <TableCell>
                 <div className="flex items-center gap-1">
                   <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => onToggle(txn.id, !txn.reconciled)}>
