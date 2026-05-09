@@ -237,10 +237,26 @@ export async function POST(request: Request) {
         const inv = (invoicesRes.data ?? []).find((i) => !usedInv.has(i.id) && Math.abs(i.total - row.credit) < 1);
         if (inv) { matchType = "invoice"; matchId = inv.id; usedInv.add(inv.id); matched = true; }
 
-        // 3. Match against installment amounts
+        // 3. Match against installment amounts — also check date proximity to avoid wrong matches
+        //    (e.g., Hari ₹30k vs Booja ₹30k — same amount, different dates)
         if (!matched) {
-          const inst = installments.find((i) => !usedInst.has(i.id) && Math.abs(Number(i.amount) - row.credit) < 1);
-          if (inst) { matchType = "invoice"; matchId = inst.invoice_id; usedInst.add(inst.id); matched = true; }
+          const bankDate = new Date(row.date + "T00:00:00").getTime();
+          const inst = installments
+            .filter((i) => !usedInst.has(i.id) && Math.abs(Number(i.amount) - row.credit) < 1)
+            .sort((a, b) => {
+              // Prefer the installment whose paid_at is closest to the bank date
+              const da = a.paid_at ? Math.abs(new Date(a.paid_at).getTime() - bankDate) : Infinity;
+              const db = b.paid_at ? Math.abs(new Date(b.paid_at).getTime() - bankDate) : Infinity;
+              return da - db;
+            })[0];
+          if (inst) {
+            // Only match if paid_at is within 5 days of bank date
+            const instDate = inst.paid_at ? new Date(inst.paid_at).getTime() : 0;
+            const dayDiff = Math.abs((instDate - bankDate) / 86400000);
+            if (dayDiff <= 5) {
+              matchType = "invoice"; matchId = inst.invoice_id; usedInst.add(inst.id); matched = true;
+            }
+          }
         }
 
         // Insert as a bank row (this is a genuine UPI/direct payment, not a Cashfree settlement)
