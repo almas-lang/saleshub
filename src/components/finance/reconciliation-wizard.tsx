@@ -23,6 +23,7 @@ import {
   X,
   Download,
   Users,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -283,6 +284,18 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   const [expenseTxn, setExpenseTxn] = useState<BankTransaction | null>(null);
   const [salaryTxn, setSalaryTxn] = useState<BankTransaction | null>(null);
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
+  const [editTxn, setEditTxn] = useState<BankTransaction | null>(null);
+
+  async function handleEditSave(txnId: string, newDescription: string) {
+    await fetch(`/api/finance/reconciliation/${batchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: txnId, description: newDescription }),
+    });
+    setEditTxn(null);
+    await load();
+    toast.success("Updated");
+  }
 
   async function load() { setLoading(true); const r = await fetch(`/api/finance/reconciliation/${batchId}`); if (r.ok) setData(await r.json()); setLoading(false); }
   useState(() => { load(); });
@@ -361,12 +374,50 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Total" value={total} format="number" index={0} />
-        <StatCard label="Matched" value={total - data.unmatched.length} format="number" color="emerald" index={1} />
-        <StatCard label="Unmatched" value={data.unmatched.length} format="number" color="amber" index={2} />
-        <StatCard label="Match Rate" value={total > 0 ? Math.round(((total - data.unmatched.length) / total) * 100) : 0} format="percent" index={3} />
-      </div>
+      {/* Financial Summary */}
+      {(() => {
+        const totalEarned = data.earnings.reduce((s, t) => s + t.credit, 0);
+        const totalSpent = data.spends.reduce((s, t) => s + t.debit, 0);
+        const totalSalaries = data.salaries.reduce((s, t) => s + t.debit, 0);
+        const invoiceCount = data.earnings.filter((t) => t.matched_type === "invoice").length;
+        const reconciledAmount = totalEarned + totalSpent + totalSalaries;
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <StatCard label="Total Earned" value={totalEarned} color="emerald" index={0} />
+              <StatCard label="Total Spent" value={totalSpent} color="red" index={1} />
+              <StatCard label="Salaries" value={totalSalaries} color="blue" index={2} />
+              <StatCard label="Reconciled" value={reconciledAmount} index={3} />
+            </div>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+              <div className="rounded-lg border p-3 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Invoices</p>
+                <p className="text-lg font-semibold">{invoiceCount}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bills</p>
+                <p className="text-lg font-semibold">{data.spends.filter((t) => t.matched_type === "expense").length}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Salaries</p>
+                <p className="text-lg font-semibold">{data.salaries.length}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Ignored</p>
+                <p className="text-lg font-semibold">{data.ignored.length}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Matched</p>
+                <p className="text-lg font-semibold text-emerald-600">{total - data.unmatched.length}</p>
+              </div>
+              <div className="rounded-lg border p-3 text-center">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Pending</p>
+                <p className="text-lg font-semibold text-amber-600">{data.unmatched.length}</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <Tabs defaultValue={data.unmatched.length > 0 ? "unmatched" : "earnings"}>
         <TabsList>
           <TabsTrigger value="earnings">Earnings ({data.earnings.length})</TabsTrigger>
@@ -378,7 +429,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         {(["earnings", "spends", "salaries", "ignored", "unmatched"] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="mt-4">
             <TxnTable transactions={data[tab]} type={tab === "earnings" ? "credit" : tab === "unmatched" ? "both" : "debit"}
-              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} onViewInvoice={setViewInvoiceId} />
+              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} onViewInvoice={setViewInvoiceId} onEdit={setEditTxn} />
           </TabsContent>
         ))}
       </Tabs>
@@ -404,16 +455,33 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         />
       )}
 
-      {/* Invoice Preview Dialog */}
+      {/* Invoice PDF Preview */}
       {viewInvoiceId && (
         <Dialog open onOpenChange={(o) => { if (!o) setViewInvoiceId(null); }}>
-          <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0">
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] p-0 overflow-hidden">
+            <DialogHeader className="px-4 pt-4 pb-2">
+              <DialogTitle className="flex items-center justify-between">
+                <span>Invoice Preview</span>
+                <a href={`/invoices/${viewInvoiceId}`} className="text-xs text-primary hover:underline font-normal">
+                  Open full view ↗
+                </a>
+              </DialogTitle>
+            </DialogHeader>
             <iframe
-              src={`/invoices/${viewInvoiceId}`}
-              className="w-full h-[85vh] rounded-lg"
+              src={`/api/invoices/${viewInvoiceId}/pdf`}
+              className="w-full h-[78vh]"
             />
           </DialogContent>
         </Dialog>
+      )}
+
+      {/* Edit Details Dialog */}
+      {editTxn && (
+        <EditTxnDialog
+          txn={editTxn}
+          onClose={() => setEditTxn(null)}
+          onSave={(newDesc) => handleEditSave(editTxn.id, newDesc)}
+        />
       )}
 
       <div className="flex justify-between">
@@ -421,6 +489,41 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         <Button onClick={onNext}>Generate Report<ChevronRight className="ml-2 size-4" /></Button>
       </div>
     </div>
+  );
+}
+
+function EditTxnDialog({ txn, onClose, onSave }: {
+  txn: BankTransaction; onClose: () => void; onSave: (desc: string) => void;
+}) {
+  const [desc, setDesc] = useState(txn.description);
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>Edit Description</DialogTitle></DialogHeader>
+        <div className="rounded-lg bg-muted/50 p-3 text-sm">
+          <p className="text-muted-foreground">
+            {format(new Date(txn.date + "T00:00:00"), "dd MMM yyyy")} ·{" "}
+            <span className="font-mono font-medium">{formatCurrency(txn.credit > 0 ? txn.credit : txn.debit)}</span>
+            <span className="ml-2 text-xs">via {txn.bank_name ?? "Bank"}</span>
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">Description</Label>
+          <Input value={desc} onChange={(e) => setDesc(e.target.value)} />
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button disabled={saving || !desc} onClick={async () => {
+            setSaving(true); await onSave(desc); setSaving(false);
+          }}>
+            {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -455,11 +558,12 @@ function StepExport({ month, onBack }: { month: string; onBack: () => void }) {
 
 /* ── Shared: TxnTable ─────────────────────────────────── */
 
-function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, onIgnore, onViewInvoice }: {
+function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, onIgnore, onViewInvoice, onEdit }: {
   transactions: BankTransaction[]; type: "credit" | "debit" | "both";
   onToggle: (id: string, r: boolean) => void; onLink: (t: BankTransaction) => void;
   onExpense: (t: BankTransaction) => void; onSalary: (t: BankTransaction) => void; onIgnore: (t: BankTransaction) => void;
   onViewInvoice?: (invoiceId: string) => void;
+  onEdit?: (t: BankTransaction) => void;
 }) {
   if (transactions.length === 0) return <p className="py-8 text-center text-sm text-muted-foreground">No transactions.</p>;
   const ml = (t: string | null) => {
@@ -509,6 +613,7 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, o
                   </Button>
                   <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      {onEdit && <DropdownMenuItem onClick={() => onEdit(txn)}><Pencil className="mr-2 size-3.5" />Edit Details</DropdownMenuItem>}
                       <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
                       {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
                       {txn.debit > 0 && <DropdownMenuItem onClick={() => onSalary(txn)}><Users className="mr-2 size-3.5" />Record Salary</DropdownMenuItem>}

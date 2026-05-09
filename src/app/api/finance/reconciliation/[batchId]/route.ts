@@ -88,11 +88,12 @@ export async function PATCH(
   const supabase = supabaseAdmin;
   const body = await request.json();
 
-  const { transaction_id, reconciled, matched_type, matched_id } = body as {
+  const { transaction_id, reconciled, matched_type, matched_id, description } = body as {
     transaction_id: string;
-    reconciled: boolean;
+    reconciled?: boolean;
     matched_type?: string | null;
     matched_id?: string | null;
+    description?: string;
   };
 
   if (!transaction_id) {
@@ -102,13 +103,15 @@ export async function PATCH(
     );
   }
 
+  const updateData: Record<string, unknown> = {};
+  if (reconciled !== undefined) updateData.reconciled = reconciled;
+  if (matched_type !== undefined) updateData.matched_type = matched_type ?? null;
+  if (matched_id !== undefined) updateData.matched_id = matched_id ?? null;
+  if (description !== undefined) updateData.description = description;
+
   const { error } = await supabase
     .from("bank_transactions")
-    .update({
-      reconciled,
-      matched_type: matched_type ?? null,
-      matched_id: matched_id ?? null,
-    })
+    .update(updateData)
     .eq("id", transaction_id)
     .eq("batch_id", batchId);
 
