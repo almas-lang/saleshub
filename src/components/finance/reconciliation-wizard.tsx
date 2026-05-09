@@ -119,8 +119,8 @@ function parseCashfreeCSV(text: string) {
   const iO = fc(["order id"]), iA = fc(["amount"]), iSC = fc(["service charge"]), iST = fc(["st/gst", "service tax"]),
     iSA = fc(["settlement amount"]), iU = fc(["utr no", "utr"]), iSO = fc(["settled on"]),
     iSt = fc(["transaction status"]), iSe = headers.findIndex((h) => h === "settlement"),
-    iCN = fc(["customer name"]), iCP = fc(["customer phone"]), iCE = fc(["customer email"]);
-  const rows: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string }[] = [];
+    iCN = fc(["customer name"]), iCP = fc(["customer phone"]), iCE = fc(["customer email"]), iPM = fc(["payment mode"]);
+  const rows: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string; payment_mode?: string }[] = [];
   for (let i = 1; i < lines.length; i++) {
     const c = parseQuotedCSV(lines[i]);
     if ((iSt >= 0 ? c[iSt] ?? "" : "").toUpperCase() !== "SUCCESS") continue;
@@ -134,6 +134,7 @@ function parseCashfreeCSV(text: string) {
       customer_name: iCN >= 0 ? c[iCN] : undefined,
       customer_phone: iCP >= 0 ? c[iCP]?.replace(/^\+91/, "") : undefined,
       customer_email: iCE >= 0 ? c[iCE] : undefined,
+      payment_mode: iPM >= 0 ? c[iPM] : undefined,
     });
   }
   return rows;

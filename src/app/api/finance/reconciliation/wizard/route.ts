@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   } = body as {
     month: string;
     bank_rows?: { date: string; description: string; debit: number; credit: number; balance?: number; reference?: string }[];
-    cashfree_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string }[];
+    cashfree_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string; payment_mode?: string }[];
     settlement_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string }[];
     card_rows?: { date: string; description: string; amount: number; type: "debit" | "credit"; reference?: string }[];
   };
@@ -66,13 +66,15 @@ export async function POST(request: Request) {
         if (inv) { matched = true; matchedId = inv.id; }
       }
 
-      // Build a readable description with customer info
+      // Build a readable description with customer info + payment mode
       const custName = row.customer_name && row.customer_name !== "N/A" ? row.customer_name : "";
       const custPhone = row.customer_phone?.replace(/^\+91/, "") ?? "";
       const custEmail = row.customer_email && row.customer_email !== "N/A" ? row.customer_email : "";
-      const descParts = [custName, custEmail, custPhone].filter(Boolean);
-      const desc = descParts.length > 0
-        ? `${custName || "Customer"} · ${descParts.slice(1).join(" · ")}`
+      const pMode = row.payment_mode ?? "";
+      const modeShort = pMode.includes("CREDIT_CARD") ? "Card" : pMode.includes("UPI") ? "UPI" : pMode.includes("DEBIT_CARD") ? "Debit" : pMode.includes("NET_BANKING") ? "NetBanking" : "";
+      const infoParts = [custEmail, custPhone, modeShort].filter(Boolean);
+      const desc = custName
+        ? `${custName}${infoParts.length > 0 ? " · " + infoParts.join(" · ") : ""}`
         : `Cashfree: ${row.order_id}`;
 
       await supabase.from("bank_transactions").insert({
