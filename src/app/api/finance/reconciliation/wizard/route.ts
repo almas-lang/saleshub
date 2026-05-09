@@ -259,17 +259,9 @@ export async function POST(request: Request) {
           }
         }
 
-        // Insert as a bank row (this is a genuine UPI/direct payment, not a Cashfree settlement)
-        // Extract customer name from UPI description: "UPI-HARIKUMARAN S M-..." → "Harikumaran S M"
-        let cleanDesc = desc;
-        const upiNameMatch = desc.match(/^UPI-([^-]+)-/);
-        if (upiNameMatch) {
-          const name = upiNameMatch[1].replace(/\d+/g, "").trim();
-          if (name.length > 2) cleanDesc = name;
-        }
-
+        // Insert as a bank row — keep full original description for reference
         await supabase.from("bank_transactions").insert({
-          date: row.date, description: cleanDesc, debit: 0, credit: row.credit,
+          date: row.date, description: desc, debit: 0, credit: row.credit,
           balance: row.balance ?? null, reference: row.reference ?? null,
           month, batch_id: batchId,
           reconciled: matched, matched_type: matched ? matchType : null, matched_id: matched ? matchId : null,
@@ -301,16 +293,8 @@ export async function POST(request: Request) {
           if (sal) { matchType = "salary"; matchId = sal.id; usedSal.add(sal.id); matched = true; }
         }
 
-        // Clean up UPI descriptions for readability
-        let cleanDesc = desc;
-        const upiMatch = desc.match(/^UPI-([^-]+)-/);
-        if (upiMatch) {
-          const name = upiMatch[1].replace(/\d+/g, "").trim();
-          if (name.length > 2) cleanDesc = name;
-        }
-
         await supabase.from("bank_transactions").insert({
-          date: row.date, description: cleanDesc, debit: row.debit, credit: 0,
+          date: row.date, description: desc, debit: row.debit, credit: 0,
           balance: row.balance ?? null, reference: row.reference ?? null,
           month, batch_id: batchId,
           reconciled: matched, matched_type: matched ? matchType : null, matched_id: matched ? matchId || null : null,
