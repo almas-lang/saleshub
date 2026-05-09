@@ -980,7 +980,7 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Record Salary Payment</DialogTitle>
         </DialogHeader>
