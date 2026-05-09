@@ -38,6 +38,55 @@ export interface AdSpend {
 
 export type AdSpendInsert = Omit<AdSpend, "id" | "created_at" | "updated_at">;
 
+// ── Salary Payment ──────────────
+
+export interface SalaryPayment {
+  id: string;
+  employee_name: string;
+  employee_number: string;
+  amount: number;
+  paid_date: string;
+  payment_mode: string | null;
+  notes: string | null;
+  receipt_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type SalaryPaymentInsert = Omit<SalaryPayment, "id" | "created_at" | "updated_at" | "receipt_url">;
+export type SalaryPaymentUpdate = Partial<SalaryPaymentInsert>;
+
+// ── Bank Reconciliation ──────────────
+
+export interface BankTransaction {
+  id: string;
+  date: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number | null;
+  reference: string | null;
+  bank_name: string | null;
+  month: string;
+  batch_id: string | null;
+  reconciled: boolean;
+  matched_type: string | null; // 'invoice' | 'expense' | 'salary'
+  matched_id: string | null;
+  created_at: string;
+}
+
+export interface ReconciliationBatch {
+  id: string;
+  month: string;
+  year: number;
+  file_url: string | null;
+  status: string;
+  total_count: number;
+  matched_count: number;
+  unmatched_count: number;
+  created_at: string;
+}
+
 // ── Report types ──────────────
 
 export interface DateRangeFilter {

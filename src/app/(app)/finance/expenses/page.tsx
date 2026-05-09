@@ -22,10 +22,13 @@ export default async function ExpensesPage() {
     .filter((e) => e.date >= monthStart)
     .reduce((s, e) => s + e.amount, 0);
 
-  // GST total from applicable expenses
+  // GST total from applicable expenses — use actual values if available
   const gstTotal = rows
     .filter((e) => e.gst_applicable)
-    .reduce((s, e) => s + Math.round(e.amount * 0.18), 0);
+    .reduce((s, e) => {
+      const actual = (e.gst_cgst ?? 0) + (e.gst_sgst ?? 0) + (e.gst_igst ?? 0);
+      return s + (actual > 0 ? actual : Math.round(e.amount * ((e.gst_rate ?? 18) / 100)));
+    }, 0);
 
   // Get unique categories from expenses
   const categories = [...new Set(rows.map((e) => e.category))].sort();

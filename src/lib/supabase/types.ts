@@ -1119,10 +1119,14 @@ export type Database = {
           payment_gateway: Database["public"]["Enums"]["payment_gateway"] | null
           payment_id: string | null
           payment_link: string | null
+          payment_mode: string | null
           pdf_url: string | null
           recurrence_day: number | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
+          tds_section: string | null
+          tds_rate: number | null
+          tds_amount: number | null
           total: number
           type: Database["public"]["Enums"]["invoice_type"]
           updated_at: string
@@ -1146,10 +1150,14 @@ export type Database = {
             | null
           payment_id?: string | null
           payment_link?: string | null
+          payment_mode?: string | null
           pdf_url?: string | null
           recurrence_day?: number | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          tds_section?: string | null
+          tds_rate?: number | null
+          tds_amount?: number | null
           total?: number
           type?: Database["public"]["Enums"]["invoice_type"]
           updated_at?: string
@@ -1173,10 +1181,14 @@ export type Database = {
             | null
           payment_id?: string | null
           payment_link?: string | null
+          payment_mode?: string | null
           pdf_url?: string | null
           recurrence_day?: number | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
+          tds_section?: string | null
+          tds_rate?: number | null
+          tds_amount?: number | null
           total?: number
           type?: Database["public"]["Enums"]["invoice_type"]
           updated_at?: string
@@ -1420,48 +1432,204 @@ export type Database = {
         }
         Relationships: []
       }
+      bank_transactions: {
+        Row: {
+          id: string
+          date: string
+          description: string
+          debit: number
+          credit: number
+          balance: number | null
+          reference: string | null
+          bank_name: string | null
+          month: string
+          batch_id: string | null
+          reconciled: boolean
+          matched_type: string | null
+          matched_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date: string
+          description: string
+          debit?: number
+          credit?: number
+          balance?: number | null
+          reference?: string | null
+          bank_name?: string | null
+          month: string
+          batch_id?: string | null
+          reconciled?: boolean
+          matched_type?: string | null
+          matched_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date?: string
+          description?: string
+          debit?: number
+          credit?: number
+          balance?: number | null
+          reference?: string | null
+          bank_name?: string | null
+          month?: string
+          batch_id?: string | null
+          reconciled?: boolean
+          matched_type?: string | null
+          matched_id?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      reconciliation_batches: {
+        Row: {
+          id: string
+          month: string
+          year: number
+          file_url: string | null
+          status: string
+          total_count: number
+          matched_count: number
+          unmatched_count: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          month: string
+          year: number
+          file_url?: string | null
+          status?: string
+          total_count?: number
+          matched_count?: number
+          unmatched_count?: number
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          month?: string
+          year?: number
+          file_url?: string | null
+          status?: string
+          total_count?: number
+          matched_count?: number
+          unmatched_count?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      salary_payments: {
+        Row: {
+          id: string
+          employee_name: string
+          employee_number: string
+          amount: number
+          paid_date: string
+          payment_mode: string | null
+          notes: string | null
+          receipt_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          employee_name: string
+          employee_number: string
+          amount: number
+          paid_date?: string
+          payment_mode?: string | null
+          notes?: string | null
+          receipt_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          employee_name?: string
+          employee_number?: string
+          amount?: number
+          paid_date?: string
+          payment_mode?: string | null
+          notes?: string | null
+          receipt_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           amount: number
+          attachment_url: string | null
           category: string
           contact_id: string | null
           created_at: string
           date: string
           description: string | null
           gst_applicable: boolean | null
+          gst_rate: number | null
+          gst_cgst: number | null
+          gst_sgst: number | null
+          gst_igst: number | null
           id: string
           invoice_id: string | null
+          payment_mode: string | null
           receipt_url: string | null
+          tds_section: string | null
+          tds_rate: number | null
+          tds_amount: number | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at: string
+          vendor_gstin: string | null
         }
         Insert: {
           amount: number
+          attachment_url?: string | null
           category: string
           contact_id?: string | null
           created_at?: string
           date?: string
           description?: string | null
           gst_applicable?: boolean | null
+          gst_rate?: number | null
+          gst_cgst?: number | null
+          gst_sgst?: number | null
+          gst_igst?: number | null
           id?: string
           invoice_id?: string | null
+          payment_mode?: string | null
           receipt_url?: string | null
+          tds_section?: string | null
+          tds_rate?: number | null
+          tds_amount?: number | null
           type: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
+          vendor_gstin?: string | null
         }
         Update: {
           amount?: number
+          attachment_url?: string | null
           category?: string
           contact_id?: string | null
           created_at?: string
           date?: string
           description?: string | null
           gst_applicable?: boolean | null
+          gst_rate?: number | null
+          gst_cgst?: number | null
+          gst_sgst?: number | null
+          gst_igst?: number | null
           id?: string
           invoice_id?: string | null
+          payment_mode?: string | null
           receipt_url?: string | null
+          tds_section?: string | null
+          tds_rate?: number | null
+          tds_amount?: number | null
           type?: Database["public"]["Enums"]["transaction_type"]
           updated_at?: string
+          vendor_gstin?: string | null
         }
         Relationships: [
           {

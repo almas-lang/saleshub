@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   X,
   Upload,
+  Paperclip,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -252,7 +253,11 @@ export function ExpenseList({
                     {formatCurrency(exp.amount)}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {exp.gst_applicable ? "18%" : "—"}
+                    {exp.gst_applicable
+                      ? exp.gst_rate
+                        ? `${exp.gst_rate}%`
+                        : "18%"
+                      : "—"}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
@@ -266,6 +271,14 @@ export function ExpenseList({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {exp.attachment_url && (
+                          <DropdownMenuItem asChild>
+                            <a href={exp.attachment_url} target="_blank" rel="noopener">
+                              <Paperclip className="mr-2 size-3.5" />
+                              View Attachment
+                            </a>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={() => {
                             setEditItem(exp);
@@ -367,8 +380,14 @@ export function ExpenseList({
                 date: editItem.date,
                 description: editItem.description,
                 gst_applicable: editItem.gst_applicable,
+                gst_rate: editItem.gst_rate,
+                vendor_gstin: editItem.vendor_gstin,
+                payment_mode: editItem.payment_mode,
                 receipt_url: editItem.receipt_url,
+                attachment_url: editItem.attachment_url,
                 contact_id: editItem.contact_id,
+                tds_section: editItem.tds_section,
+                tds_rate: editItem.tds_rate,
               }
             : undefined
         }

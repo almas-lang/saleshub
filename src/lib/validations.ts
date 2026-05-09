@@ -512,11 +512,32 @@ export const expenseSchema = z.object({
   date: z.string().min(1, "Date is required"),
   description: z.string().optional().or(z.literal("")),
   gst_applicable: z.boolean(),
+  gst_rate: z.number().optional().nullable(),
+  vendor_gstin: z.string().optional().or(z.literal("")),
+  payment_mode: z.string().optional().or(z.literal("")),
   receipt_url: z.string().url("Invalid URL").optional().or(z.literal("")),
+  attachment_url: z.string().url("Invalid URL").optional().or(z.literal("")),
   contact_id: z.string().uuid().optional().or(z.literal("")),
+  tds_section: z.string().optional().or(z.literal("")),
+  tds_rate: z.number().optional().nullable(),
 });
 
 export type ExpenseValues = z.infer<typeof expenseSchema>;
+
+// ──────────────────────────────────────────
+// Finance — Salary Payments
+// ──────────────────────────────────────────
+
+export const salaryPaymentSchema = z.object({
+  employee_name: z.string().min(1, "Employee name is required"),
+  employee_number: z.string().min(1, "Employee number is required"),
+  amount: z.number().min(0.01, "Amount must be positive"),
+  paid_date: z.string().min(1, "Date is required"),
+  payment_mode: z.string().optional().or(z.literal("")),
+  notes: z.string().optional().or(z.literal("")),
+});
+
+export type SalaryPaymentValues = z.infer<typeof salaryPaymentSchema>;
 
 // ──────────────────────────────────────────
 // Finance — Ad Spend

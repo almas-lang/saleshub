@@ -57,6 +57,12 @@ export default async function FinancePage() {
   const netProfit = totalRevenue - totalExpenses;
 
   // Build synthetic income transactions from paid invoices for the chart
+  const nullExtras = {
+    attachment_url: null, gst_rate: null, gst_cgst: null, gst_sgst: null,
+    gst_igst: null, vendor_gstin: null, payment_mode: null,
+    tds_section: null, tds_rate: null, tds_amount: null,
+  };
+
   const syntheticIncome: Transaction[] = paidInvoices
     .filter((i) => i.paid_at)
     .map((i) => ({
@@ -72,6 +78,7 @@ export default async function FinancePage() {
       receipt_url: null,
       created_at: i.paid_at!,
       updated_at: i.paid_at!,
+      ...nullExtras,
     }));
 
   // Synthetic income from paid installments
@@ -90,6 +97,7 @@ export default async function FinancePage() {
       receipt_url: null,
       created_at: i.paid_at!,
       updated_at: i.paid_at!,
+      ...nullExtras,
     }));
 
   const revenueByMonth = groupByMonth([...syntheticIncome, ...installmentIncome, ...expenses]);

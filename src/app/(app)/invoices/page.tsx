@@ -35,11 +35,47 @@ export default async function InvoicesPage({
   }
 
   // Filter by month if selected
+  // Include invoices created in this month OR that have installments paid in this month
+  let installmentInvoiceIds: string[] = [];
   if (month) {
     const [y, m] = month.split("-").map(Number);
     const monthStart = new Date(y, m - 1, 1).toISOString();
     const monthEnd = new Date(y, m, 1).toISOString();
-    query = query.gte("created_at", monthStart).lt("created_at", monthEnd);
+
+    // Find invoices that have installments paid in this month (even if invoice created earlier)
+    const { data: paidInsts } = await supabase
+      .from("installments")
+      .select("invoice_id")
+      .eq("status", "paid")
+      .gte("paid_at", monthStart)
+      .lt("paid_at", monthEnd);
+
+    // Also find invoices that have pending installments due in this month
+    const monthStartDate = `${month}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    const monthEndDate = `${month}-${String(lastDay).padStart(2, "0")}`;
+    const { data: pendingInsts } = await supabase
+      .from("installments")
+      .select("invoice_id")
+      .in("status", ["pending", "overdue"])
+      .gte("due_date", monthStartDate)
+      .lte("due_date", monthEndDate);
+
+    installmentInvoiceIds = [
+      ...new Set([
+        ...(paidInsts ?? []).map((i) => i.invoice_id),
+        ...(pendingInsts ?? []).map((i) => i.invoice_id),
+      ]),
+    ];
+
+    if (installmentInvoiceIds.length > 0) {
+      // Show invoices created in this month OR with activity in this month
+      query = query.or(
+        `and(created_at.gte.${monthStart},created_at.lt.${monthEnd}),id.in.(${installmentInvoiceIds.join(",")})`
+      );
+    } else {
+      query = query.gte("created_at", monthStart).lt("created_at", monthEnd);
+    }
   }
 
   query = query.order("created_at", { ascending: false }).range(from, to);

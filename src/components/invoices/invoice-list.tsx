@@ -22,6 +22,8 @@ import {
   ChevronRight,
   CalendarDays,
   Bell,
+  Download,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -138,6 +140,41 @@ export function InvoiceList({
   });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function handleBulkExport() {
+    setExporting(true);
+    try {
+      const body: Record<string, string> = {};
+      if (currentMonth) body.month = currentMonth;
+      if (statusFilter !== "all") body.status = statusFilter;
+      if (!currentMonth && statusFilter === "all") body.status = "paid"; // default: export paid
+
+      const res = await fetch("/api/invoices/bulk-export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Export failed");
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") ?? "invoices.zip";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Invoices exported");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function navigateWithParams(overrides: Record<string, string>) {
     const params = new URLSearchParams(window.location.search);
@@ -212,12 +249,27 @@ export function InvoiceList({
                 : " · All time"}
             </p>
           </div>
-          <Link href="/invoices/new">
-            <Button size="sm">
-              <Plus className="mr-1.5 size-4" />
-              New Invoice
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleBulkExport}
+              disabled={exporting}
+            >
+              {exporting ? (
+                <Loader2 className="mr-1.5 size-4 animate-spin" />
+              ) : (
+                <Download className="mr-1.5 size-4" />
+              )}
+              Export PDFs
             </Button>
-          </Link>
+            <Link href="/invoices/new">
+              <Button size="sm">
+                <Plus className="mr-1.5 size-4" />
+                New Invoice
+              </Button>
+            </Link>
+          </div>
         </div>
 
         {/* Summary Stats — KPI Card Pattern */}

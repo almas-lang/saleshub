@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       .lte("paid_at", to),
     supabase
       .from("transactions")
-      .select("date, amount, gst_applicable")
+      .select("date, amount, gst_applicable, gst_rate, gst_cgst, gst_sgst, gst_igst")
       .eq("type", "expense")
       .eq("gst_applicable", true)
       .gte("date", from)
@@ -41,11 +41,17 @@ export async function GET(request: NextRequest) {
     total: i.total ?? 0,
   }));
 
-  // Calculate input GST from expenses (18% assumed)
-  const expenseGST = (expensesRes.data ?? []).map((e) => ({
-    month: format(parseISO(e.date), "yyyy-MM"),
-    gst: Math.round(e.amount * 0.18),
-  }));
+  // Use actual GST values if available, else fallback to 18% estimate
+  const expenseGST = (expensesRes.data ?? []).map((e) => {
+    const actualGst = (e.gst_cgst ?? 0) + (e.gst_sgst ?? 0) + (e.gst_igst ?? 0);
+    const gst = actualGst > 0
+      ? actualGst
+      : Math.round(e.amount * ((e.gst_rate ?? 18) / 100));
+    return {
+      month: format(parseISO(e.date), "yyyy-MM"),
+      gst,
+    };
+  });
 
   const report = calculateGSTReport(invoices, expenseGST, { from, to });
   return NextResponse.json(report);

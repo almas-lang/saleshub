@@ -52,6 +52,12 @@ export async function GET(request: NextRequest) {
   const paidInvoices = paidInvoicesRes.data ?? [];
   const paidInstallments = paidInstallmentsRes.data ?? [];
 
+  const nullExtras = {
+    attachment_url: null, gst_rate: null, gst_cgst: null, gst_sgst: null,
+    gst_igst: null, vendor_gstin: null, payment_mode: null,
+    tds_section: null, tds_rate: null, tds_amount: null,
+  };
+
   // Build synthetic income transactions from paid invoices
   const syntheticIncome: Transaction[] = paidInvoices
     .filter((i) => i.paid_at)
@@ -68,6 +74,7 @@ export async function GET(request: NextRequest) {
       receipt_url: null,
       created_at: i.paid_at!,
       updated_at: i.paid_at!,
+      ...nullExtras,
     }));
 
   // Build synthetic income from paid installments
@@ -86,6 +93,7 @@ export async function GET(request: NextRequest) {
       receipt_url: null,
       created_at: i.paid_at!,
       updated_at: i.paid_at!,
+      ...nullExtras,
     }));
 
   const allTransactions = [...syntheticIncome, ...installmentIncome, ...expenses];

@@ -55,6 +55,25 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Calculate GST breakup if applicable
+  let gstCgst: number | null = null;
+  let gstSgst: number | null = null;
+  let gstIgst: number | null = null;
+  const gstRate = parsed.data.gst_rate ?? null;
+
+  if (parsed.data.gst_applicable && gstRate && gstRate > 0) {
+    const gstAmount = Math.round(parsed.data.amount * (gstRate / 100));
+    // Default to intra-state (Karnataka) — CGST + SGST split
+    gstCgst = Math.round(gstAmount / 2);
+    gstSgst = gstAmount - gstCgst;
+  }
+
+  // Calculate TDS if applicable
+  let tdsAmount: number | null = null;
+  if (parsed.data.tds_rate && parsed.data.tds_rate > 0) {
+    tdsAmount = Math.round(parsed.data.amount * (parsed.data.tds_rate / 100));
+  }
+
   const { data: inserted, error } = await supabase
     .from("transactions")
     .insert({
@@ -64,8 +83,18 @@ export async function POST(request: NextRequest) {
       date: parsed.data.date,
       description: parsed.data.description || null,
       gst_applicable: parsed.data.gst_applicable,
+      gst_rate: gstRate,
+      gst_cgst: gstCgst,
+      gst_sgst: gstSgst,
+      gst_igst: gstIgst,
+      vendor_gstin: parsed.data.vendor_gstin || null,
+      payment_mode: parsed.data.payment_mode || null,
       receipt_url: parsed.data.receipt_url || null,
+      attachment_url: parsed.data.attachment_url || null,
       contact_id: parsed.data.contact_id || null,
+      tds_section: parsed.data.tds_section || null,
+      tds_rate: parsed.data.tds_rate ?? null,
+      tds_amount: tdsAmount,
     })
     .select()
     .single();
