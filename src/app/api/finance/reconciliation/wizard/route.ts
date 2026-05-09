@@ -160,9 +160,12 @@ export async function POST(request: Request) {
     }));
     const { data: insertedBank } = await supabase.from("bank_transactions").insert(bankTxns).select();
 
-    const [invoicesRes, expensesRes, salariesRes, cfRes] = await Promise.all([
+    const [invoicesRes, installmentsRes, expensesRes, salariesRes, cfRes] = await Promise.all([
       supabase.from("invoices").select("id, total, paid_at, invoice_number").eq("status", "paid")
         .gte("paid_at", `${from}T00:00:00`).lte("paid_at", `${to}T23:59:59`),
+      // Also fetch paid installments for partial payment matching
+      supabase.from("installments").select("id, invoice_id, amount, paid_at, installment_number")
+        .eq("status", "paid").gte("paid_at", `${from}T00:00:00`).lte("paid_at", `${to}T23:59:59`),
       supabase.from("transactions").select("id, amount, date, description").eq("type", "expense")
         .gte("date", from).lte("date", to),
       supabase.from("salary_payments").select("id, amount, paid_date").gte("paid_date", from).lte("paid_date", to),
@@ -196,7 +199,8 @@ export async function POST(request: Request) {
       cfByUTR.set(utr, amount);
     }
 
-    const usedInv = new Set<string>(), usedExp = new Set<string>(), usedSal = new Set<string>();
+    const usedInv = new Set<string>(), usedInst = new Set<string>(), usedExp = new Set<string>(), usedSal = new Set<string>();
+    const installments = installmentsRes.data ?? [];
 
     for (const txn of insertedBank ?? []) {
       let matched = false, matchType = "", matchId = "";
@@ -219,10 +223,16 @@ export async function POST(request: Request) {
           }
         }
 
-        // Direct invoice amount match (for UPI payments not through Cashfree)
+        // Direct invoice total match (for UPI payments not through Cashfree)
         if (!matched) {
           const inv = (invoicesRes.data ?? []).find((i) => !usedInv.has(i.id) && Math.abs(i.total - txn.credit) < 1);
           if (inv) { matchType = "invoice"; matchId = inv.id; usedInv.add(inv.id); matched = true; }
+        }
+
+        // Installment amount match (for partial payments like Hari ₹30,000 of ₹60,000 invoice)
+        if (!matched) {
+          const inst = installments.find((i) => !usedInst.has(i.id) && Math.abs(Number(i.amount) - txn.credit) < 1);
+          if (inst) { matchType = "invoice"; matchId = inst.invoice_id; usedInst.add(inst.id); matched = true; }
         }
       }
 
