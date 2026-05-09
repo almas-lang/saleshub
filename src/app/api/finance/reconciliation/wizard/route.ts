@@ -18,7 +18,7 @@ export async function POST(request: Request) {
     month: string;
     bank_rows?: { date: string; description: string; debit: number; credit: number; balance?: number; reference?: string }[];
     cashfree_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string; payment_mode?: string }[];
-    settlement_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string }[];
+    settlement_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; net_settlement_amount?: number }[];
     card_rows?: { date: string; description: string; amount: number; type: "debit" | "credit"; reference?: string }[];
   };
 
@@ -101,11 +101,14 @@ export async function POST(request: Request) {
   // Step 2: Settlement Report — store as reference data only, NOT as bank_transactions.
   // Settlement UTRs are used in Step 4 to match bank statement entries.
   // We don't create separate rows to avoid double-counting with transaction report entries.
-  const settlementUTRs = new Map<string, number>(); // UTR → settlement amount
+  // Use net_settlement_amount (after adjustments) — this is what actually hits the bank.
+  // E.g., settlement ₹23,446 with adjustment -₹15,062 → net ₹8,384 is what bank receives.
+  const settlementUTRs = new Map<string, number>(); // UTR → net amount that hits bank
   if (settlement_rows?.length) {
     for (const row of settlement_rows) {
       if (row.utr) {
-        settlementUTRs.set(row.utr, (settlementUTRs.get(row.utr) ?? 0) + row.settlement_amount);
+        const netAmount = row.net_settlement_amount ?? (row.settlement_amount + (row.adjustment ?? 0));
+        settlementUTRs.set(row.utr, netAmount);
       }
     }
   }
@@ -228,6 +231,15 @@ export async function POST(request: Request) {
             matchedCount++;
             break;
           }
+        }
+
+        // Fallback: if description contains Cashfree keywords but didn't match any UTR,
+        // still skip it (it's a Cashfree settlement with adjustment we can't match exactly)
+        if (!isCashfreeSettlement && (descLower.includes("cashfree") || descLower.includes("cf pg settlement"))) {
+          // This is a Cashfree settlement we couldn't match by UTR/amount.
+          // Don't insert as a separate row — just count it as matched.
+          isCashfreeSettlement = true;
+          matchedCount++;
         }
 
         if (isCashfreeSettlement) continue; // Skip — already handled via Cashfree row

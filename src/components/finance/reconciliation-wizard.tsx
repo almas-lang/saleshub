@@ -148,13 +148,13 @@ function parseSettlementCSV(text: string) {
   const iId = fc(["id"]), iTA = fc(["total transaction amount"]), iSA = fc(["settlement amount"]),
     iNA = fc(["net settlement amount"]), iU = fc(["utr no", "utr"]), iSD = fc(["settlement date"]),
     iSCh = fc(["settlement charge"]), iSTx = fc(["settlement tax"]), iAdj = fc(["adjustment"]);
-  const rows: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string }[] = [];
+  const rows: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; net_settlement_amount?: number }[] = [];
   for (let i = 1; i < lines.length; i++) {
     const c = parseQuotedCSV(lines[i]);
     const pn = (idx: number) => idx >= 0 && c[idx] ? parseFloat(c[idx].replace(/,/g, "")) || 0 : 0;
     const ta = pn(iTA), na = pn(iNA);
     if (ta === 0 && na === 0) continue;
-    rows.push({ settlement_id: iId >= 0 ? c[iId] ?? `S${i}` : `S${i}`, settlement_date: iSD >= 0 ? (c[iSD] ?? "").split(" ")[0] : "", order_id: "", order_amount: ta, settlement_amount: pn(iSA), service_charge: pn(iSCh), service_tax: pn(iSTx), adjustment: pn(iAdj), utr: iU >= 0 ? c[iU] ?? "" : "" });
+    rows.push({ settlement_id: iId >= 0 ? c[iId] ?? `S${i}` : `S${i}`, settlement_date: iSD >= 0 ? (c[iSD] ?? "").split(" ")[0] : "", order_id: "", order_amount: ta, settlement_amount: pn(iSA), service_charge: pn(iSCh), service_tax: pn(iSTx), adjustment: pn(iAdj), utr: iU >= 0 ? c[iU] ?? "" : "", net_settlement_amount: na || undefined });
   }
   return rows;
 }
