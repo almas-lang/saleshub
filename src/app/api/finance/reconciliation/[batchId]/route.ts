@@ -37,10 +37,12 @@ export async function GET(
 
   const txns = txnsRes.data ?? [];
 
+  // Credit card payments are spends (you paying your card bill), not earnings
+  // Cashfree Settlement rows from settlement report are reference data, not separate entries
   return NextResponse.json({
     batch: batchRes.data,
-    earnings: txns.filter((t) => t.credit > 0 && t.reconciled),
-    spends: txns.filter((t) => t.debit > 0 && t.matched_type !== "salary" && t.matched_type !== "ignored" && t.reconciled),
+    earnings: txns.filter((t) => t.credit > 0 && t.reconciled && t.matched_type !== "credit_card_payment" && t.bank_name !== "Cashfree Settlement"),
+    spends: txns.filter((t) => t.reconciled && t.matched_type !== "salary" && t.matched_type !== "ignored" && (t.debit > 0 || t.matched_type === "credit_card_payment") && t.bank_name !== "Cashfree Settlement"),
     salaries: txns.filter((t) => t.matched_type === "salary" && t.reconciled),
     ignored: txns.filter((t) => t.matched_type === "ignored"),
     unmatched: txns.filter((t) => !t.reconciled),

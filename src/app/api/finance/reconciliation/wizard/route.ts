@@ -31,7 +31,8 @@ export async function POST(request: Request) {
   const lastDay = new Date(parseInt(yearStr), parseInt(monStr), 0).getDate();
   const to = `${month}-${String(lastDay).padStart(2, "0")}`;
 
-  const totalCount = (bank_rows?.length ?? 0) + (cashfree_rows?.length ?? 0) + (settlement_rows?.length ?? 0) + (card_rows?.length ?? 0);
+  // Settlement rows are reference data only — don't count them as transactions
+  const totalCount = (bank_rows?.length ?? 0) + (cashfree_rows?.length ?? 0) + (card_rows?.length ?? 0);
   const { data: batch, error: batchError } = await supabase
     .from("reconciliation_batches")
     .insert({ month: monStr, year: parseInt(yearStr), status: "in_progress", total_count: totalCount })
@@ -83,16 +84,15 @@ export async function POST(request: Request) {
     }
   }
 
-  // Step 2: Settlement Report
+  // Step 2: Settlement Report — store as reference data only, NOT as bank_transactions.
+  // Settlement UTRs are used in Step 4 to match bank statement entries.
+  // We don't create separate rows to avoid double-counting with transaction report entries.
+  const settlementUTRs = new Map<string, number>(); // UTR → settlement amount
   if (settlement_rows?.length) {
     for (const row of settlement_rows) {
-      await supabase.from("bank_transactions").insert({
-        date: row.settlement_date, description: `CF Settlement ${row.settlement_id}`,
-        debit: 0, credit: row.settlement_amount, reference: row.utr,
-        bank_name: "Cashfree Settlement", month, batch_id: batchId,
-        reconciled: true, matched_type: "cashfree_settlement",
-      });
-      matchedCount++;
+      if (row.utr) {
+        settlementUTRs.set(row.utr, (settlementUTRs.get(row.utr) ?? 0) + row.settlement_amount);
+      }
     }
   }
 
@@ -105,9 +105,11 @@ export async function POST(request: Request) {
 
     for (const row of card_rows) {
       if (row.type === "credit") {
+        // CC bill payment (Cr on card = you paid your card bill) — this is a SPEND, not earning.
+        // Store as debit since money is leaving your account to pay the card.
         await supabase.from("bank_transactions").insert({
-          date: row.date, description: `CC Payment: ${row.description}`,
-          debit: 0, credit: row.amount, bank_name: "HDFC Credit Card",
+          date: row.date, description: `CC Bill Payment: ${row.description}`,
+          debit: row.amount, credit: 0, bank_name: "HDFC Credit Card",
           month, batch_id: batchId, reconciled: true, matched_type: "credit_card_payment",
         });
         matchedCount++;
@@ -152,16 +154,31 @@ export async function POST(request: Request) {
       supabase.from("transactions").select("id, amount, date, description").eq("type", "expense")
         .gte("date", from).lte("date", to),
       supabase.from("salary_payments").select("id, amount, paid_date").gte("paid_date", from).lte("paid_date", to),
+      // Fetch Cashfree transaction report entries (from this batch) for UTR-based matching
       supabase.from("bank_transactions").select("id, reference, credit, matched_id")
-        .eq("bank_name", "Cashfree").eq("reconciled", true).not("reference", "is", null),
+        .eq("bank_name", "Cashfree").eq("batch_id", batchId).eq("reconciled", true).not("reference", "is", null),
     ]);
 
+    // Build UTR → amount map from BOTH Cashfree transaction entries AND settlement report reference data
     const cfByUTR = new Map<string, number>();
     const cfMatchByUTR = new Map<string, string | null>();
+
+    // From Cashfree transaction report entries (Step 1)
     for (const e of cfRes.data ?? []) {
       if (!e.reference) continue;
       cfByUTR.set(e.reference, (cfByUTR.get(e.reference) ?? 0) + e.credit);
       if (e.matched_id && !cfMatchByUTR.has(e.reference)) cfMatchByUTR.set(e.reference, e.matched_id);
+    }
+
+    // Merge settlement report UTRs (Step 2 reference data) — use settlement amounts which
+    // reflect what actually hits the bank (after Cashfree fee deductions)
+    for (const [utr, amount] of settlementUTRs) {
+      if (!cfByUTR.has(utr)) {
+        // Settlement-only UTR (no matching transaction report entry)
+        cfByUTR.set(utr, amount);
+      }
+      // If both exist, prefer settlement amount since that's what the bank sees
+      cfByUTR.set(utr, amount);
     }
 
     const usedInv = new Set<string>(), usedExp = new Set<string>(), usedSal = new Set<string>();
@@ -169,17 +186,25 @@ export async function POST(request: Request) {
     for (const txn of insertedBank ?? []) {
       let matched = false, matchType = "", matchId = "";
 
-      // UTR match
+      // UTR-based match against Cashfree data
       if (txn.credit > 0) {
         const ref = txn.reference?.trim() ?? "";
         const desc = txn.description ?? "";
+
+        // Try matching by UTR in reference field, in description, or by amount
         for (const [utr, total] of cfByUTR) {
-          if ((ref && ref === utr) || desc.includes(utr) || Math.abs(txn.credit - total) < 2) {
-            if (Math.abs(txn.credit - total) < 2) {
-              matchType = "cashfree_settlement"; matchId = cfMatchByUTR.get(utr) ?? ""; matched = true; break;
-            }
+          const utrMatch = (ref && ref === utr) || desc.includes(utr);
+          const amountMatch = Math.abs(txn.credit - total) < 2;
+          if (utrMatch || amountMatch) {
+            matchType = "cashfree_settlement";
+            matchId = cfMatchByUTR.get(utr) ?? "";
+            matched = true;
+            cfByUTR.delete(utr); // Don't match this UTR again
+            break;
           }
         }
+
+        // Direct invoice amount match (for UPI payments not through Cashfree)
         if (!matched) {
           const inv = (invoicesRes.data ?? []).find((i) => !usedInv.has(i.id) && Math.abs(i.total - txn.credit) < 1);
           if (inv) { matchType = "invoice"; matchId = inv.id; usedInv.add(inv.id); matched = true; }
