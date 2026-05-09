@@ -515,10 +515,10 @@ export const expenseSchema = z.object({
   gst_rate: z.number().optional().nullable(),
   vendor_gstin: z.string().optional().or(z.literal("")),
   payment_mode: z.string().optional().or(z.literal("")),
-  receipt_url: z.string().url("Invalid URL").optional().or(z.literal("")),
-  attachment_url: z.string().url("Invalid URL").optional().or(z.literal("")),
-  contact_id: z.string().uuid().optional().or(z.literal("")),
-  tds_section: z.string().optional().or(z.literal("")),
+  receipt_url: z.string().url("Invalid URL").optional().or(z.literal("")).nullable(),
+  attachment_url: z.string().url("Invalid URL").optional().or(z.literal("")).nullable(),
+  contact_id: z.string().uuid().optional().or(z.literal("")).nullable(),
+  tds_section: z.string().optional().or(z.literal("")).nullable(),
   tds_rate: z.number().optional().nullable(),
 });
 

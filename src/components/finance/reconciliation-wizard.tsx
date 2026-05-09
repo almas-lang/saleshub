@@ -755,9 +755,9 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
           description: `${vendor}${notes ? " - " + notes : ""}`,
           gst_applicable: gstRate > 0,
           gst_rate: gstRate > 0 ? gstRate : null,
-          vendor_gstin: vendorGstin || null,
+          vendor_gstin: vendorGstin || "",
           payment_mode: paymentMode,
-          attachment_url: attachmentUrl || null,
+          attachment_url: attachmentUrl || "",
         }),
       });
 
