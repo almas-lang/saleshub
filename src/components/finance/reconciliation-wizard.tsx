@@ -281,6 +281,7 @@ function StepUpload({ files, onAddFiles, onRemoveFile, month, onMonthChange, onN
 function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () => void; onNext: () => void }) {
   const [data, setData] = useState<{ batch: ReconciliationBatch; earnings: BankTransaction[]; spends: BankTransaction[]; salaries: BankTransaction[]; ignored: BankTransaction[]; unmatched: BankTransaction[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<string>(""); // persist tab across reloads
   const [linkTxn, setLinkTxn] = useState<BankTransaction | null>(null);
   const [expenseTxn, setExpenseTxn] = useState<BankTransaction | null>(null);
   const [salaryTxn, setSalaryTxn] = useState<BankTransaction | null>(null);
@@ -419,7 +420,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
           </div>
         );
       })()}
-      <Tabs defaultValue={data.unmatched.length > 0 ? "unmatched" : "earnings"}>
+      <Tabs value={activeTab || (data.unmatched.length > 0 ? "unmatched" : "earnings")} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="earnings">Earnings ({data.earnings.length})</TabsTrigger>
           <TabsTrigger value="spends">Spends ({data.spends.length})</TabsTrigger>

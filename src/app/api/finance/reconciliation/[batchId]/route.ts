@@ -37,32 +37,16 @@ export async function GET(
 
   const txns = txnsRes.data ?? [];
 
-  // Bank settlement entries that match a Cashfree transaction entry are duplicates.
-  // E.g., "A2AINT01 - CF PG SETTLEMENT" (HDFC, ₹53,734) is the same payment as
-  // "Akshay · 8552053936" (Cashfree, ₹55,000). We keep the Cashfree entry (has customer info)
-  // and hide the bank settlement confirmation.
-  //
-  // A bank entry is a "settlement confirmation" if:
-  // - It's from HDFC (not Cashfree source)
-  // - It's a credit (incoming)
-  // - It matched as cashfree_settlement
-  // These are just bank-side confirmations of Cashfree payments already shown.
-  const isBankSettlementDupe = (t: typeof txns[0]) =>
-    t.credit > 0 &&
-    t.matched_type === "cashfree_settlement" &&
-    t.bank_name !== "Cashfree" &&
-    t.bank_name !== "HDFC Credit Card";
-
-  const visibleTxns = txns.filter((t) => !isBankSettlementDupe(t));
-
+  // No duplicate filtering needed — the wizard API (V2) no longer creates
+  // separate bank rows for Cashfree settlements. Bank credits matching Cashfree
+  // UTRs are skipped entirely, and the Cashfree row is bank-confirmed instead.
   return NextResponse.json({
     batch: batchRes.data,
-    earnings: visibleTxns.filter((t) => t.credit > 0 && t.reconciled && t.matched_type !== "credit_card_payment" && t.bank_name !== "Cashfree Settlement"),
-    spends: visibleTxns.filter((t) => t.reconciled && t.matched_type !== "salary" && t.matched_type !== "ignored" && (t.debit > 0 || t.matched_type === "credit_card_payment") && t.bank_name !== "Cashfree Settlement"),
-    salaries: visibleTxns.filter((t) => t.matched_type === "salary" && t.reconciled),
-    ignored: visibleTxns.filter((t) => t.matched_type === "ignored"),
-    unmatched: visibleTxns.filter((t) => !t.reconciled),
-    all: visibleTxns,
+    earnings: txns.filter((t) => t.credit > 0 && t.reconciled && t.matched_type !== "credit_card_payment"),
+    spends: txns.filter((t) => t.reconciled && t.matched_type !== "salary" && t.matched_type !== "ignored" && (t.debit > 0 || t.matched_type === "credit_card_payment")),
+    salaries: txns.filter((t) => t.matched_type === "salary" && t.reconciled),
+    ignored: txns.filter((t) => t.matched_type === "ignored"),
+    unmatched: txns.filter((t) => !t.reconciled),
   });
 }
 
