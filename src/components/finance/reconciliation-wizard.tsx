@@ -984,7 +984,7 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto overflow-x-hidden">
         <DialogHeader>
           <DialogTitle>Record Salary Payment</DialogTitle>
         </DialogHeader>
@@ -997,7 +997,7 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
           </p>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 min-w-0">
           {/* Employee selector */}
           {employees.length > 0 && (
             <div className="space-y-1.5">
@@ -1005,7 +1005,7 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
               <select
                 value={employeeNumber}
                 onChange={(e) => handleEmployeeSelect(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm truncate"
               >
                 <option value="">Pick saved employee or enter new</option>
                 {employees.map((emp) => (
@@ -1017,7 +1017,7 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Employee Name</Label>
               <Input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="e.g. Shaik Murad" />
@@ -1058,12 +1058,45 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
 
 export function ReconciliationWizard({ batches }: { batches: ReconciliationBatch[] }) {
   const router = useRouter();
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Check for active batch from URL or most recent incomplete batch
+  const [step, setStep] = useState<1 | 2 | 3>(() => {
+    if (typeof window === "undefined") return 1;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("batch")) return 2;
+    return 1;
+  });
   const [files, setFiles] = useState<UploadedFile[]>([]);
-  const [month, setMonth] = useState(() => { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`; });
+  const [month, setMonth] = useState(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const m = params.get("month");
+      if (m) return m;
+    }
+    const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [processing, setProcessing] = useState(false);
-  const [result, setResult] = useState<WizardResult | null>(null);
+  const [result, setResult] = useState<WizardResult | null>(() => {
+    if (typeof window === "undefined") return null;
+    const params = new URLSearchParams(window.location.search);
+    const batchId = params.get("batch");
+    if (batchId) return { batch_id: batchId, total: 0, matched: 0, unmatched: 0 };
+    return null;
+  });
   const [revertId, setRevertId] = useState<string | null>(null);
+
+  // Save batch to URL when entering Step 2
+  function goToStep(s: 1 | 2 | 3, batchId?: string) {
+    setStep(s);
+    const params = new URLSearchParams(window.location.search);
+    if (s === 2 && batchId) {
+      params.set("batch", batchId);
+      params.set("month", month);
+    } else if (s === 1) {
+      params.delete("batch");
+    }
+    router.replace(`/finance/reconciliation?${params.toString()}`);
+  }
 
   async function handleReconcile() {
     setProcessing(true);
@@ -1088,7 +1121,7 @@ export function ReconciliationWizard({ batches }: { batches: ReconciliationBatch
       });
       if (!res.ok) { const e = await res.json().catch(() => null); throw new Error(e?.error ?? "Failed"); }
       const data = await res.json();
-      setResult(data); setStep(2); router.refresh();
+      setResult(data); goToStep(2, data.batch_id); router.refresh();
       toast.success(`Matched ${data.matched} of ${data.total} transactions`);
     } catch (err) { toast.error(err instanceof Error ? err.message : "Reconciliation failed"); }
     finally { setProcessing(false); }
@@ -1152,7 +1185,7 @@ export function ReconciliationWizard({ batches }: { batches: ReconciliationBatch
         </>
       )}
 
-      {!processing && step === 2 && result && <StepReview batchId={result.batch_id} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
+      {!processing && step === 2 && result && <StepReview batchId={result.batch_id} onBack={() => goToStep(1)} onNext={() => setStep(3)} />}
       {!processing && step === 3 && <StepExport month={month} onBack={() => setStep(2)} />}
 
       <ConfirmDialog open={!!revertId} onOpenChange={(o) => { if (!o) setRevertId(null); }}
