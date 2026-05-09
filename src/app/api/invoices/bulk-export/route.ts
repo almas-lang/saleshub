@@ -1,7 +1,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import * as archiver from "archiver";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const archiverPkg = require("archiver") as { ZipArchive: new (opts?: { zlib?: { level: number } }) => import("stream").Transform & { append(data: Buffer, opts: { name: string }): void; finalize(): Promise<void> } };
 import { renderToBuffer } from "@react-pdf/renderer";
 import { readFile } from "fs/promises";
 import { join } from "path";
@@ -67,7 +68,7 @@ export async function POST(request: Request) {
   }
 
   // Create ZIP archive
-  const archive = archiver("zip", { zlib: { level: 5 } });
+  const archive = new archiverPkg.ZipArchive({ zlib: { level: 5 } });
   const passthrough = new PassThrough();
   archive.pipe(passthrough);
 
