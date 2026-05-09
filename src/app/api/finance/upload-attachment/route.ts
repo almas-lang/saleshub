@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   const buffer = new Uint8Array(arrayBuffer);
 
   const { error: uploadError } = await supabaseAdmin.storage
-    .from("documents")
+    .from("bills")
     .upload(fileName, buffer, {
       contentType: file.type,
       upsert: false,
@@ -57,9 +57,17 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: urlData } = supabaseAdmin.storage
-    .from("documents")
-    .getPublicUrl(fileName);
+  // Private bucket — generate a signed URL (valid for 1 year)
+  const { data: urlData, error: urlError } = await supabaseAdmin.storage
+    .from("bills")
+    .createSignedUrl(fileName, 60 * 60 * 24 * 365);
 
-  return NextResponse.json({ url: urlData.publicUrl });
+  if (urlError || !urlData?.signedUrl) {
+    return NextResponse.json(
+      { error: urlError?.message ?? "Failed to generate URL" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ url: urlData.signedUrl });
 }
