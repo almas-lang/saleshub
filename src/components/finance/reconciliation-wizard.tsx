@@ -730,12 +730,14 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
       const fd = new FormData();
       fd.append("file", file);
       const res = await fetch("/api/finance/upload-attachment", { method: "POST", body: fd });
-      if (res.ok) {
-        const { url } = await res.json();
-        setAttachmentUrl(url);
-        toast.success("Bill attached");
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? "Upload failed");
       }
-    } catch { toast.error("Upload failed"); }
+      const { url } = await res.json();
+      setAttachmentUrl(url);
+      toast.success("Bill attached");
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Upload failed"); }
     finally { setUploading(false); }
   }
 
