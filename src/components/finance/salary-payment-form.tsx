@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { salaryPaymentSchema, type SalaryPaymentValues } from "@/lib/validations";
@@ -25,6 +26,13 @@ import {
 
 const PAYMENT_MODES = ["UPI", "Bank Transfer", "Cash", "Cheque", "Credit Card"];
 
+interface Employee {
+  id: string;
+  name: string;
+  employee_number: string;
+  role: string | null;
+}
+
 interface SalaryPaymentFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -46,6 +54,16 @@ export function SalaryPaymentForm({
 }: SalaryPaymentFormProps) {
   const router = useRouter();
   const isEdit = !!editData;
+  const [employees, setEmployees] = useState<Employee[]>([]);
+
+  // Fetch employees on open
+  useEffect(() => {
+    if (!open) return;
+    fetch("/api/finance/employees")
+      .then((r) => r.json())
+      .then((d) => setEmployees(d.data ?? []))
+      .catch(() => {});
+  }, [open]);
 
   const form = useForm<SalaryPaymentValues>({
     resolver: zodResolver(salaryPaymentSchema),
@@ -68,6 +86,39 @@ export function SalaryPaymentForm({
         },
   });
 
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    form.reset(
+      editData
+        ? {
+            employee_name: editData.employee_name,
+            employee_number: editData.employee_number,
+            amount: editData.amount,
+            paid_date: editData.paid_date,
+            payment_mode: editData.payment_mode ?? "UPI",
+            notes: editData.notes ?? "",
+          }
+        : {
+            employee_name: "",
+            employee_number: "",
+            amount: 0,
+            paid_date: new Date().toISOString().split("T")[0],
+            payment_mode: "UPI",
+            notes: "",
+          }
+    );
+  }, [open, editData, form]);
+
+  function handleEmployeeSelect(empNumber: string) {
+    const emp = employees.find((e) => e.employee_number === empNumber);
+    if (emp) {
+      form.setValue("employee_name", emp.name);
+      form.setValue("employee_number", emp.employee_number);
+      form.setValue("notes", emp.role ?? "");
+    }
+  }
+
   const onSubmit = async (values: SalaryPaymentValues) => {
     try {
       const url = isEdit
@@ -84,6 +135,19 @@ export function SalaryPaymentForm({
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error ?? "Failed to save salary payment");
+      }
+
+      // Auto-save employee to master data (upsert)
+      if (!isEdit && values.employee_name && values.employee_number) {
+        await fetch("/api/finance/employees", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: values.employee_name,
+            employee_number: values.employee_number,
+            role: values.notes || null,
+          }),
+        });
       }
 
       toast.success(isEdit ? "Payment updated" : "Salary payment added");
@@ -105,6 +169,25 @@ export function SalaryPaymentForm({
         </DialogHeader>
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          {/* Employee selector — pick from saved employees or enter new */}
+          {employees.length > 0 && !isEdit && (
+            <div className="space-y-2">
+              <Label>Select Employee</Label>
+              <Select onValueChange={handleEmployeeSelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pick saved employee or enter new below" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.employee_number} value={emp.employee_number}>
+                      {emp.name} ({emp.employee_number}){emp.role ? ` · ${emp.role}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="employee_name">Employee Name</Label>

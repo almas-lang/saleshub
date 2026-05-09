@@ -903,17 +903,43 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
   txn: BankTransaction; onClose: () => void; onSaved: (salaryId: string) => void;
 }) {
   const amount = txn.debit > 0 ? txn.debit : txn.credit;
-
-  // Try to guess employee name from UPI description: "UPI-SHAIK MURAD AHAMED-..."
   const descClean = txn.description.replace(/^UPI-/i, "");
   const nameParts = descClean.split("-")[0]?.trim() ?? "";
   const guessedName = nameParts.length > 2 && !nameParts.includes("@") ? nameParts : "";
 
+  const [employees, setEmployees] = useState<{ id: string; name: string; employee_number: string; role: string | null }[]>([]);
   const [employeeName, setEmployeeName] = useState(guessedName);
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [paymentMode, setPaymentMode] = useState(txn.description.toLowerCase().includes("upi") ? "UPI" : "Bank Transfer");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Fetch employees
+  useState(() => {
+    fetch("/api/finance/employees").then((r) => r.json()).then((d) => {
+      setEmployees(d.data ?? []);
+      // Auto-match by guessed name
+      if (guessedName) {
+        const match = (d.data ?? []).find((e: { name: string }) =>
+          guessedName.toLowerCase().includes(e.name.split(" ")[0].toLowerCase())
+        );
+        if (match) {
+          setEmployeeName(match.name);
+          setEmployeeNumber(match.employee_number);
+          setNotes(match.role ?? "");
+        }
+      }
+    }).catch(() => {});
+  });
+
+  function handleEmployeeSelect(empNumber: string) {
+    const emp = employees.find((e) => e.employee_number === empNumber);
+    if (emp) {
+      setEmployeeName(emp.name);
+      setEmployeeNumber(emp.employee_number);
+      setNotes(emp.role ?? "");
+    }
+  }
 
   async function handleSave() {
     if (!employeeName || !employeeNumber) {
@@ -936,6 +962,14 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
       });
       if (!res.ok) throw new Error("Failed");
       const data = await res.json();
+
+      // Auto-save employee to master data
+      await fetch("/api/finance/employees", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: employeeName, employee_number: employeeNumber, role: notes || null }),
+      });
+
       onSaved(data.data.id);
     } catch {
       toast.error("Failed to save salary");
@@ -960,6 +994,25 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
         </div>
 
         <div className="space-y-4">
+          {/* Employee selector */}
+          {employees.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Select Employee</Label>
+              <select
+                value={employeeNumber}
+                onChange={(e) => handleEmployeeSelect(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+              >
+                <option value="">Pick saved employee or enter new</option>
+                {employees.map((emp) => (
+                  <option key={emp.employee_number} value={emp.employee_number}>
+                    {emp.name} ({emp.employee_number}){emp.role ? ` · ${emp.role}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Employee Name</Label>

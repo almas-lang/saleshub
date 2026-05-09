@@ -1432,6 +1432,36 @@ export type Database = {
         }
         Relationships: []
       }
+      employees: {
+        Row: {
+          id: string
+          name: string
+          employee_number: string
+          role: string | null
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          employee_number: string
+          role?: string | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          employee_number?: string
+          role?: string | null
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bank_transactions: {
         Row: {
           id: string
