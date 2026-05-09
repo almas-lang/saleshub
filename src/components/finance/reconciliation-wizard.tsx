@@ -773,11 +773,12 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Record Bill / Expense</DialogTitle>
         </DialogHeader>
 
+        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
         {/* Bank transaction reference */}
         <div className="rounded-lg bg-muted/50 p-3 text-sm">
           <p className="font-medium truncate">{txn.description}</p>
@@ -884,8 +885,9 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any extra details..." />
           </div>
         </div>
+        </div>
 
-        <div className="flex justify-end gap-2 pt-2">
+        <div className="flex justify-end gap-2 pt-2 border-t mt-2">
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving || !vendor}>
             {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />}
