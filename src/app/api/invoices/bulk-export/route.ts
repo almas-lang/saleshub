@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import archiver from "archiver";
+import * as archiver from "archiver";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { readFile } from "fs/promises";
 import { join } from "path";

@@ -53,7 +53,7 @@ export async function GET(request: Request) {
 
   // Enrich installments with invoice numbers
   const invoiceIds = [...new Set((installments ?? []).map((i) => i.invoice_id))];
-  let invoiceMap: Record<string, { invoice_number: string; contact_name: string }> = {};
+  const invoiceMap: Record<string, { invoice_number: string; contact_name: string }> = {};
 
   if (invoiceIds.length > 0) {
     const { data: invs } = await supabaseAdmin

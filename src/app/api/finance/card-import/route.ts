@@ -55,7 +55,6 @@ export async function POST(request: Request) {
     .lte("date", `${nextMonth}-28`)
     .order("date", { ascending: true });
 
-  const availableExpenses = new Set((expenses ?? []).map((e) => e.id));
   const matchedExpenseIds = new Set<string>();
 
   let matchedCount = 0;

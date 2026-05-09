@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
   // Calculate GST breakup if applicable
   let gstCgst: number | null = null;
   let gstSgst: number | null = null;
-  let gstIgst: number | null = null;
+  const gstIgst: number | null = null;
   const gstRate = parsed.data.gst_rate ?? null;
 
   if (parsed.data.gst_applicable && gstRate && gstRate > 0) {
