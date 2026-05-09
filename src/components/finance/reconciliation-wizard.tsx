@@ -472,16 +472,19 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, o
                     {txn.reconciled ? <CheckCircle2 className="mr-1 size-3 text-emerald-600" /> : <XCircle className="mr-1 size-3 text-muted-foreground" />}
                     {txn.reconciled ? "OK" : "Unmatched"}
                   </Button>
-                  {!txn.reconciled && (
-                    <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
-                        {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
-                        {txn.debit > 0 && <DropdownMenuItem onClick={() => onSalary(txn)}><Users className="mr-2 size-3.5" />Record Salary</DropdownMenuItem>}
-                        <DropdownMenuItem onClick={() => onIgnore(txn)}><EyeOff className="mr-2 size-3.5" />Ignore</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
+                      {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
+                      {txn.debit > 0 && <DropdownMenuItem onClick={() => onSalary(txn)}><Users className="mr-2 size-3.5" />Record Salary</DropdownMenuItem>}
+                      <DropdownMenuItem onClick={() => onIgnore(txn)}><EyeOff className="mr-2 size-3.5" />Ignore</DropdownMenuItem>
+                      {txn.reconciled && (
+                        <DropdownMenuItem className="text-amber-600" onClick={() => onToggle(txn.id, false)}>
+                          <XCircle className="mr-2 size-3.5" />Unmatch
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>
