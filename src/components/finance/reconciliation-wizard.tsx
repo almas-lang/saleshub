@@ -272,6 +272,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   const [data, setData] = useState<{ batch: ReconciliationBatch; earnings: BankTransaction[]; spends: BankTransaction[]; salaries: BankTransaction[]; ignored: BankTransaction[]; unmatched: BankTransaction[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [linkTxn, setLinkTxn] = useState<BankTransaction | null>(null);
+  const [expenseTxn, setExpenseTxn] = useState<BankTransaction | null>(null);
 
   async function load() { setLoading(true); const r = await fetch(`/api/finance/reconciliation/${batchId}`); if (r.ok) setData(await r.json()); setLoading(false); }
   useState(() => { load(); });
@@ -280,10 +281,19 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
     await fetch(`/api/finance/reconciliation/${batchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction_id: id, reconciled }) });
     await load();
   }
-  async function createExpense(txn: BankTransaction) {
-    const r = await fetch("/api/transactions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: txn.debit > 0 ? txn.debit : txn.credit, category: "Miscellaneous", date: txn.date, description: txn.description, gst_applicable: false, payment_mode: txn.description.toLowerCase().includes("upi") ? "UPI" : "Bank Transfer" }) });
-    if (r.ok) { const d = await r.json(); await fetch(`/api/finance/reconciliation/${batchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction_id: txn.id, reconciled: true, matched_type: "expense", matched_id: d.id }) }); await load(); toast.success("Expense created"); }
+
+  async function handleExpenseSaved(expenseId: string, txn: BankTransaction) {
+    // Link the bank transaction to the newly created expense
+    await fetch(`/api/finance/reconciliation/${batchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: txn.id, reconciled: true, matched_type: "expense", matched_id: expenseId }),
+    });
+    setExpenseTxn(null);
+    await load();
+    toast.success("Bill recorded and linked");
   }
+
   async function ignore(txn: BankTransaction) {
     await fetch(`/api/finance/reconciliation/${batchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction_id: txn.id, reconciled: true, matched_type: "ignored" }) });
     await load(); toast.success("Ignored");
@@ -297,6 +307,36 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   if (!data) return <p className="text-sm text-muted-foreground">Failed to load.</p>;
 
   const total = data.earnings.length + data.spends.length + data.salaries.length + data.ignored.length + data.unmatched.length;
+
+  // Guess vendor name from description
+  function guessVendor(desc: string): string {
+    const d = desc.replace(/^CC:\s*|^UPI-/i, "").trim();
+    // Extract vendor name from common patterns
+    const patterns = [
+      /^(.+?)\s+(?:SAN FRANCISC|MUMBAI|BANGALORE|HYDERABAD|GURGAON|GURUGRAM|DELHI)/i,
+      /^(.+?)\s+USD/i,
+      /^(.+?)-/,
+    ];
+    for (const p of patterns) {
+      const m = d.match(p);
+      if (m && m[1].length > 2) return m[1].trim();
+    }
+    return d.split(/\s+/).slice(0, 3).join(" ");
+  }
+
+  function guessCategory(desc: string): string {
+    const d = desc.toLowerCase();
+    if (d.includes("facebook") || d.includes("meta") || d.includes("google ads")) return "Advertising";
+    if (d.includes("claude") || d.includes("anthropic") || d.includes("openai")) return "Software & Tools";
+    if (d.includes("figma") || d.includes("canva") || d.includes("notion") || d.includes("slack")) return "Software & Tools";
+    if (d.includes("google") || d.includes("workspace") || d.includes("aws") || d.includes("railway")) return "Software & Tools";
+    if (d.includes("myntra") || d.includes("amazon") || d.includes("flipkart")) return "Office & Supplies";
+    if (d.includes("swiggy") || d.includes("zomato") || d.includes("uber") || d.includes("ola")) return "Travel & Events";
+    if (d.includes("airtel") || d.includes("jio") || d.includes("vodafone")) return "Communication (Phone/Internet)";
+    if (d.includes("bescom") || d.includes("bwssb") || d.includes("electricity")) return "Office & Supplies";
+    if (d.includes("udemy") || d.includes("coursera") || d.includes("uability")) return "Training & Education";
+    return "Miscellaneous";
+  }
 
   return (
     <div className="space-y-6">
@@ -317,11 +357,23 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         {(["earnings", "spends", "salaries", "ignored", "unmatched"] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="mt-4">
             <TxnTable transactions={data[tab]} type={tab === "earnings" ? "credit" : tab === "unmatched" ? "both" : "debit"}
-              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={createExpense} onIgnore={ignore} />
+              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onIgnore={ignore} />
           </TabsContent>
         ))}
       </Tabs>
       {linkTxn && <LinkDialog txn={linkTxn} onClose={() => setLinkTxn(null)} onLink={(invId) => linkInvoice(linkTxn, invId)} />}
+
+      {/* Record Bill/Expense Dialog */}
+      {expenseTxn && (
+        <RecordBillDialog
+          txn={expenseTxn}
+          vendorGuess={guessVendor(expenseTxn.description)}
+          categoryGuess={guessCategory(expenseTxn.description)}
+          onClose={() => setExpenseTxn(null)}
+          onSaved={(expenseId) => handleExpenseSaved(expenseId, expenseTxn)}
+        />
+      )}
+
       <div className="flex justify-between">
         <Button variant="outline" onClick={onBack}><ChevronLeft className="mr-2 size-4" />Back</Button>
         <Button onClick={onNext}>Generate Report<ChevronRight className="ml-2 size-4" /></Button>
@@ -402,7 +454,7 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onIgnore }:
                     <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-7"><MoreHorizontal className="size-4" /></Button></DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
-                        {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Create Expense</DropdownMenuItem>}
+                        {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => onIgnore(txn)}><EyeOff className="mr-2 size-3.5" />Ignore</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -456,6 +508,222 @@ function LinkDialog({ txn, onClose, onLink }: { txn: BankTransaction; onClose: (
           </button>
         ))}
         {!loading && results.invoices.length === 0 && results.installments.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No matching invoices found.</p>}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Record Bill / Expense Dialog ──────────────────────── */
+
+const EXPENSE_CATEGORIES = [
+  "Advertising", "Software & Tools", "Freelancers & Contractors", "Content Production",
+  "Office & Supplies", "Travel & Events", "Communication (Phone/Internet)",
+  "Training & Education", "Taxes & Compliance", "Salary & Payroll", "Miscellaneous",
+];
+
+const GST_RATES = [
+  { label: "No GST", value: 0 },
+  { label: "5%", value: 5 },
+  { label: "12%", value: 12 },
+  { label: "18%", value: 18 },
+  { label: "28%", value: 28 },
+];
+
+const PAYMENT_MODES_LIST = ["UPI", "Credit Card", "Bank Transfer", "Cash", "Cheque", "Auto-deducted"];
+
+function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }: {
+  txn: BankTransaction;
+  vendorGuess: string;
+  categoryGuess: string;
+  onClose: () => void;
+  onSaved: (expenseId: string) => void;
+}) {
+  const amount = txn.debit > 0 ? txn.debit : txn.credit;
+  const isCreditCard = (txn.bank_name ?? "").includes("Credit Card") || txn.description.startsWith("CC:");
+
+  const [vendor, setVendor] = useState(vendorGuess);
+  const [category, setCategory] = useState(categoryGuess);
+  const [description, setDescription] = useState(txn.description.replace(/^CC:\s*|^UPI-/i, "").trim());
+  const [gstRate, setGstRate] = useState(0);
+  const [vendorGstin, setVendorGstin] = useState("");
+  const [paymentMode, setPaymentMode] = useState(isCreditCard ? "Credit Card" : txn.description.toLowerCase().includes("upi") ? "UPI" : "Bank Transfer");
+  const [notes, setNotes] = useState("");
+  const [attachmentUrl, setAttachmentUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const gstAmount = gstRate > 0 ? Math.round(amount * (gstRate / 100)) : 0;
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/finance/upload-attachment", { method: "POST", body: fd });
+      if (res.ok) {
+        const { url } = await res.json();
+        setAttachmentUrl(url);
+        toast.success("Bill attached");
+      }
+    } catch { toast.error("Upload failed"); }
+    finally { setUploading(false); }
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const cgst = gstRate > 0 ? Math.round(gstAmount / 2) : null;
+      const sgst = gstRate > 0 ? gstAmount - (cgst ?? 0) : null;
+
+      const res = await fetch("/api/transactions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          category,
+          date: txn.date,
+          description: `${vendor}${notes ? " - " + notes : ""}`,
+          gst_applicable: gstRate > 0,
+          gst_rate: gstRate > 0 ? gstRate : null,
+          vendor_gstin: vendorGstin || null,
+          payment_mode: paymentMode,
+          attachment_url: attachmentUrl || null,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save");
+      const data = await res.json();
+      onSaved(data.id);
+    } catch {
+      toast.error("Failed to save bill");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Record Bill / Expense</DialogTitle>
+        </DialogHeader>
+
+        {/* Bank transaction reference */}
+        <div className="rounded-lg bg-muted/50 p-3 text-sm">
+          <p className="font-medium truncate">{txn.description}</p>
+          <p className="text-muted-foreground mt-1">
+            {format(new Date(txn.date + "T00:00:00"), "dd MMM yyyy")} ·{" "}
+            <span className="font-mono font-semibold">{formatCurrency(amount)}</span>
+            <span className="ml-2 text-xs">via {txn.bank_name ?? "Bank"}</span>
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {/* Vendor + Category */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Vendor / Party Name</Label>
+              <Input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. Claude AI, Facebook" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Category</Label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Description / Notes</Label>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What was this payment for?" />
+          </div>
+
+          {/* Payment mode */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Payment Mode</Label>
+            <select
+              value={paymentMode}
+              onChange={(e) => setPaymentMode(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              {PAYMENT_MODES_LIST.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          {/* GST */}
+          <div className="space-y-3 rounded-lg border p-3">
+            <Label className="text-sm font-medium">GST Details</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">GST Rate</Label>
+                <select
+                  value={gstRate}
+                  onChange={(e) => setGstRate(Number(e.target.value))}
+                  className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                >
+                  {GST_RATES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Vendor GSTIN</Label>
+                <Input className="h-8" value={vendorGstin} onChange={(e) => setVendorGstin(e.target.value)} placeholder="e.g. 29AAHCE..." />
+              </div>
+            </div>
+            {gstRate > 0 && (
+              <div className="rounded bg-muted/50 px-3 py-2 text-xs">
+                GST @ {gstRate}%: <strong>{gstAmount.toLocaleString("en-IN")}</strong>
+                {" "}(CGST: {Math.round(gstAmount / 2).toLocaleString("en-IN")} + SGST: {(gstAmount - Math.round(gstAmount / 2)).toLocaleString("en-IN")})
+              </div>
+            )}
+          </div>
+
+          {/* Attach vendor bill */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Attach Vendor Bill / Invoice (optional)</Label>
+            <div className="flex items-center gap-2">
+              {attachmentUrl ? (
+                <div className="flex-1 flex items-center gap-2 rounded-md border px-3 py-2">
+                  <FileText className="size-4 text-muted-foreground" />
+                  <a href={attachmentUrl} target="_blank" rel="noopener" className="text-sm text-primary hover:underline truncate flex-1">
+                    {attachmentUrl.split("/").pop()}
+                  </a>
+                  <Button type="button" variant="ghost" size="sm" className="h-6 px-1" onClick={() => setAttachmentUrl("")}>
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              ) : (
+                <label className="flex-1">
+                  <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors">
+                    {uploading ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <Upload className="size-4 text-muted-foreground" />}
+                    <span className="text-sm text-muted-foreground">Upload PDF or image</span>
+                  </div>
+                  <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" onChange={handleUpload} disabled={uploading} />
+                </label>
+              )}
+            </div>
+          </div>
+
+          {/* Additional notes */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Additional Notes</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any extra details..." />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving || !vendor}>
+            {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />}
+            Save Bill
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
