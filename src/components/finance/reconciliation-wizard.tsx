@@ -117,8 +117,9 @@ function parseCashfreeCSV(text: string) {
   const fc = (kw: string[]) => headers.findIndex((h) => kw.some((k) => h.includes(k)));
   const iO = fc(["order id"]), iA = fc(["amount"]), iSC = fc(["service charge"]), iST = fc(["st/gst", "service tax"]),
     iSA = fc(["settlement amount"]), iU = fc(["utr no", "utr"]), iSO = fc(["settled on"]),
-    iSt = fc(["transaction status"]), iSe = headers.findIndex((h) => h === "settlement");
-  const rows: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string }[] = [];
+    iSt = fc(["transaction status"]), iSe = headers.findIndex((h) => h === "settlement"),
+    iCN = fc(["customer name"]), iCP = fc(["customer phone"]), iCE = fc(["customer email"]);
+  const rows: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string }[] = [];
   for (let i = 1; i < lines.length; i++) {
     const c = parseQuotedCSV(lines[i]);
     if ((iSt >= 0 ? c[iSt] ?? "" : "").toUpperCase() !== "SUCCESS") continue;
@@ -126,7 +127,13 @@ function parseCashfreeCSV(text: string) {
     const pn = (idx: number) => idx >= 0 && c[idx] ? parseFloat(c[idx].replace(/,/g, "")) || 0 : 0;
     const so = iSO >= 0 ? (c[iSO] ?? "").split(" ")[0] : "";
     const utr = iU >= 0 ? c[iU] ?? "" : "";
-    rows.push({ settlement_id: utr || `S${i}`, settlement_date: so, order_id: iO >= 0 ? c[iO] ?? "" : "", order_amount: pn(iA), settlement_amount: pn(iSA) || pn(iA), service_charge: pn(iSC), service_tax: pn(iST), adjustment: 0, utr });
+    rows.push({
+      settlement_id: utr || `S${i}`, settlement_date: so, order_id: iO >= 0 ? c[iO] ?? "" : "",
+      order_amount: pn(iA), settlement_amount: pn(iSA) || pn(iA), service_charge: pn(iSC), service_tax: pn(iST), adjustment: 0, utr,
+      customer_name: iCN >= 0 ? c[iCN] : undefined,
+      customer_phone: iCP >= 0 ? c[iCP]?.replace(/^\+91/, "") : undefined,
+      customer_email: iCE >= 0 ? c[iCE] : undefined,
+    });
   }
   return rows;
 }
@@ -275,6 +282,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   const [linkTxn, setLinkTxn] = useState<BankTransaction | null>(null);
   const [expenseTxn, setExpenseTxn] = useState<BankTransaction | null>(null);
   const [salaryTxn, setSalaryTxn] = useState<BankTransaction | null>(null);
+  const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
 
   async function load() { setLoading(true); const r = await fetch(`/api/finance/reconciliation/${batchId}`); if (r.ok) setData(await r.json()); setLoading(false); }
   useState(() => { load(); });
@@ -370,7 +378,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         {(["earnings", "spends", "salaries", "ignored", "unmatched"] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="mt-4">
             <TxnTable transactions={data[tab]} type={tab === "earnings" ? "credit" : tab === "unmatched" ? "both" : "debit"}
-              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} />
+              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} onViewInvoice={setViewInvoiceId} />
           </TabsContent>
         ))}
       </Tabs>
@@ -394,6 +402,18 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
           onClose={() => setSalaryTxn(null)}
           onSaved={(salaryId) => handleSalarySaved(salaryId, salaryTxn)}
         />
+      )}
+
+      {/* Invoice Preview Dialog */}
+      {viewInvoiceId && (
+        <Dialog open onOpenChange={(o) => { if (!o) setViewInvoiceId(null); }}>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0">
+            <iframe
+              src={`/invoices/${viewInvoiceId}`}
+              className="w-full h-[85vh] rounded-lg"
+            />
+          </DialogContent>
+        </Dialog>
       )}
 
       <div className="flex justify-between">
@@ -435,10 +455,11 @@ function StepExport({ month, onBack }: { month: string; onBack: () => void }) {
 
 /* ── Shared: TxnTable ─────────────────────────────────── */
 
-function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, onIgnore }: {
+function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, onIgnore, onViewInvoice }: {
   transactions: BankTransaction[]; type: "credit" | "debit" | "both";
   onToggle: (id: string, r: boolean) => void; onLink: (t: BankTransaction) => void;
   onExpense: (t: BankTransaction) => void; onSalary: (t: BankTransaction) => void; onIgnore: (t: BankTransaction) => void;
+  onViewInvoice?: (invoiceId: string) => void;
 }) {
   if (transactions.length === 0) return <p className="py-8 text-center text-sm text-muted-foreground">No transactions.</p>;
   const ml = (t: string | null) => {
@@ -460,7 +481,9 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, o
           {transactions.map((txn) => { const m = ml(txn.matched_type); return (
             <TableRow key={txn.id}>
               <TableCell className="text-xs tabular-nums text-muted-foreground">{format(new Date(txn.date + "T00:00:00"), "dd MMM")}</TableCell>
-              <TableCell className="text-sm max-w-[280px] truncate">{txn.description}</TableCell>
+              <TableCell className="text-sm max-w-[280px]">
+                <p className="truncate">{txn.description}</p>
+              </TableCell>
               <TableCell className="text-xs text-muted-foreground">{txn.bank_name ?? "Bank"}</TableCell>
               <TableCell className="text-right font-mono text-sm font-medium">
                 {type === "credit" || (type === "both" && txn.credit > 0) ? <span className="text-emerald-600">+{formatCurrency(txn.credit)}</span> : <span className="text-red-600">-{formatCurrency(txn.debit)}</span>}
@@ -468,9 +491,11 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, o
               <TableCell>
                 {m ? (
                   txn.matched_id && (txn.matched_type === "invoice" || txn.matched_type === "cashfree_settlement") ? (
-                    <a href={`/invoices/${txn.matched_id}`} target="_blank" rel="noopener" className="hover:opacity-80">
-                      <Badge variant="outline" className={`text-[10px] ${m.c} cursor-pointer`}>{m.l} ↗</Badge>
-                    </a>
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${m.c} cursor-pointer hover:opacity-80`}
+                      onClick={() => onViewInvoice?.(txn.matched_id!)}
+                    >{m.l} ↗</Badge>
                   ) : (
                     <Badge variant="outline" className={`text-[10px] ${m.c}`}>{m.l}</Badge>
                   )

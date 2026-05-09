@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   } = body as {
     month: string;
     bank_rows?: { date: string; description: string; debit: number; credit: number; balance?: number; reference?: string }[];
-    cashfree_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string }[];
+    cashfree_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string; customer_name?: string; customer_phone?: string; customer_email?: string }[];
     settlement_rows?: { settlement_id: string; settlement_date: string; order_id: string; order_amount: number; settlement_amount: number; service_charge: number; service_tax: number; adjustment: number; utr: string }[];
     card_rows?: { date: string; description: string; amount: number; type: "debit" | "credit"; reference?: string }[];
   };
@@ -66,11 +66,20 @@ export async function POST(request: Request) {
         if (inv) { matched = true; matchedId = inv.id; }
       }
 
+      // Build a readable description with customer info
+      const custName = row.customer_name && row.customer_name !== "N/A" ? row.customer_name : "";
+      const custPhone = row.customer_phone?.replace(/^\+91/, "") ?? "";
+      const custEmail = row.customer_email && row.customer_email !== "N/A" ? row.customer_email : "";
+      const descParts = [custName, custEmail, custPhone].filter(Boolean);
+      const desc = descParts.length > 0
+        ? `${custName || "Customer"} · ${descParts.slice(1).join(" · ")}`
+        : `Cashfree: ${row.order_id}`;
+
       await supabase.from("bank_transactions").insert({
-        date: row.settlement_date, description: `Cashfree: ${row.order_id}`,
+        date: row.settlement_date, description: desc,
         debit: 0,
-        credit: row.order_amount, // Show the full order amount (what customer paid), not settlement amount
-        balance: row.settlement_amount, // Store settlement amount in balance field for bank matching reference
+        credit: row.order_amount,
+        balance: row.settlement_amount,
         reference: row.utr,
         bank_name: "Cashfree", month, batch_id: batchId,
         reconciled: matched, matched_type: matched ? "invoice" : null, matched_id: matchedId,
