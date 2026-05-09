@@ -50,12 +50,22 @@ type FileType = "bank" | "cashfree" | "settlement" | "card" | "unknown";
 
 function detectFileType(text: string): FileType {
   const header = text.split("\n")[0]?.toLowerCase() ?? "";
-  if (text.includes("~|~") && (header.includes("transaction type") || text.includes("Billed"))) return "card";
+  const fullLower = text.toLowerCase();
+
+  // HDFC Credit Card: uses ~|~ delimiter and has "transaction type" somewhere in the file
+  if (text.includes("~|~") && (fullLower.includes("transaction type") || fullLower.includes("billed") || fullLower.includes("credit limit"))) return "card";
+
+  // Cashfree Transaction Report: has "Order Id" and "Service Charge" in header
   if (header.includes("order id") && header.includes("service charge")) return "cashfree";
+
+  // Cashfree Settlement Report
   if (header.includes("total transaction amount") && header.includes("net settlement amount")) return "settlement";
+
+  // HDFC Bank Statement: has "Narration" and "Withdrawal" in first 30 lines
   const first30 = text.split("\n").slice(0, 30).join("\n").toLowerCase();
   if (first30.includes("narration") && first30.includes("withdrawal")) return "bank";
   if (first30.includes("date") && first30.includes("debit") && first30.includes("credit")) return "bank";
+
   return "unknown";
 }
 
