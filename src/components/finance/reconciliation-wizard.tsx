@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   X,
   Download,
+  Users,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -273,6 +274,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   const [loading, setLoading] = useState(true);
   const [linkTxn, setLinkTxn] = useState<BankTransaction | null>(null);
   const [expenseTxn, setExpenseTxn] = useState<BankTransaction | null>(null);
+  const [salaryTxn, setSalaryTxn] = useState<BankTransaction | null>(null);
 
   async function load() { setLoading(true); const r = await fetch(`/api/finance/reconciliation/${batchId}`); if (r.ok) setData(await r.json()); setLoading(false); }
   useState(() => { load(); });
@@ -280,6 +282,17 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   async function toggleMatch(id: string, reconciled: boolean) {
     await fetch(`/api/finance/reconciliation/${batchId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ transaction_id: id, reconciled }) });
     await load();
+  }
+
+  async function handleSalarySaved(salaryId: string, txn: BankTransaction) {
+    await fetch(`/api/finance/reconciliation/${batchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: txn.id, reconciled: true, matched_type: "salary", matched_id: salaryId }),
+    });
+    setSalaryTxn(null);
+    await load();
+    toast.success("Salary recorded and linked");
   }
 
   async function handleExpenseSaved(expenseId: string, txn: BankTransaction) {
@@ -357,7 +370,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         {(["earnings", "spends", "salaries", "ignored", "unmatched"] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="mt-4">
             <TxnTable transactions={data[tab]} type={tab === "earnings" ? "credit" : tab === "unmatched" ? "both" : "debit"}
-              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onIgnore={ignore} />
+              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} />
           </TabsContent>
         ))}
       </Tabs>
@@ -371,6 +384,15 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
           categoryGuess={guessCategory(expenseTxn.description)}
           onClose={() => setExpenseTxn(null)}
           onSaved={(expenseId) => handleExpenseSaved(expenseId, expenseTxn)}
+        />
+      )}
+
+      {/* Record Salary Dialog */}
+      {salaryTxn && (
+        <RecordSalaryDialog
+          txn={salaryTxn}
+          onClose={() => setSalaryTxn(null)}
+          onSaved={(salaryId) => handleSalarySaved(salaryId, salaryTxn)}
         />
       )}
 
@@ -413,10 +435,10 @@ function StepExport({ month, onBack }: { month: string; onBack: () => void }) {
 
 /* ── Shared: TxnTable ─────────────────────────────────── */
 
-function TxnTable({ transactions, type, onToggle, onLink, onExpense, onIgnore }: {
+function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, onIgnore }: {
   transactions: BankTransaction[]; type: "credit" | "debit" | "both";
   onToggle: (id: string, r: boolean) => void; onLink: (t: BankTransaction) => void;
-  onExpense: (t: BankTransaction) => void; onIgnore: (t: BankTransaction) => void;
+  onExpense: (t: BankTransaction) => void; onSalary: (t: BankTransaction) => void; onIgnore: (t: BankTransaction) => void;
 }) {
   if (transactions.length === 0) return <p className="py-8 text-center text-sm text-muted-foreground">No transactions.</p>;
   const ml = (t: string | null) => {
@@ -455,6 +477,7 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onIgnore }:
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
                         {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
+                        {txn.debit > 0 && <DropdownMenuItem onClick={() => onSalary(txn)}><Users className="mr-2 size-3.5" />Record Salary</DropdownMenuItem>}
                         <DropdownMenuItem onClick={() => onIgnore(txn)}><EyeOff className="mr-2 size-3.5" />Ignore</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
@@ -722,6 +745,106 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
           <Button onClick={handleSave} disabled={saving || !vendor}>
             {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />}
             Save Bill
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Record Salary Dialog ─────────────────────────────── */
+
+function RecordSalaryDialog({ txn, onClose, onSaved }: {
+  txn: BankTransaction; onClose: () => void; onSaved: (salaryId: string) => void;
+}) {
+  const amount = txn.debit > 0 ? txn.debit : txn.credit;
+
+  // Try to guess employee name from UPI description: "UPI-SHAIK MURAD AHAMED-..."
+  const descClean = txn.description.replace(/^UPI-/i, "");
+  const nameParts = descClean.split("-")[0]?.trim() ?? "";
+  const guessedName = nameParts.length > 2 && !nameParts.includes("@") ? nameParts : "";
+
+  const [employeeName, setEmployeeName] = useState(guessedName);
+  const [employeeNumber, setEmployeeNumber] = useState("");
+  const [paymentMode, setPaymentMode] = useState(txn.description.toLowerCase().includes("upi") ? "UPI" : "Bank Transfer");
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (!employeeName || !employeeNumber) {
+      toast.error("Employee name and number are required");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/finance/salary-payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employee_name: employeeName,
+          employee_number: employeeNumber,
+          amount,
+          paid_date: txn.date,
+          payment_mode: paymentMode,
+          notes: notes || null,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      onSaved(data.data.id);
+    } catch {
+      toast.error("Failed to save salary");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Record Salary Payment</DialogTitle>
+        </DialogHeader>
+
+        <div className="rounded-lg bg-muted/50 p-3 text-sm">
+          <p className="font-medium truncate">{txn.description}</p>
+          <p className="text-muted-foreground mt-1">
+            {format(new Date(txn.date + "T00:00:00"), "dd MMM yyyy")} ·{" "}
+            <span className="font-mono font-semibold">{formatCurrency(amount)}</span>
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Employee Name</Label>
+              <Input value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="e.g. Shaik Murad" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Employee Number</Label>
+              <Input value={employeeNumber} onChange={(e) => setEmployeeNumber(e.target.value)} placeholder="e.g. XW01" />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Payment Mode</Label>
+            <select value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm">
+              {PAYMENT_MODES_LIST.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Notes / Role</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Head of Product & Design" />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving || !employeeName || !employeeNumber}>
+            {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />}
+            Save Salary
           </Button>
         </div>
       </DialogContent>
