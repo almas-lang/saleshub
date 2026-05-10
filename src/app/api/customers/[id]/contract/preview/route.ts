@@ -19,7 +19,7 @@ export async function POST(
     return NextResponse.json({ error: "Customer not found" }, { status: 404 });
   }
 
-  let overrides: { name?: string; email?: string; phone?: string } = {};
+  let overrides: { name?: string; email?: string; phone?: string; scheduled_at?: string | null } = {};
   try {
     overrides = await request.json();
   } catch {
@@ -30,7 +30,8 @@ export async function POST(
     overrides.name?.trim() ||
     `${contact.first_name ?? ""} ${contact.last_name ?? ""}`.trim();
 
-  const { subject, html } = renderContractEmail({ name });
+  const sentAt = overrides.scheduled_at ? new Date(overrides.scheduled_at) : new Date();
+  const { subject, html } = renderContractEmail({ name, sentAt });
 
   return NextResponse.json({ subject, html });
 }

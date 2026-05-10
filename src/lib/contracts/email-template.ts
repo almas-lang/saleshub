@@ -1,9 +1,8 @@
-const CONTRACT_DATE = "23 Mar 2026";
-
 export const CONTRACT_ATTACHMENT_FILENAME = "Xperience-Wave-Enrollment-Contract.pdf";
 
 export interface ContractEmailInput {
   name: string;
+  sentAt?: Date | string;
 }
 
 export interface ContractEmailOutput {
@@ -11,8 +10,9 @@ export interface ContractEmailOutput {
   html: string;
 }
 
-export function renderContractEmail({ name }: ContractEmailInput): ContractEmailOutput {
+export function renderContractEmail({ name, sentAt }: ContractEmailInput): ContractEmailOutput {
   const firstName = (name || "").split(" ")[0] || name || "there";
+  const contractDate = formatContractDate(sentAt);
   const subject = "Welcome to Xperience Wave — Your Enrollment Contract";
 
   const html = `<!doctype html>
@@ -32,7 +32,7 @@ export function renderContractEmail({ name }: ContractEmailInput): ContractEmail
 
                 <p style="margin:24px 0 8px;font-size:11px;letter-spacing:0.6px;color:#888;text-transform:uppercase;font-weight:700;">Your Enrollment Contract</p>
 
-                <p style="margin:0 0 16px;">Attached to this email is your Student Enrollment Contract (dated ${CONTRACT_DATE}). It covers the full terms of the mentorship program — including the 3-month active mentorship period, 1-year Wave Academy access, certification exam eligibility, no-refund policy, and everything in between.</p>
+                <p style="margin:0 0 16px;">Attached to this email is your Student Enrollment Contract (dated ${contractDate}). It covers the full terms of the mentorship program — including the 3-month active mentorship period, 1-year Wave Academy access, certification exam eligibility, no-refund policy, and everything in between.</p>
 
                 <p style="margin:0 0 16px;">By acknowledging receipt of this email — either by replying to confirm or by continuing your participation in the program — you agree to the terms outlined in the contract.</p>
 
@@ -72,6 +72,12 @@ export function renderContractEmail({ name }: ContractEmailInput): ContractEmail
 </html>`;
 
   return { subject, html };
+}
+
+function formatContractDate(input?: Date | string): string {
+  const d = input ? (typeof input === "string" ? new Date(input) : input) : new Date();
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 function escapeHtml(value: string): string {

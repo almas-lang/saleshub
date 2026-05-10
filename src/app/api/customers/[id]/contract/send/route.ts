@@ -68,9 +68,9 @@ export async function POST(
     );
   }
 
-  const { subject, html } = renderContractEmail({ name });
-
   const contractDate = scheduledAtIso ? new Date(scheduledAtIso) : new Date();
+
+  const { subject, html } = renderContractEmail({ name, sentAt: contractDate });
 
   let pdfBytes: Uint8Array;
   try {
