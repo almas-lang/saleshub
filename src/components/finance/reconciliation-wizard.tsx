@@ -525,11 +525,70 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         />
       )}
 
+      {/* Replace File */}
+      <div className="rounded-lg border p-3 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">Replace a file?</p>
+          <p className="text-xs text-muted-foreground">Swap credit card statement, bank statement, or Cashfree report without losing other matches.</p>
+        </div>
+        <ReplaceFileButton batchId={batchId} onReplaced={load} />
+      </div>
+
       <div className="flex justify-between">
         <Button variant="outline" onClick={onBack}><ChevronLeft className="mr-2 size-4" />Back</Button>
         <Button onClick={onNext}>Generate Report<ChevronRight className="ml-2 size-4" /></Button>
       </div>
     </div>
+  );
+}
+
+function ReplaceFileButton({ batchId, onReplaced }: { batchId: string; onReplaced: () => void }) {
+  const [replacing, setReplacing] = useState(false);
+
+  async function handleReplace(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReplacing(true);
+    try {
+      const text = await file.text();
+      const type = detectFileType(text);
+
+      if (type === "unknown") {
+        toast.error("Could not detect file format");
+        return;
+      }
+
+      if (type === "card") {
+        const rows = parseCardCSV(text);
+        if (rows.length === 0) { toast.error("No valid rows"); return; }
+        const res = await fetch("/api/finance/reconciliation/replace-file", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batch_id: batchId, file_type: "card", card_rows: rows }),
+        });
+        if (!res.ok) throw new Error("Replace failed");
+        const data = await res.json();
+        toast.success(`Replaced: ${data.deleted} old → ${data.inserted} new rows (${data.matched} matched)`);
+        onReplaced();
+      } else if (type === "settlement") {
+        toast.info("Settlement report is reference data only — no rows to replace");
+      } else {
+        toast.error(`Replacing ${type} files is not supported yet — revert and re-upload`);
+      }
+    } catch { toast.error("Failed to replace file"); }
+    finally { setReplacing(false); e.target.value = ""; }
+  }
+
+  return (
+    <label>
+      <Button variant="outline" size="sm" disabled={replacing} asChild>
+        <span>
+          {replacing ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Upload className="mr-2 size-4" />}
+          Replace File
+        </span>
+      </Button>
+      <input type="file" accept=".csv" className="hidden" onChange={handleReplace} disabled={replacing} />
+    </label>
   );
 }
 
