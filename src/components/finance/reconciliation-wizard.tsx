@@ -391,17 +391,21 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
       {/* Financial Summary */}
       {(() => {
         const totalEarned = data.earnings.reduce((s, t) => s + t.credit, 0);
-        const totalSpent = data.spends.reduce((s, t) => s + t.debit, 0);
+        // Exclude credit_card_payment from Total Spent — it's not a separate expense,
+        // it's just paying the card company for charges already counted individually
+        const totalSpent = data.spends
+          .filter((t) => t.matched_type !== "credit_card_payment")
+          .reduce((s, t) => s + t.debit, 0);
         const totalSalaries = data.salaries.reduce((s, t) => s + t.debit, 0);
         const invoiceCount = data.earnings.filter((t) => t.matched_type === "invoice").length;
-        const reconciledAmount = totalEarned + totalSpent + totalSalaries;
+        const netProfit = totalEarned - totalSpent - totalSalaries;
         return (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatCard label="Total Earned" value={totalEarned} color="emerald" index={0} />
               <StatCard label="Total Spent" value={totalSpent} color="red" index={1} />
               <StatCard label="Salaries" value={totalSalaries} color="blue" index={2} />
-              <StatCard label="Reconciled" value={reconciledAmount} index={3} />
+              <StatCard label="Net Profit" value={netProfit} color={netProfit >= 0 ? "emerald" : "red"} index={3} />
             </div>
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
               <div className="rounded-lg border p-3 text-center">

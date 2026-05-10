@@ -48,6 +48,7 @@ import {
 import { DateRangePicker } from "@/components/shared/date-range-picker";
 import { ExportDropdown } from "@/components/shared/export-dropdown";
 import { EmptyState } from "@/components/shared/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { ExpenseCategoryBadge } from "./expense-category-badge";
 import { ExpenseForm } from "./expense-form";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
@@ -67,6 +68,7 @@ interface ExpenseListProps {
     gstTotal: number;
   };
   categories: string[];
+  reconciledIds?: string[];
 }
 
 export function ExpenseList({
@@ -74,7 +76,9 @@ export function ExpenseList({
   total,
   summary,
   categories,
+  reconciledIds = [],
 }: ExpenseListProps) {
+  const reconciledSet = new Set(reconciledIds);
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -232,6 +236,7 @@ export function ExpenseList({
                 <TableHead>Description</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="w-[60px]">GST</TableHead>
+                <TableHead className="w-[80px]" />
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
@@ -258,6 +263,11 @@ export function ExpenseList({
                         ? `${exp.gst_rate}%`
                         : "18%"
                       : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {reconciledSet.has(exp.id) ? (
+                      <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-200">Reconciled</Badge>
+                    ) : null}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

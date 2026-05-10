@@ -33,6 +33,19 @@ export default async function ExpensesPage() {
   // Get unique categories from expenses
   const categories = [...new Set(rows.map((e) => e.category))].sort();
 
+  // Check which expenses are reconciled (linked to a bank_transaction)
+  const expenseIds = rows.map((e) => e.id);
+  let reconciledIds: Set<string> = new Set();
+  if (expenseIds.length > 0) {
+    const { data: reconciledTxns } = await supabase
+      .from("bank_transactions")
+      .select("matched_id")
+      .eq("matched_type", "expense")
+      .eq("reconciled", true)
+      .in("matched_id", expenseIds);
+    reconciledIds = new Set((reconciledTxns ?? []).map((t) => t.matched_id).filter(Boolean) as string[]);
+  }
+
   return (
     <div className="page-enter space-y-6">
       <div>
@@ -54,6 +67,7 @@ export default async function ExpensesPage() {
           gstTotal,
         }}
         categories={categories}
+        reconciledIds={[...reconciledIds]}
       />
     </div>
   );
