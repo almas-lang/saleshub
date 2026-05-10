@@ -782,8 +782,8 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
 
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
         {/* Bank transaction reference */}
-        <div className="rounded-lg bg-muted/50 p-3 text-sm">
-          <p className="font-medium truncate">{txn.description}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-sm overflow-hidden">
+          <p className="font-medium truncate text-xs">{txn.description}</p>
           <p className="text-muted-foreground mt-1">
             {format(new Date(txn.date + "T00:00:00"), "dd MMM yyyy")} ·{" "}
             <span className="font-mono font-semibold">{formatCurrency(amount)}</span>
@@ -989,8 +989,8 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
           <DialogTitle>Record Salary Payment</DialogTitle>
         </DialogHeader>
 
-        <div className="rounded-lg bg-muted/50 p-3 text-sm">
-          <p className="font-medium truncate">{txn.description}</p>
+        <div className="rounded-lg bg-muted/50 p-3 text-sm overflow-hidden">
+          <p className="font-medium truncate text-xs">{txn.description}</p>
           <p className="text-muted-foreground mt-1">
             {format(new Date(txn.date + "T00:00:00"), "dd MMM yyyy")} ·{" "}
             <span className="font-mono font-semibold">{formatCurrency(amount)}</span>
