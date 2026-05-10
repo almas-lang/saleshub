@@ -25,165 +25,103 @@ export async function GET(request: Request) {
 
   const supabase = supabaseAdmin;
   const [year, mon] = month.split("-").map(Number);
-  const from = `${month}-01`;
-  const lastDay = new Date(year, mon, 0).getDate();
-  const to = `${month}-${String(lastDay).padStart(2, "0")}`;
   const monStr = String(mon).padStart(2, "0");
+  const monthLabel = getMonthLabel(month);
 
-  // Check if reconciliation batch exists for this month
+  // Find reconciliation batch for this month
   const { data: batch } = await supabase
     .from("reconciliation_batches")
     .select("id")
     .eq("month", monStr)
     .eq("year", year)
-    .eq("status", "completed")
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
 
-  // ══════════════════════════════════════════════════
-  // SALES SHEET
-  // ══════════════════════════════════════════════════
-  // Primary: reconciled earnings (invoices confirmed in bank)
-  // Supplement: paid invoices not covered by reconciliation
+  if (!batch) {
+    return NextResponse.json({ error: `No reconciliation found for ${monthLabel}. Complete reconciliation first.` }, { status: 404 });
+  }
 
-  const reconciledInvoiceIds = new Set<string>();
+  // Get ALL bank_transactions for this batch
+  const { data: txns } = await supabase
+    .from("bank_transactions")
+    .select("*")
+    .eq("batch_id", batch.id)
+    .eq("reconciled", true)
+    .order("date", { ascending: true });
+
+  const allTxns = txns ?? [];
+
+  // ══════════════════════════════════════════════════
+  // SALES — from earnings (credit > 0, matched to invoices)
+  // ══════════════════════════════════════════════════
+  const earnings = allTxns.filter((t) => t.credit > 0 && t.matched_type !== "credit_card_payment");
   const salesRows: Record<string, unknown>[] = [];
   let srNo = 1;
 
-  if (batch) {
-    // Get all reconciled earnings from the batch
-    const { data: earnings } = await supabase
-      .from("bank_transactions")
-      .select("*")
-      .eq("batch_id", batch.id)
-      .eq("reconciled", true)
-      .gt("credit", 0)
-      .not("matched_type", "eq", "credit_card_payment")
-      .order("date", { ascending: true });
+  for (const txn of earnings) {
+    let invoiceNo = "";
+    let customerName = txn.description;
+    let email = "";
+    let phone = "";
+    let gstNo = "No";
+    let taxableValue: number | string = "";
+    let cgst: number | string = "";
+    let sgst: number | string = "";
+    let igst: number | string = "";
+    let totalInvoiceValue = txn.credit;
+    let paymentMode = txn.bank_name === "Cashfree" ? "Cashfree" : "UPI";
+    let remarks = "";
 
-    for (const txn of earnings ?? []) {
-      if (txn.matched_id && (txn.matched_type === "invoice" || txn.bank_name === "Cashfree")) {
-        reconciledInvoiceIds.add(txn.matched_id);
+    // Fetch invoice details if matched
+    if (txn.matched_id && (txn.matched_type === "invoice" || txn.matched_type === "cashfree_settlement")) {
+      const { data: inv } = await supabase
+        .from("invoices")
+        .select("*, contacts(first_name, last_name, email, phone, company_name)")
+        .eq("id", txn.matched_id)
+        .single();
 
-        // Fetch invoice details for the report
-        const { data: inv } = await supabase
-          .from("invoices")
-          .select("*, contacts(first_name, last_name, email, phone, company_name)")
-          .eq("id", txn.matched_id)
-          .single();
+      if (inv) {
+        const contact = inv.contacts as { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
+        invoiceNo = inv.invoice_number;
+        customerName = contact ? `${contact.first_name} ${contact.last_name ?? ""}`.trim() : txn.description;
+        email = contact?.email ?? "";
+        phone = contact?.phone ?? "";
+        gstNo = inv.gst_number || "No";
+        totalInvoiceValue = inv.total;
 
-        if (inv) {
-          const contact = inv.contacts as { first_name: string; last_name: string | null; email: string | null; phone: string | null; company_name: string | null } | null;
-          const items = parseInvoiceItems(inv.items);
-          const gst = calculateGST(items, null, inv.gst_rate ?? 18);
+        const items = parseInvoiceItems(inv.items);
+        const gst = calculateGST(items, null, inv.gst_rate ?? 18);
+        taxableValue = gst.subtotal || "";
+        cgst = gst.cgst || "";
+        sgst = gst.sgst || "";
+        igst = gst.igst || "";
 
-          salesRows.push({
-            "Sr.No": srNo++,
-            "Invoice No": inv.invoice_number,
-            "Date of Invoice": fmtDate(inv.created_at.split("T")[0]),
-            "Name of the customer": contact ? `${contact.first_name} ${contact.last_name ?? ""}`.trim() : txn.description,
-            "Email ID": contact?.email ?? "",
-            "Mobile number": contact?.phone ?? "",
-            "Place": "Online",
-            "GST NO,if applicable": inv.gst_number || "No",
-            "Nature of Product": "XW-Current",
-            "Taxable Value": gst.subtotal || "",
-            "CGST": gst.cgst || "",
-            "SGST": gst.sgst || "",
-            "IGST": gst.igst || "",
-            "Total Invoice value": inv.total,
-            "Date of Receipt": fmtDate(txn.date),
-            "Amount of Receipt": txn.credit,
-            "Mode of receipt": txn.bank_name === "Cashfree" ? "Cashfree" : "UPI",
-            "Mail Status": "Sent",
-            "Remarks": txn.bank_name === "Cashfree" ? "Via Cashfree" : "Direct UPI",
-            "Reconciled": "Yes",
-          });
-        }
+        paymentMode = inv.payment_gateway === "cashfree" ? "Cashfree" : "UPI";
+        remarks = txn.bank_name === "Cashfree" ? "Via Cashfree" : "Direct UPI";
       }
     }
-  }
-
-  // Supplement: paid invoices this month NOT in reconciliation
-  const { data: invoices } = await supabase
-    .from("invoices")
-    .select("*, contacts(first_name, last_name, email, phone, company_name)")
-    .eq("status", "paid")
-    .eq("has_installments", false)
-    .gte("paid_at", `${from}T00:00:00`)
-    .lte("paid_at", `${to}T23:59:59`)
-    .order("paid_at", { ascending: true });
-
-  for (const inv of invoices ?? []) {
-    if (reconciledInvoiceIds.has(inv.id)) continue; // Already in reconciled data
-    const contact = inv.contacts as { first_name: string; last_name: string | null; email: string | null; phone: string | null; company_name: string | null } | null;
-    const items = parseInvoiceItems(inv.items);
-    const gst = calculateGST(items, null, inv.gst_rate ?? 18);
 
     salesRows.push({
       "Sr.No": srNo++,
-      "Invoice No": inv.invoice_number,
-      "Date of Invoice": fmtDate(inv.created_at.split("T")[0]),
-      "Name of the customer": contact ? `${contact.first_name} ${contact.last_name ?? ""}`.trim() : "",
-      "Email ID": contact?.email ?? "",
-      "Mobile number": contact?.phone ?? "",
+      "Invoice No": invoiceNo,
+      "Date of Invoice": fmtDate(txn.date),
+      "Name of the customer": customerName,
+      "Email ID": email,
+      "Mobile number": phone,
       "Place": "Online",
-      "GST NO,if applicable": inv.gst_number || "No",
+      "GST NO,if applicable": gstNo,
       "Nature of Product": "XW-Current",
-      "Taxable Value": gst.subtotal || "",
-      "CGST": gst.cgst || "",
-      "SGST": gst.sgst || "",
-      "IGST": gst.igst || "",
-      "Total Invoice value": inv.total,
-      "Date of Receipt": inv.paid_at ? fmtDate(inv.paid_at.split("T")[0]) : "",
-      "Amount of Receipt": inv.total,
-      "Mode of receipt": inv.payment_gateway === "cashfree" ? "Cashfree" : "UPI",
+      "Taxable Value": taxableValue,
+      "CGST": cgst,
+      "SGST": sgst,
+      "IGST": igst,
+      "Total Invoice value": totalInvoiceValue,
+      "Date of Receipt": fmtDate(txn.date),
+      "Amount of Receipt": txn.credit,
+      "Mode of receipt": paymentMode,
       "Mail Status": "Sent",
-      "Remarks": "",
-      "Reconciled": batch ? "No" : "",
-    });
-  }
-
-  // Supplement: paid installments this month NOT in reconciliation
-  const { data: paidInstallments } = await supabase
-    .from("installments")
-    .select("*, invoices!inner(*, contacts(first_name, last_name, email, phone, company_name))")
-    .eq("status", "paid")
-    .gte("paid_at", `${from}T00:00:00`)
-    .lte("paid_at", `${to}T23:59:59`)
-    .order("paid_at", { ascending: true });
-
-  for (const inst of paidInstallments ?? []) {
-    const inv = inst.invoices as unknown as {
-      id: string; invoice_number: string; created_at: string; total: number;
-      gst_number: string | null; payment_gateway: string | null;
-      contacts: { first_name: string; last_name: string | null; email: string | null; phone: string | null } | null;
-    };
-    if (reconciledInvoiceIds.has(inv.id)) continue;
-    const contact = inv.contacts;
-
-    salesRows.push({
-      "Sr.No": srNo++,
-      "Invoice No": inv.invoice_number,
-      "Date of Invoice": fmtDate(inv.created_at.split("T")[0]),
-      "Name of the customer": contact ? `${contact.first_name} ${contact.last_name ?? ""}`.trim() : "",
-      "Email ID": contact?.email ?? "",
-      "Mobile number": contact?.phone ?? "",
-      "Place": "Online",
-      "GST NO,if applicable": inv.gst_number || "No",
-      "Nature of Product": "XW-Current",
-      "Taxable Value": "",
-      "CGST": "",
-      "SGST": "",
-      "IGST": "",
-      "Total Invoice value": inv.total,
-      "Date of Receipt": inst.paid_at ? fmtDate(inst.paid_at.split("T")[0]) : "",
-      "Amount of Receipt": inst.amount,
-      "Mode of receipt": inst.payment_gateway === "cashfree" ? "Cashfree" : "UPI",
-      "Mail Status": "Sent",
-      "Remarks": `Installment #${inst.installment_number}`,
-      "Reconciled": batch ? "No" : "",
+      "Remarks": remarks,
     });
   }
 
@@ -194,148 +132,107 @@ export async function GET(request: Request) {
     "Email ID": "", "Mobile number": "", "Place": "", "GST NO,if applicable": "",
     "Nature of Product": "", "Taxable Value": "", "CGST": "", "SGST": "", "IGST": "",
     "Total Invoice value": "", "Date of Receipt": "", "Amount of Receipt": totalReceipts,
-    "Mode of receipt": "", "Mail Status": "", "Remarks": "", "Reconciled": "",
+    "Mode of receipt": "", "Mail Status": "", "Remarks": "",
   });
 
   // ══════════════════════════════════════════════════
-  // EXPENSES SHEET
+  // EXPENSES — from spends (debit > 0, not salary/ignored/cc_payment)
   // ══════════════════════════════════════════════════
-  // Primary: reconciled spends (expenses confirmed in bank)
-  // Supplement: manually-added expenses not linked to any bank transaction
-
-  const reconciledExpenseIds = new Set<string>();
+  const skipTypes = new Set(["salary", "ignored", "credit_card_payment"]);
+  const spends = allTxns.filter((t) => t.debit > 0 && !skipTypes.has(t.matched_type ?? ""));
   const expenseRows: Record<string, unknown>[] = [];
   let expSrNo = 1;
 
-  if (batch) {
-    // Get reconciled spends
-    const { data: spends } = await supabase
-      .from("bank_transactions")
-      .select("*")
-      .eq("batch_id", batch.id)
-      .eq("reconciled", true)
-      .gt("debit", 0)
-      .not("matched_type", "in", '("salary","ignored","credit_card_payment")')
-      .order("date", { ascending: true });
+  for (const txn of spends) {
+    let description = txn.description;
+    let category = "Miscellaneous";
+    let vendorGstin = "";
+    let gstCgst: number | string = "";
+    let gstSgst: number | string = "";
+    let gstIgst: number | string = "";
+    let taxableValue: number | string = "";
+    let paymentMode = txn.bank_name ?? "Bank";
 
-    for (const txn of spends ?? []) {
-      if (txn.matched_id) reconciledExpenseIds.add(txn.matched_id);
-
-      // Fetch expense details if linked
-      let expDesc = txn.description;
-      let expCategory = "Miscellaneous";
-      let vendorGstin = "";
-      let gstRate = 0;
-      let gstCgst: number | string = "";
-      let gstSgst: number | string = "";
-      let gstIgst: number | string = "";
-      let taxableValue: number | string = "";
-      let paymentMode = txn.bank_name ?? "Bank";
-
-      if (txn.matched_id) {
-        const { data: exp } = await supabase
-          .from("transactions")
-          .select("*")
-          .eq("id", txn.matched_id)
-          .single();
-        if (exp) {
-          expDesc = exp.description ?? exp.category;
-          expCategory = exp.category;
-          vendorGstin = exp.vendor_gstin ?? "";
-          gstRate = exp.gst_rate ?? 0;
-          gstCgst = exp.gst_cgst ?? "";
-          gstSgst = exp.gst_sgst ?? "";
-          gstIgst = exp.gst_igst ?? "";
-          taxableValue = gstRate > 0 ? Math.round(exp.amount / (1 + gstRate / 100)) : "";
-          paymentMode = exp.payment_mode ?? "Bank";
-        }
+    // Fetch expense details if matched
+    if (txn.matched_id && txn.matched_type === "expense") {
+      const { data: exp } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("id", txn.matched_id)
+        .single();
+      if (exp) {
+        description = exp.description ?? exp.category;
+        category = exp.category;
+        vendorGstin = exp.vendor_gstin ?? "";
+        gstCgst = exp.gst_cgst ?? "";
+        gstSgst = exp.gst_sgst ?? "";
+        gstIgst = exp.gst_igst ?? "";
+        taxableValue = exp.gst_rate && exp.gst_rate > 0 ? Math.round(exp.amount / (1 + exp.gst_rate / 100)) : "";
+        paymentMode = exp.payment_mode ?? txn.bank_name ?? "Bank";
       }
-
-      expenseRows.push({
-        "Sr.No": expSrNo++,
-        "Date of Expenses": fmtDate(txn.date),
-        "Name of the party from whom purchased": expDesc,
-        "Place": "Bangalore",
-        "GSTN, if available ": vendorGstin,
-        "Nature of Expenditure ": expCategory,
-        "Taxable Value": taxableValue,
-        "CGST": gstCgst,
-        "SGST": gstSgst,
-        "IGST": gstIgst,
-        "Total": txn.debit,
-        "Payment Date ": fmtDate(txn.date),
-        "Amount Paid ": txn.debit,
-        "Mode of payment (Cash/Bank)": paymentMode,
-        "Reconciled": "Yes",
-      });
     }
-  }
 
-  // Supplement: expenses not linked to reconciliation
-  const { data: allExpenses } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("type", "expense")
-    .gte("date", from)
-    .lte("date", to)
-    .order("date", { ascending: true });
-
-  for (const exp of allExpenses ?? []) {
-    if (reconciledExpenseIds.has(exp.id)) continue; // Already in reconciled data
     expenseRows.push({
       "Sr.No": expSrNo++,
-      "Date of Expenses": fmtDate(exp.date),
-      "Name of the party from whom purchased": exp.description ?? exp.category,
+      "Date of Expenses": fmtDate(txn.date),
+      "Name of the party from whom purchased": description,
       "Place": "Bangalore",
-      "GSTN, if available ": exp.vendor_gstin ?? "",
-      "Nature of Expenditure ": exp.category,
-      "Taxable Value": exp.gst_applicable && exp.gst_rate ? Math.round(exp.amount / (1 + exp.gst_rate / 100)) : "",
-      "CGST": exp.gst_cgst ?? "",
-      "SGST": exp.gst_sgst ?? "",
-      "IGST": exp.gst_igst ?? "",
-      "Total": exp.amount,
-      "Payment Date ": fmtDate(exp.date),
-      "Amount Paid ": exp.amount,
-      "Mode of payment (Cash/Bank)": exp.payment_mode ?? "UPI",
-      "Reconciled": batch ? "No (manual)" : "",
+      "GSTN, if available ": vendorGstin,
+      "Nature of Expenditure ": category,
+      "Taxable Value": taxableValue,
+      "CGST": gstCgst,
+      "SGST": gstSgst,
+      "IGST": gstIgst,
+      "Total": txn.debit,
+      "Payment Date ": fmtDate(txn.date),
+      "Amount Paid ": txn.debit,
+      "Mode of payment (Cash/Bank)": paymentMode,
     });
   }
 
-  // Totals
   const totalExpenses = expenseRows.reduce((s, r) => s + (Number(r["Amount Paid "]) || 0), 0);
   expenseRows.push({
     "Sr.No": "", "Date of Expenses": "", "Name of the party from whom purchased": "",
     "Place": "", "GSTN, if available ": "", "Nature of Expenditure ": "",
     "Taxable Value": "", "CGST": "", "SGST": "", "IGST": "", "Total": "",
-    "Payment Date ": "", "Amount Paid ": totalExpenses, "Mode of payment (Cash/Bank)": "", "Reconciled": "",
+    "Payment Date ": "", "Amount Paid ": totalExpenses, "Mode of payment (Cash/Bank)": "",
   });
 
   // ══════════════════════════════════════════════════
-  // SALARY SHEET
+  // SALARY — from salary entries in the batch (matched_type=salary)
   // ══════════════════════════════════════════════════
-  // Salary payments are always from the salary_payments table
-  // Reconciliation just confirms them, doesn't create new ones
-
-  const { data: salaryPayments } = await supabase
-    .from("salary_payments")
-    .select("*")
-    .gte("paid_date", from)
-    .lte("paid_date", to)
-    .order("paid_date", { ascending: true });
-
+  const salaryTxns = allTxns.filter((t) => t.matched_type === "salary");
   const salaryRows: Record<string, unknown>[] = [];
-  for (const sp of salaryPayments ?? []) {
+
+  for (const txn of salaryTxns) {
+    let empName = txn.description;
+    let empNumber = "";
+    let notes = "";
+
+    // Fetch salary payment details if matched
+    if (txn.matched_id) {
+      const { data: sp } = await supabase
+        .from("salary_payments")
+        .select("*")
+        .eq("id", txn.matched_id)
+        .single();
+      if (sp) {
+        empName = sp.employee_name;
+        empNumber = sp.employee_number;
+        notes = sp.notes ?? "";
+      }
+    }
+
     salaryRows.push({
-      "Employee name": sp.employee_name,
-      "Employee number": sp.employee_number,
-      "Paid": fmtDate(sp.paid_date),
-      "Amount": sp.amount,
-      "Notes": sp.notes ?? "",
+      "Employee name": empName,
+      "Employee number": empNumber,
+      "Paid": fmtDate(txn.date),
+      "Amount": txn.debit,
+      "Notes": notes,
     });
   }
 
   // Build sheets
-  const monthLabel = getMonthLabel(month);
   const companyHeader = "Name of the Company :EXPWAVE PRIVATE LIMITED";
 
   const sheets: SheetData[] = [
@@ -345,7 +242,7 @@ export async function GET(request: Request) {
         ["SALES  DETAILS  FORMAT "],
         [companyHeader],
         ["Month  :", monthLabel],
-        batch ? ["Reconciliation Status:", "Reconciled"] : [],
+        ["Reconciliation Status:", "Reconciled"],
         [],
       ],
       rows: salesRows,
@@ -355,7 +252,7 @@ export async function GET(request: Request) {
       headerRows: [
         [companyHeader],
         ["Month  :", monthLabel],
-        batch ? ["Reconciliation Status:", "Reconciled"] : [],
+        ["Reconciliation Status:", "Reconciled"],
         [],
       ],
       rows: expenseRows,
