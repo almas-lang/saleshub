@@ -630,26 +630,55 @@ function EditTxnDialog({ txn, onClose, onSave }: {
 /* ── Step 3: Export ────────────────────────────────────── */
 
 function StepExport({ month, onBack }: { month: string; onBack: () => void }) {
-  const [dl, setDl] = useState(false);
+  const [dl, setDl] = useState<string | null>(null);
   const label = month ? new Date(month + "-01").toLocaleDateString("en-IN", { month: "long", year: "numeric" }) : "";
-  async function download() {
-    setDl(true);
+
+  async function downloadReport() {
+    setDl("report");
     try {
       const r = await fetch(`/api/finance/reports/monthly-xlsx?month=${month}`);
-      if (!r.ok) throw new Error(); const b = await r.blob(); const u = URL.createObjectURL(b);
+      if (!r.ok) throw new Error();
+      const b = await r.blob(); const u = URL.createObjectURL(b);
       const a = document.createElement("a"); a.href = u; a.download = `${label} Expwave - Sales and expenses.xlsx`; a.click(); URL.revokeObjectURL(u);
       toast.success("Report downloaded");
-    } catch { toast.error("Failed"); } finally { setDl(false); }
+    } catch { toast.error("Failed to download report"); }
+    finally { setDl(null); }
   }
+
+  async function downloadBills() {
+    setDl("bills");
+    try {
+      const r = await fetch(`/api/finance/reports/bills-dump?month=${month}`);
+      if (!r.ok) {
+        const err = await r.json().catch(() => null);
+        throw new Error(err?.error ?? "Failed");
+      }
+      const b = await r.blob();
+      const u = URL.createObjectURL(b);
+      const a = document.createElement("a"); a.href = u; a.download = `${label} Expwave - Complete Package.zip`; a.click(); URL.revokeObjectURL(u);
+      toast.success("Package downloaded — Bills, Statements, Report all included");
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to download"); }
+    finally { setDl(null); }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col items-center justify-center rounded-xl border p-12 text-center">
         <CheckCircle2 className="size-12 text-emerald-500 mb-4" />
         <h3 className="text-lg font-semibold">Reconciliation Complete</h3>
-        <p className="text-sm text-muted-foreground mt-1 max-w-md">All transactions for {label} have been reconciled. Download the monthly report for your CA.</p>
-        <Button size="lg" className="mt-6" onClick={download} disabled={dl}>
-          {dl ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Download className="mr-2 size-4" />}Download {label} Report
-        </Button>
+        <p className="text-sm text-muted-foreground mt-1 max-w-md">
+          All transactions for {label} have been reconciled. Download the monthly report and bill attachments for your CA.
+        </p>
+        <div className="flex items-center gap-3 mt-6">
+          <Button size="lg" onClick={downloadReport} disabled={dl === "report"}>
+            {dl === "report" ? <Loader2 className="mr-2 size-4 animate-spin" /> : <Download className="mr-2 size-4" />}
+            Download {label} Report
+          </Button>
+          <Button size="lg" variant="outline" onClick={downloadBills} disabled={dl === "bills"}>
+            {dl === "bills" ? <Loader2 className="mr-2 size-4 animate-spin" /> : <FileText className="mr-2 size-4" />}
+            Download All (ZIP)
+          </Button>
+        </div>
       </div>
       <div className="flex justify-between"><Button variant="outline" onClick={onBack}><ChevronLeft className="mr-2 size-4" />Back to Review</Button></div>
     </div>
