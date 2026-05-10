@@ -17,6 +17,7 @@ import { PassThrough } from "stream";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const month = searchParams.get("month");
+  const format = searchParams.get("format"); // "json" for manifest only
   if (!month) {
     return NextResponse.json({ error: "month required" }, { status: 400 });
   }
@@ -43,29 +44,44 @@ export async function GET(request: Request) {
     .not("attachment_url", "eq", "")
     .order("date", { ascending: true });
 
+  const bills: { bill_no: number; filename: string; url: string; amount: number; vendor: string; date: string; category: string }[] = [];
   let billNo = 1;
   for (const exp of expenses ?? []) {
     const urls = (exp.attachment_url ?? "").split(",").filter(Boolean);
     for (const url of urls) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) continue;
-        const buffer = Buffer.from(await res.arrayBuffer());
+      const date = exp.date.replace(/-/g, "");
+      const vendor = (exp.description ?? exp.category ?? "unknown")
+        .replace(/[^a-zA-Z0-9\s]/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .substring(0, 30);
+      const ext = url.includes(".png") ? "png" : url.includes(".jpg") || url.includes(".jpeg") ? "jpg" : "pdf";
+      const filename = `${String(billNo).padStart(2, "0")}-${date}-${vendor}-Rs${exp.amount}.${ext}`;
 
-        const date = exp.date.replace(/-/g, "");
-        const vendor = (exp.description ?? exp.category ?? "unknown")
-          .replace(/[^a-zA-Z0-9\s]/g, "")
-          .trim()
-          .replace(/\s+/g, "-")
-          .substring(0, 30);
-        const ext = url.includes(".png") ? "png" : url.includes(".jpg") || url.includes(".jpeg") ? "jpg" : "pdf";
+      bills.push({ bill_no: billNo, filename, url, amount: exp.amount, vendor: exp.description ?? exp.category, date: exp.date, category: exp.category });
 
-        archive.append(buffer, { name: `Bills/${String(billNo).padStart(2, "0")}-${date}-${vendor}-Rs${exp.amount}.${ext}` });
-        billNo++;
-      } catch {
-        // Skip failed downloads
+      if (!format) {
+        // ZIP mode — download and include file
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const buffer = Buffer.from(await res.arrayBuffer());
+            archive.append(buffer, { name: `Bills/${filename}` });
+          }
+        } catch { /* skip */ }
       }
+      billNo++;
     }
+  }
+
+  // JSON manifest mode — return list without downloading files
+  if (format === "json") {
+    return NextResponse.json({
+      month: monthLabel,
+      total_bills: bills.length,
+      total_amount: expenses?.reduce((s, e) => s + e.amount, 0) ?? 0,
+      bills,
+    });
   }
 
   // ── 2. Statements folder: uploaded source files ──

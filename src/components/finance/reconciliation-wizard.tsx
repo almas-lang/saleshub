@@ -648,16 +648,30 @@ function StepExport({ month, onBack }: { month: string; onBack: () => void }) {
   async function downloadBills() {
     setDl("bills");
     try {
-      const r = await fetch(`/api/finance/reports/bills-dump?month=${month}`);
+      // Get the list of all bill attachments
+      const r = await fetch(`/api/finance/reports/bills-dump?month=${month}&format=json`);
       if (!r.ok) {
         const err = await r.json().catch(() => null);
         throw new Error(err?.error ?? "Failed");
       }
-      const b = await r.blob();
-      const u = URL.createObjectURL(b);
-      const a = document.createElement("a"); a.href = u; a.download = `${label} Expwave - Complete Package.zip`; a.click(); URL.revokeObjectURL(u);
-      toast.success("Package downloaded — Bills, Statements, Report all included");
-    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to download"); }
+      const data = await r.json();
+
+      if (!data.bills?.length) {
+        toast.error("No bills with attachments found");
+        return;
+      }
+
+      // Download the manifest as a file
+      const manifest = `${label} - Bills\n${"=".repeat(40)}\n\n${data.bills.map((b: { bill_no: number; filename: string; url: string; amount: number }) =>
+        `${b.bill_no}. ${b.filename}\n   Amount: ₹${b.amount.toLocaleString("en-IN")}\n   Download: ${b.url}\n`
+      ).join("\n")}\n\nTotal: ${data.total_bills} bills, ₹${data.total_amount.toLocaleString("en-IN")}`;
+
+      const blob = new Blob([manifest], { type: "text/plain" });
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = u; a.download = `${label} - Bills List.txt`; a.click(); URL.revokeObjectURL(u);
+
+      toast.success(`${data.total_bills} bills listed — open the text file for download links`);
+    } catch (err) { toast.error(err instanceof Error ? err.message : "Failed"); }
     finally { setDl(null); }
   }
 
