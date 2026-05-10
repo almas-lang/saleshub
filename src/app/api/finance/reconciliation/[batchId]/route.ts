@@ -40,12 +40,17 @@ export async function GET(
   // No duplicate filtering needed — the wizard API (V2) no longer creates
   // separate bank rows for Cashfree settlements. Bank credits matching Cashfree
   // UTRs are skipped entirely, and the Cashfree row is bank-confirmed instead.
+  // credit_card_payment = you paying your CC bill (CRED/bank debit).
+  // This is NOT a separate expense — the individual CC charges are already in spends.
+  // So CC bill payment goes into ignored (it's an internal transfer, not a real expense).
+  const skipTypes = new Set(["salary", "ignored", "credit_card_payment"]);
+
   return NextResponse.json({
     batch: batchRes.data,
     earnings: txns.filter((t) => t.credit > 0 && t.reconciled && t.matched_type !== "credit_card_payment"),
-    spends: txns.filter((t) => t.reconciled && t.matched_type !== "salary" && t.matched_type !== "ignored" && (t.debit > 0 || t.matched_type === "credit_card_payment")),
+    spends: txns.filter((t) => t.debit > 0 && t.reconciled && !skipTypes.has(t.matched_type ?? "")),
     salaries: txns.filter((t) => t.matched_type === "salary" && t.reconciled),
-    ignored: txns.filter((t) => t.matched_type === "ignored"),
+    ignored: txns.filter((t) => (t.matched_type === "ignored" || t.matched_type === "credit_card_payment") && t.reconciled),
     unmatched: txns.filter((t) => !t.reconciled),
   });
 }
