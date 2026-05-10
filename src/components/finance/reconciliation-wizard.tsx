@@ -808,7 +808,9 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
 }) {
   const amount = txn.debit > 0 ? txn.debit : txn.credit;
   const isCreditCard = (txn.bank_name ?? "").includes("Credit Card") || txn.description.startsWith("CC:");
+  const isEdit = !!txn.matched_id && txn.matched_type === "expense";
 
+  const [loading, setLoading] = useState(isEdit);
   const [vendor, setVendor] = useState(vendorGuess);
   const [category, setCategory] = useState(categoryGuess);
   const [description, setDescription] = useState(txn.description.replace(/^CC:\s*|^UPI-/i, "").trim());
@@ -819,6 +821,29 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
   const [attachments, setAttachments] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // If editing, fetch existing expense data
+  useState(() => {
+    if (!isEdit || !txn.matched_id) return;
+    fetch(`/api/transactions/${txn.matched_id}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data) {
+          const desc = data.description ?? "";
+          const dashIdx = desc.indexOf(" - ");
+          setVendor(dashIdx > 0 ? desc.substring(0, dashIdx) : desc);
+          setNotes(dashIdx > 0 ? desc.substring(dashIdx + 3) : "");
+          setCategory(data.category ?? categoryGuess);
+          setGstRate(data.gst_rate ?? 0);
+          setVendorGstin(data.vendor_gstin ?? "");
+          setPaymentMode(data.payment_mode ?? "UPI");
+          if (data.attachment_url) {
+            setAttachments(data.attachment_url.split(",").filter(Boolean));
+          }
+        }
+      })
+      .finally(() => setLoading(false));
+  });
 
   const gstAmount = gstRate > 0 ? Math.round(amount * (gstRate / 100)) : 0;
 
@@ -846,28 +871,40 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
   async function handleSave() {
     setSaving(true);
     try {
-      const cgst = gstRate > 0 ? Math.round(gstAmount / 2) : null;
-      const sgst = gstRate > 0 ? gstAmount - (cgst ?? 0) : null;
+      const payload = {
+        amount,
+        category,
+        date: txn.date,
+        description: `${vendor}${notes ? " - " + notes : ""}`,
+        gst_applicable: gstRate > 0,
+        gst_rate: gstRate > 0 ? gstRate : null,
+        vendor_gstin: vendorGstin || "",
+        payment_mode: paymentMode,
+        attachment_url: attachments.join(",") || "",
+      };
 
-      const res = await fetch("/api/transactions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount,
-          category,
-          date: txn.date,
-          description: `${vendor}${notes ? " - " + notes : ""}`,
-          gst_applicable: gstRate > 0,
-          gst_rate: gstRate > 0 ? gstRate : null,
-          vendor_gstin: vendorGstin || "",
-          payment_mode: paymentMode,
-          attachment_url: attachments.join(",") || "",
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to save");
-      const data = await res.json();
-      onSaved(data.id);
+      if (isEdit && txn.matched_id) {
+        // Update existing expense
+        const res = await fetch(`/api/transactions/${txn.matched_id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Failed to update");
+        onSaved(txn.matched_id);
+        toast.success("Bill updated");
+      } else {
+        // Create new expense
+        const res = await fetch("/api/transactions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error("Failed to save");
+        const data = await res.json();
+        onSaved(data.id);
+        toast.success("Bill recorded");
+      }
     } catch {
       toast.error("Failed to save bill");
     } finally {
@@ -879,9 +916,12 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-lg max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Record Bill / Expense</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Bill / Expense" : "Record Bill / Expense"}</DialogTitle>
         </DialogHeader>
 
+        {loading ? (
+          <div className="flex items-center justify-center py-10"><Loader2 className="size-6 animate-spin text-muted-foreground" /></div>
+        ) : (<>
         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
         {/* Bank transaction reference */}
         <div className="rounded-lg bg-muted/50 p-3 text-sm overflow-hidden">
@@ -966,7 +1006,7 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
                   <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-1.5">
                     <FileText className="size-3.5 shrink-0 text-muted-foreground" />
                     <a href={url} target="_blank" rel="noopener" className="text-xs text-primary hover:underline truncate flex-1">
-                      Bill {i + 1}
+                      Bill {i + 1} — View ↗
                     </a>
                     <Button type="button" variant="ghost" size="sm" className="h-5 px-1" onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))}>
                       <X className="size-3" />
@@ -996,9 +1036,10 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving || !vendor}>
             {saving ? <Loader2 className="mr-2 size-4 animate-spin" /> : <CheckCircle2 className="mr-2 size-4" />}
-            Save Bill
+            {isEdit ? "Update Bill" : "Save Bill"}
           </Button>
         </div>
+        </>)}
       </DialogContent>
     </Dialog>
   );
