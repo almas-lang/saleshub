@@ -388,25 +388,39 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
 
   return (
     <div className="space-y-6">
-      {/* Financial Summary */}
+      {/* Financial Summary — Bank actuals + categorized breakdown */}
       {(() => {
-        const totalEarned = data.earnings.reduce((s, t) => s + t.credit, 0);
-        // Exclude credit_card_payment from Total Spent — it's not a separate expense,
-        // it's just paying the card company for charges already counted individually
-        const totalSpent = data.spends
-          .filter((t) => t.matched_type !== "credit_card_payment")
-          .reduce((s, t) => s + t.debit, 0);
-        const totalSalaries = data.salaries.reduce((s, t) => s + t.debit, 0);
+        // All visible transactions across all tabs
+        const allTxns = [...data.earnings, ...data.spends, ...data.salaries, ...data.ignored, ...data.unmatched];
+
+        // Bank actuals — only from bank statement rows (not Cashfree/CC source rows)
+        const bankRows = allTxns.filter((t) => !t.bank_name || t.bank_name === "HDFC" || (!t.bank_name?.includes("Cashfree") && !t.bank_name?.includes("Credit Card")));
+        const bankCredits = bankRows.reduce((s, t) => s + t.credit, 0);
+        const bankDebits = bankRows.reduce((s, t) => s + t.debit, 0);
+
+        // Also add Cashfree earnings (order amounts, not settlement amounts)
+        const cashfreeEarnings = data.earnings.filter((t) => t.bank_name === "Cashfree").reduce((s, t) => s + t.credit, 0);
+        const totalMoneyIn = bankCredits + cashfreeEarnings;
+
+        // Categorized totals
+        const invoiceTotal = data.earnings.reduce((s, t) => s + t.credit, 0);
+        const billsTotal = data.spends.filter((t) => t.matched_type !== "credit_card_payment").reduce((s, t) => s + t.debit, 0);
+        const salaryTotal = data.salaries.reduce((s, t) => s + t.debit, 0);
+        const netProfit = invoiceTotal - billsTotal - salaryTotal;
+
         const invoiceCount = data.earnings.filter((t) => t.matched_type === "invoice").length;
-        const netProfit = totalEarned - totalSpent - totalSalaries;
+        const billsCount = data.spends.filter((t) => t.matched_type === "expense").length;
+
         return (
           <div className="space-y-3">
+            {/* Row 1: Categorized P&L */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard label="Total Earned" value={totalEarned} color="emerald" index={0} />
-              <StatCard label="Total Spent" value={totalSpent} color="red" index={1} />
-              <StatCard label="Salaries" value={totalSalaries} color="blue" index={2} />
+              <StatCard label="Invoice Revenue" value={invoiceTotal} color="emerald" index={0} />
+              <StatCard label="Bills & Expenses" value={billsTotal} color="red" index={1} />
+              <StatCard label="Salaries Paid" value={salaryTotal} color="blue" index={2} />
               <StatCard label="Net Profit" value={netProfit} color={netProfit >= 0 ? "emerald" : "red"} index={3} />
             </div>
+            {/* Row 2: Counts + status */}
             <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Invoices</p>
@@ -414,7 +428,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
               </div>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Bills</p>
-                <p className="text-lg font-semibold">{data.spends.filter((t) => t.matched_type === "expense").length}</p>
+                <p className="text-lg font-semibold">{billsCount}</p>
               </div>
               <div className="rounded-lg border p-3 text-center">
                 <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Salaries</p>
