@@ -184,7 +184,7 @@ function parseCardCSV(text: string) {
     if (amt === 0) continue;
     const dc = iDC >= 0 ? (c[iDC] ?? "").toLowerCase().trim() : "";
     const desc = iDe >= 0 ? c[iDe] ?? "" : "";
-    if (desc.startsWith("IGST-") || desc.includes("CONSOLIDATED FCY")) continue;
+    if (desc.startsWith("IGST-")) continue;
     rows.push({ date: pd, description: desc, amount: amt, type: dc.includes("cr") ? "credit" : "debit" });
   }
   return rows;
