@@ -90,11 +90,19 @@ export async function POST(request: Request) {
     }
     const totalFees = cashfree_rows.reduce((s, r) => s + r.service_charge + r.service_tax, 0);
     if (totalFees > 0) {
-      await supabase.from("transactions").insert({
-        type: "expense", amount: totalFees, category: "Software & Tools",
-        date: cashfree_rows[0].settlement_date, description: `Cashfree PG fees - ${month}`,
-        gst_applicable: true, gst_rate: 18, payment_mode: "Auto-deducted",
-      });
+      // Only create fee entry if one doesn't already exist for this month
+      const { data: existingFee } = await supabase.from("transactions")
+        .select("id").eq("type", "expense")
+        .ilike("description", `%Cashfree PG fees%${month}%`)
+        .limit(1).single();
+
+      if (!existingFee) {
+        await supabase.from("transactions").insert({
+          type: "expense", amount: totalFees, category: "Software & Tools",
+          date: cashfree_rows[0].settlement_date, description: `Cashfree PG fees - ${month}`,
+          gst_applicable: true, gst_rate: 18, payment_mode: "Auto-deducted",
+        });
+      }
     }
   }
 

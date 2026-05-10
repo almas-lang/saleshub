@@ -284,6 +284,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
   const [activeTab, setActiveTab] = useState<string>(""); // persist tab across reloads
   const [linkTxn, setLinkTxn] = useState<BankTransaction | null>(null);
   const [expenseTxn, setExpenseTxn] = useState<BankTransaction | null>(null);
+  const [linkExpenseTxn, setLinkExpenseTxn] = useState<BankTransaction | null>(null);
   const [salaryTxn, setSalaryTxn] = useState<BankTransaction | null>(null);
   const [viewInvoiceId, setViewInvoiceId] = useState<string | null>(null);
   const [editTxn, setEditTxn] = useState<BankTransaction | null>(null);
@@ -316,6 +317,17 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
     setSalaryTxn(null);
     await load();
     toast.success("Salary recorded and linked");
+  }
+
+  async function handleLinkExpense(txn: BankTransaction, expenseId: string) {
+    await fetch(`/api/finance/reconciliation/${batchId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transaction_id: txn.id, reconciled: true, matched_type: "expense", matched_id: expenseId }),
+    });
+    setLinkExpenseTxn(null);
+    await load();
+    toast.success("Linked to expense");
   }
 
   async function handleExpenseSaved(expenseId: string, txn: BankTransaction) {
@@ -431,7 +443,7 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
         {(["earnings", "spends", "salaries", "ignored", "unmatched"] as const).map((tab) => (
           <TabsContent key={tab} value={tab} className="mt-4">
             <TxnTable transactions={data[tab]} type={tab === "earnings" ? "credit" : tab === "unmatched" ? "both" : "debit"}
-              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} onViewInvoice={setViewInvoiceId} onEdit={setEditTxn} />
+              onToggle={(id, r) => toggleMatch(id, r)} onLink={setLinkTxn} onLinkExpense={setLinkExpenseTxn} onExpense={setExpenseTxn} onSalary={setSalaryTxn} onIgnore={ignore} onViewInvoice={setViewInvoiceId} onEdit={setEditTxn} />
           </TabsContent>
         ))}
       </Tabs>
@@ -445,6 +457,15 @@ function StepReview({ batchId, onBack, onNext }: { batchId: string; onBack: () =
           categoryGuess={guessCategory(expenseTxn.description)}
           onClose={() => setExpenseTxn(null)}
           onSaved={(expenseId) => handleExpenseSaved(expenseId, expenseTxn)}
+        />
+      )}
+
+      {/* Link to Expense Dialog */}
+      {linkExpenseTxn && (
+        <LinkExpenseDialog
+          txn={linkExpenseTxn}
+          onClose={() => setLinkExpenseTxn(null)}
+          onLink={(expenseId) => handleLinkExpense(linkExpenseTxn, expenseId)}
         />
       )}
 
@@ -560,9 +581,10 @@ function StepExport({ month, onBack }: { month: string; onBack: () => void }) {
 
 /* ── Shared: TxnTable ─────────────────────────────────── */
 
-function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, onIgnore, onViewInvoice, onEdit }: {
+function TxnTable({ transactions, type, onToggle, onLink, onLinkExpense, onExpense, onSalary, onIgnore, onViewInvoice, onEdit }: {
   transactions: BankTransaction[]; type: "credit" | "debit" | "both";
   onToggle: (id: string, r: boolean) => void; onLink: (t: BankTransaction) => void;
+  onLinkExpense?: (t: BankTransaction) => void;
   onExpense: (t: BankTransaction) => void; onSalary: (t: BankTransaction) => void; onIgnore: (t: BankTransaction) => void;
   onViewInvoice?: (invoiceId: string) => void;
   onEdit?: (t: BankTransaction) => void;
@@ -617,6 +639,7 @@ function TxnTable({ transactions, type, onToggle, onLink, onExpense, onSalary, o
                     <DropdownMenuContent align="end">
                       {onEdit && <DropdownMenuItem onClick={() => onEdit(txn)}><Pencil className="mr-2 size-3.5" />Edit Details</DropdownMenuItem>}
                       <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
+                      {txn.debit > 0 && onLinkExpense && <DropdownMenuItem onClick={() => onLinkExpense(txn)}><Link2 className="mr-2 size-3.5" />Link to Expense</DropdownMenuItem>}
                       {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
                       {txn.debit > 0 && <DropdownMenuItem onClick={() => onSalary(txn)}><Users className="mr-2 size-3.5" />Record Salary</DropdownMenuItem>}
                       <DropdownMenuItem onClick={() => onIgnore(txn)}><EyeOff className="mr-2 size-3.5" />Ignore</DropdownMenuItem>
@@ -1052,6 +1075,67 @@ function RecordSalaryDialog({ txn, onClose, onSaved }: {
             Save Salary
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ── Link to Expense Dialog ────────────────────────────── */
+
+function LinkExpenseDialog({ txn, onClose, onLink }: {
+  txn: BankTransaction; onClose: () => void; onLink: (expenseId: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<{ id: string; amount: number; date: string; description: string | null; category: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  async function doSearch(q: string) {
+    setLoading(true);
+    const amount = txn.debit > 0 ? txn.debit : txn.credit;
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (amount > 0) p.set("amount", String(amount));
+    const r = await fetch(`/api/finance/reconciliation/search-expenses?${p}`);
+    if (r.ok) { const d = await r.json(); setResults(d.data ?? []); }
+    setLoading(false);
+  }
+
+  useState(() => { doSearch(""); });
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Link to Expense</DialogTitle></DialogHeader>
+        <div className="rounded-lg bg-muted/50 p-3 text-sm overflow-hidden">
+          <p className="font-medium truncate text-xs">{txn.description}</p>
+          <p className="text-muted-foreground mt-1">
+            {format(new Date(txn.date + "T00:00:00"), "dd MMM yyyy")} · <span className="font-mono font-medium">{formatCurrency(txn.debit > 0 ? txn.debit : txn.credit)}</span>
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+            <Input placeholder="Search by description or category..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && doSearch(search)} className="pl-8" />
+          </div>
+          <Button variant="outline" size="sm" onClick={() => doSearch(search)} disabled={loading}>
+            {loading ? <Loader2 className="size-3 animate-spin" /> : "Search"}
+          </Button>
+        </div>
+        {results.map((exp) => (
+          <button key={exp.id} onClick={() => onLink(exp.id)} className="w-full flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors text-left">
+            <div className="min-w-0 flex-1">
+              <span className="text-sm font-medium">{exp.description || exp.category}</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs text-muted-foreground">{exp.category}</span>
+                <span className="text-xs text-muted-foreground">{format(new Date(exp.date + "T00:00:00"), "dd MMM yyyy")}</span>
+              </div>
+            </div>
+            <span className="font-mono text-sm font-medium shrink-0 ml-2">{formatCurrency(exp.amount)}</span>
+          </button>
+        ))}
+        {!loading && results.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">No matching expenses found.</p>
+        )}
       </DialogContent>
     </Dialog>
   );
