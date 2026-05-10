@@ -1307,7 +1307,11 @@ export function ReconciliationWizard({ batches }: { batches: ReconciliationBatch
       const m = params.get("month");
       if (m) return m;
     }
-    const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+    // Default to previous month (most common reconciliation target)
+    const n = new Date();
+    const prevMonth = n.getMonth() === 0 ? 12 : n.getMonth();
+    const prevYear = n.getMonth() === 0 ? n.getFullYear() - 1 : n.getFullYear();
+    return `${prevYear}-${String(prevMonth).padStart(2, "0")}`;
   });
   const [processing, setProcessing] = useState(false);
   const [result, setResult] = useState<WizardResult | null>(() => {
@@ -1407,6 +1411,12 @@ export function ReconciliationWizard({ batches }: { batches: ReconciliationBatch
                     <TableCell className="text-amber-600">{b.unmatched_count}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        <Button variant="outline" size="sm" className="text-xs h-7" onClick={() => {
+                          const m = `${b.year}-${String(b.month).padStart(2, "0")}`;
+                          setMonth(m);
+                          setResult({ batch_id: b.id, total: b.total_count, matched: b.matched_count, unmatched: b.unmatched_count });
+                          goToStep(2, b.id);
+                        }}>Continue</Button>
                         {b.file_url && <a href={b.file_url} target="_blank" rel="noopener"><Button variant="ghost" size="sm" className="text-xs h-7"><FileSpreadsheet className="size-3" /></Button></a>}
                         <Button variant="ghost" size="sm" className="text-xs h-7 text-destructive" onClick={() => setRevertId(b.id)}>Revert</Button>
                       </div>
