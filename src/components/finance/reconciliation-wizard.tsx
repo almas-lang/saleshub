@@ -716,29 +716,31 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
   const [vendorGstin, setVendorGstin] = useState("");
   const [paymentMode, setPaymentMode] = useState(isCreditCard ? "Credit Card" : txn.description.toLowerCase().includes("upi") ? "UPI" : "Bank Transfer");
   const [notes, setNotes] = useState("");
-  const [attachmentUrl, setAttachmentUrl] = useState("");
+  const [attachments, setAttachments] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const gstAmount = gstRate > 0 ? Math.round(amount * (gstRate / 100)) : 0;
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files?.length) return;
     setUploading(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/finance/upload-attachment", { method: "POST", body: fd });
-      if (!res.ok) {
-        const err = await res.json().catch(() => null);
-        throw new Error(err?.error ?? "Upload failed");
+      for (let i = 0; i < files.length; i++) {
+        const fd = new FormData();
+        fd.append("file", files[i]);
+        const res = await fetch("/api/finance/upload-attachment", { method: "POST", body: fd });
+        if (!res.ok) {
+          const err = await res.json().catch(() => null);
+          throw new Error(err?.error ?? `Upload failed for ${files[i].name}`);
+        }
+        const { url } = await res.json();
+        setAttachments((prev) => [...prev, url]);
       }
-      const { url } = await res.json();
-      setAttachmentUrl(url);
-      toast.success("Bill attached");
+      toast.success(`${files.length} file${files.length > 1 ? "s" : ""} attached`);
     } catch (err) { toast.error(err instanceof Error ? err.message : "Upload failed"); }
-    finally { setUploading(false); }
+    finally { setUploading(false); e.target.value = ""; }
   }
 
   async function handleSave() {
@@ -759,7 +761,7 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
           gst_rate: gstRate > 0 ? gstRate : null,
           vendor_gstin: vendorGstin || "",
           payment_mode: paymentMode,
-          attachment_url: attachmentUrl || "",
+          attachment_url: attachments.join(",") || "",
         }),
       });
 
@@ -858,27 +860,28 @@ function RecordBillDialog({ txn, vendorGuess, categoryGuess, onClose, onSaved }:
           {/* Attach vendor bill */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium">Attach Vendor Bill / Invoice (optional)</Label>
-            <div className="flex items-center gap-2">
-              {attachmentUrl ? (
-                <div className="flex-1 flex items-center gap-2 rounded-md border px-3 py-2">
-                  <FileText className="size-4 text-muted-foreground" />
-                  <a href={attachmentUrl} target="_blank" rel="noopener" className="text-sm text-primary hover:underline truncate flex-1">
-                    {attachmentUrl.split("/").pop()}
-                  </a>
-                  <Button type="button" variant="ghost" size="sm" className="h-6 px-1" onClick={() => setAttachmentUrl("")}>
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              ) : (
-                <label className="flex-1">
-                  <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors">
-                    {uploading ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <Upload className="size-4 text-muted-foreground" />}
-                    <span className="text-sm text-muted-foreground">Upload PDF or image</span>
+            {attachments.length > 0 && (
+              <div className="space-y-1">
+                {attachments.map((url, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-md border px-3 py-1.5">
+                    <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                    <a href={url} target="_blank" rel="noopener" className="text-xs text-primary hover:underline truncate flex-1">
+                      Bill {i + 1}
+                    </a>
+                    <Button type="button" variant="ghost" size="sm" className="h-5 px-1" onClick={() => setAttachments((p) => p.filter((_, j) => j !== i))}>
+                      <X className="size-3" />
+                    </Button>
                   </div>
-                  <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" className="hidden" onChange={handleUpload} disabled={uploading} />
-                </label>
-              )}
-            </div>
+                ))}
+              </div>
+            )}
+            <label>
+              <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 cursor-pointer hover:bg-muted/50 transition-colors">
+                {uploading ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : <Upload className="size-4 text-muted-foreground" />}
+                <span className="text-sm text-muted-foreground">{attachments.length > 0 ? "Add more files" : "Upload PDF or image"}</span>
+              </div>
+              <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp" multiple className="hidden" onChange={handleUpload} disabled={uploading} />
+            </label>
           </div>
 
           {/* Additional notes */}
