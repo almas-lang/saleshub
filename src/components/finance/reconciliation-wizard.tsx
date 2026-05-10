@@ -184,7 +184,7 @@ function parseCardCSV(text: string) {
     if (amt === 0) continue;
     const dc = iDC >= 0 ? (c[iDC] ?? "").toLowerCase().trim() : "";
     const desc = iDe >= 0 ? c[iDe] ?? "" : "";
-    if (desc.startsWith("IGST-")) continue;
+    // Include ALL rows — IGST, EMI, FCY markup — everything is a real charge
     rows.push({ date: pd, description: desc, amount: amt, type: dc.includes("cr") ? "credit" : "debit" });
   }
   return rows;
