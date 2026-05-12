@@ -1254,7 +1254,14 @@ function ActivityDetailPanel({
   activity: ActivityWithUser;
   onClose: () => void;
 }) {
-  const meta = (activity.metadata ?? {}) as Record<string, unknown>;
+  const rawMeta = (activity.metadata ?? {}) as Record<string, unknown>;
+  const meta = {
+    subject: rawMeta.subject ? String(rawMeta.subject) : null,
+    template: rawMeta.template ? String(rawMeta.template) : null,
+    campaign_id: rawMeta.campaign_id ? String(rawMeta.campaign_id) : null,
+    step_order: rawMeta.step_order != null ? Number(rawMeta.step_order) : null,
+    error: rawMeta.error ? String(rawMeta.error) : null,
+  };
   const isEmail = activity.type === "email_sent" || activity.type === "email_opened";
   const isWa = activity.type.startsWith("wa_");
 
@@ -1283,7 +1290,7 @@ function ActivityDetailPanel({
         {meta.subject && (
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Subject</p>
-            <p className="text-sm mt-1">{meta.subject as string}</p>
+            <p className="text-sm mt-1">{meta.subject}</p>
           </div>
         )}
 
@@ -1291,7 +1298,7 @@ function ActivityDetailPanel({
         {meta.template && (
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Template</p>
-            <p className="text-sm mt-1 font-mono">{meta.template as string}</p>
+            <p className="text-sm mt-1 font-mono">{meta.template}</p>
           </div>
         )}
 
@@ -1299,9 +1306,9 @@ function ActivityDetailPanel({
         {meta.campaign_id && (
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Campaign</p>
-            <p className="text-xs mt-1 text-muted-foreground font-mono break-all">{meta.campaign_id as string}</p>
-            {meta.step_order && (
-              <p className="text-xs text-muted-foreground mt-0.5">Step {meta.step_order as number}</p>
+            <p className="text-xs mt-1 text-muted-foreground font-mono break-all">{meta.campaign_id}</p>
+            {meta.step_order != null && (
+              <p className="text-xs text-muted-foreground mt-0.5">Step {meta.step_order}</p>
             )}
           </div>
         )}
@@ -1310,7 +1317,7 @@ function ActivityDetailPanel({
         {meta.error && (
           <div>
             <p className="text-[10px] font-medium text-destructive uppercase tracking-wider">Error</p>
-            <p className="text-sm mt-1 text-destructive">{meta.error as string}</p>
+            <p className="text-sm mt-1 text-destructive">{meta.error}</p>
           </div>
         )}
 
