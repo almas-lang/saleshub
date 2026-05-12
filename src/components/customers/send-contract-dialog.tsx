@@ -136,12 +136,19 @@ export function SendContractDialog({
 
   async function refreshEmailPreview() {
     setLoadingPreview(true);
+    let scheduledAtIso: string | null = null;
+    if (sendMode === "later" && scheduleValue) {
+      const d = new Date(scheduleValue);
+      if (!Number.isNaN(d.getTime())) {
+        scheduledAtIso = d.toISOString();
+      }
+    }
     const result = await safeFetch<PreviewResponse>(
       `/api/customers/${customerId}/contract/preview`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone }),
+        body: JSON.stringify({ name, email, phone, scheduled_at: scheduledAtIso }),
       }
     );
     setLoadingPreview(false);

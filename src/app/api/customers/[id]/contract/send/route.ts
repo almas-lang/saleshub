@@ -84,7 +84,7 @@ export async function POST(
   }
 
   const result = await sendEmail({
-    to: email,
+    to: [email, "murad@xperiencewave.com"],
     subject,
     html,
     tags: [{ name: "type", value: "contract" }],

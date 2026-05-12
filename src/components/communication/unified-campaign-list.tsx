@@ -132,13 +132,8 @@ export function UnifiedCampaignListClient({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            duplicate_of: campaign.id,
             name: `${campaign.name} (copy)`,
-            type: campaign.type,
-            audience_filter: campaign.audience_filter,
-            stop_condition: campaign.stop_condition,
-            flow_data: campaign.flow_data,
-            steps: [],
-            activate: false,
           }),
         })
       );

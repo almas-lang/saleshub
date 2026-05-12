@@ -49,6 +49,77 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  // ── Duplicate shortcut: copy steps from an existing campaign ──
+  const rawBody = body as Record<string, unknown>;
+  if (rawBody.duplicate_of && typeof rawBody.duplicate_of === "string") {
+    const sourceId = rawBody.duplicate_of;
+    const { data: source } = await supabase
+      .from("unified_campaigns")
+      .select("*")
+      .eq("id", sourceId)
+      .single();
+
+    if (!source) {
+      return NextResponse.json({ error: "Source campaign not found" }, { status: 404 });
+    }
+
+    const { data: sourceSteps } = await supabase
+      .from("unified_steps")
+      .select("*")
+      .eq("campaign_id", sourceId)
+      .order("order", { ascending: true });
+
+    // Create the duplicate campaign
+    const { data: newCampaign, error: campErr } = await supabase
+      .from("unified_campaigns")
+      .insert({
+        name: rawBody.name ?? `${source.name} (copy)`,
+        type: source.type,
+        status: "draft",
+        trigger_event: source.trigger_event ?? "lead_created",
+        audience_filter: source.audience_filter,
+        stop_condition: source.stop_condition,
+        flow_data: source.flow_data,
+      })
+      .select()
+      .single();
+
+    if (campErr || !newCampaign) {
+      return NextResponse.json({ error: campErr?.message ?? "Failed to create campaign" }, { status: 500 });
+    }
+
+    // Copy steps
+    if (sourceSteps?.length) {
+      const newStepRows = sourceSteps.map((s: Record<string, unknown>) => ({
+        campaign_id: newCampaign.id,
+        order: s.order,
+        step_type: s.step_type ?? "send",
+        channel: s.channel,
+        delay_hours: s.delay_hours,
+        delay_mode: s.delay_mode ?? "after_previous",
+        subject: s.subject ?? null,
+        body_html: s.body_html ?? null,
+        preview_text: s.preview_text ?? null,
+        wa_template_name: s.wa_template_name ?? null,
+        wa_template_language: s.wa_template_language ?? "en",
+        wa_template_params: s.wa_template_params ?? null,
+        wa_template_param_names: s.wa_template_param_names ?? null,
+        condition: s.condition ?? null,
+      }));
+
+      const { error: stepsErr } = await supabase
+        .from("unified_steps")
+        .insert(newStepRows);
+
+      if (stepsErr) {
+        await supabase.from("unified_campaigns").delete().eq("id", newCampaign.id);
+        return NextResponse.json({ error: stepsErr.message }, { status: 500 });
+      }
+    }
+
+    return NextResponse.json(newCampaign, { status: 201 });
+  }
+
   const parsed = createUnifiedCampaignSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
