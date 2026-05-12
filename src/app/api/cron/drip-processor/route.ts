@@ -402,7 +402,8 @@ export async function GET(request: Request) {
             }
           }
 
-          const { data: emailSteps } = await supabaseAdmin
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: emailSteps } = await (supabaseAdmin as any)
             .from("email_steps")
             .select("id, campaign_id, order, step_type, subject, preview_text, body_html, delay_hours, condition, next_step_id_yes, next_step_id_no, plain_text")
             .eq("campaign_id", enrollment.campaign_id)
@@ -1114,8 +1115,9 @@ export async function GET(request: Request) {
       const stepIds = [...new Set(queuedSends.map((s) => s.step_id).filter(Boolean))] as string[];
       const contactIds = [...new Set(queuedSends.map((s) => s.contact_id))];
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [{ data: qSteps }, { data: qContacts }] = await Promise.all([
-        supabaseAdmin.from("email_steps").select("id, subject, preview_text, body_html, plain_text").in("id", stepIds),
+        (supabaseAdmin as any).from("email_steps").select("id, subject, preview_text, body_html, plain_text").in("id", stepIds),
         supabaseAdmin.from("contacts").select("id, first_name, last_name, email, company_name, email_unsubscribed_at").in("id", contactIds),
       ]);
 
