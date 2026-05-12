@@ -70,6 +70,7 @@ interface UnifiedStepRow {
   wa_template_param_names: string[] | null;
   delay_hours: number;
   delay_mode: string | null;
+  plain_text?: boolean;
   condition: { check: string; value?: string } | null;
   next_step_id_yes: string | null;
   next_step_id_no: string | null;
