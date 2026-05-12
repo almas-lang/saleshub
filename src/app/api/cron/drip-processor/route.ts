@@ -49,6 +49,7 @@ interface EmailStepRow {
   preview_text: string | null;
   body_html: string;
   delay_hours: number;
+  plain_text?: boolean;
   condition: { check: string; value?: string } | null;
   next_step_id_yes: string | null;
   next_step_id_no: string | null;
@@ -149,7 +150,7 @@ export async function GET(request: Request) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: uniSteps } = await (supabaseAdmin as any)
             .from("unified_steps")
-            .select("id, campaign_id, order, step_type, channel, subject, preview_text, body_html, wa_template_name, wa_template_language, wa_template_params, wa_template_param_names, delay_hours, condition, next_step_id_yes, next_step_id_no")
+            .select("id, campaign_id, order, step_type, channel, subject, preview_text, body_html, wa_template_name, wa_template_language, wa_template_params, wa_template_param_names, delay_hours, condition, next_step_id_yes, next_step_id_no, plain_text")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
@@ -242,6 +243,7 @@ export async function GET(request: Request) {
                 subject: rawSubject,
                 bodyHtml: rawBody,
                 preview: rawPreview,
+                plainText: !!currentStep.plain_text,
               });
 
               const result = await sendEmail({
@@ -401,7 +403,7 @@ export async function GET(request: Request) {
 
           const { data: emailSteps } = await supabaseAdmin
             .from("email_steps")
-            .select("id, campaign_id, order, step_type, subject, preview_text, body_html, delay_hours, condition, next_step_id_yes, next_step_id_no")
+            .select("id, campaign_id, order, step_type, subject, preview_text, body_html, delay_hours, condition, next_step_id_yes, next_step_id_no, plain_text")
             .eq("campaign_id", enrollment.campaign_id)
             .order("order", { ascending: true });
 
@@ -653,6 +655,7 @@ export async function GET(request: Request) {
             bodyHtml: rawBody,
             preview: rawPreview,
             unsubscribeUrl,
+            plainText: !!currentStep.plain_text,
           });
 
           // Send email
@@ -1111,11 +1114,11 @@ export async function GET(request: Request) {
       const contactIds = [...new Set(queuedSends.map((s) => s.contact_id))];
 
       const [{ data: qSteps }, { data: qContacts }] = await Promise.all([
-        supabaseAdmin.from("email_steps").select("id, subject, preview_text, body_html").in("id", stepIds),
+        supabaseAdmin.from("email_steps").select("id, subject, preview_text, body_html, plain_text").in("id", stepIds),
         supabaseAdmin.from("contacts").select("id, first_name, last_name, email, company_name, email_unsubscribed_at").in("id", contactIds),
       ]);
 
-      const qStepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string }>();
+      const qStepMap = new Map<string, { subject: string; preview_text: string | null; body_html: string; plain_text?: boolean }>();
       for (const s of qSteps ?? []) qStepMap.set(s.id, s);
 
       // Track unsubscribed contacts separately so we don't mark them as "failed"
@@ -1132,7 +1135,7 @@ export async function GET(request: Request) {
       // Pre-render wrappers per step
       const wrapperCache = new Map<string, { wrapperHtml: string; placeholder: string }>();
       for (const [stepId, step] of qStepMap) {
-        const result = await renderDripWrapper({ preview: step.preview_text ?? step.subject });
+        const result = await renderDripWrapper({ preview: step.preview_text ?? step.subject, plainText: !!step.plain_text });
         wrapperCache.set(stepId, result);
       }
 

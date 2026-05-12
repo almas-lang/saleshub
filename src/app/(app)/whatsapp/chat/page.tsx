@@ -24,6 +24,7 @@ import {
   X,
   Smile,
   Reply,
+  Download,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, timeAgo, formatPhone } from "@/lib/utils";
@@ -174,11 +175,13 @@ function MessageBubble({
   onDelete,
   onReply,
   allMessages,
+  onImageClick,
 }: {
   msg: WAMessage;
   onDelete: (id: string) => void;
   onReply: (target: ReplyTarget) => void;
   allMessages: WAMessage[];
+  onImageClick?: (src: string) => void;
 }) {
   const isOutbound = msg.direction === "outbound";
   const isMedia = msg.message_type !== "text" && msg.message_type !== "template";
@@ -195,7 +198,7 @@ function MessageBubble({
     >
       {!isOutbound && (
         <div className="flex items-start">
-          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} replyToMsg={replyToMsg} />
+          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} replyToMsg={replyToMsg} onImageClick={onImageClick} />
           <MessageActions msgId={msg.id} onDelete={onDelete} onReply={() => onReply({
             id: msg.id,
             wa_message_id: msg.wa_message_id,
@@ -214,7 +217,7 @@ function MessageBubble({
             direction: msg.direction,
             message_type: msg.message_type,
           })} />
-          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} replyToMsg={replyToMsg} />
+          <MessageContent msg={msg} isOutbound={isOutbound} isMedia={isMedia} replyToMsg={replyToMsg} onImageClick={onImageClick} />
         </div>
       )}
     </div>
@@ -226,11 +229,13 @@ function MessageContent({
   isOutbound,
   isMedia,
   replyToMsg,
+  onImageClick,
 }: {
   msg: WAMessage;
   isOutbound: boolean;
   isMedia: boolean;
   replyToMsg?: WAMessage;
+  onImageClick?: (src: string) => void;
 }) {
   const mediaId = (msg.metadata as Record<string, unknown>)?.media_id as string | undefined;
   const isImage = msg.message_type === "image" && mediaId;
@@ -278,16 +283,22 @@ function MessageContent({
 
         {/* Render image */}
         {(isImage || isSticker) && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`/api/whatsapp/media/${mediaId}`}
-            alt={msg.body || "Image"}
-            className={cn(
-              "max-w-[280px] max-h-[300px] object-contain",
-              msg.body ? "rounded-t-2xl" : "rounded-2xl"
-            )}
-            loading="lazy"
-          />
+          <button
+            type="button"
+            className="block cursor-pointer"
+            onClick={() => onImageClick?.(`/api/whatsapp/media/${mediaId}`)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/whatsapp/media/${mediaId}`}
+              alt={msg.body || "Image"}
+              className={cn(
+                "max-w-[280px] max-h-[300px] object-contain",
+                msg.body ? "rounded-t-2xl" : "rounded-2xl"
+              )}
+              loading="lazy"
+            />
+          </button>
         )}
 
         {/* Render video */}
@@ -582,6 +593,7 @@ export default function WhatsAppChatPage() {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -980,6 +992,7 @@ export default function WhatsAppChatPage() {
                             onDelete={setDeleteTarget}
                             onReply={handleReply}
                             allMessages={messages}
+                            onImageClick={setLightboxSrc}
                           />
                         ))}
                       </div>
@@ -1111,6 +1124,39 @@ export default function WhatsAppChatPage() {
         onConfirm={handleDeleteMessage}
         destructive
       />
+
+      {/* Image lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <a
+              href={lightboxSrc}
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            >
+              <Download className="h-5 w-5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setLightboxSrc(null)}
+              className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Full size"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

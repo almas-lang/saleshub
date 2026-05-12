@@ -12,6 +12,8 @@ import {
   FileText,
   Video,
   Mic,
+  Download,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -71,35 +73,57 @@ function MediaTypeIcon({ type }: { type: string }) {
 
 // ── Message Bubble ──
 
-function MessageBubble({ msg }: { msg: WAMessage }) {
+function MessageBubble({ msg, onImageClick }: { msg: WAMessage; onImageClick?: (src: string) => void }) {
   const isOutbound = msg.direction === "outbound";
   const isMedia = msg.message_type !== "text" && msg.message_type !== "template";
+  const mediaId = (msg.metadata as Record<string, unknown>)?.media_id as string | undefined;
+  const isImage = (msg.message_type === "image" || msg.message_type === "sticker") && mediaId;
 
   return (
     <div className={cn("flex", isOutbound ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[75%] rounded-2xl px-3.5 py-2 text-sm",
+          "max-w-[75%] rounded-2xl text-sm overflow-hidden",
           isOutbound
             ? "bg-emerald-600 text-white rounded-br-md"
-            : "bg-muted text-foreground rounded-bl-md"
+            : "bg-muted text-foreground rounded-bl-md",
+          isImage && !msg.body ? "" : "px-3.5 py-2"
         )}
       >
-        {isMedia && (
+        {isImage && (
+          <button
+            type="button"
+            className="block cursor-pointer"
+            onClick={() => onImageClick?.(`/api/whatsapp/media/${mediaId}`)}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={`/api/whatsapp/media/${mediaId}`}
+              alt={msg.body || "Image"}
+              className={cn(
+                "max-w-[280px] max-h-[300px] object-contain",
+                msg.body ? "rounded-t-2xl" : "rounded-2xl"
+              )}
+              loading="lazy"
+            />
+          </button>
+        )}
+        {isMedia && !isImage && (
           <div className="flex items-center gap-1.5 mb-1 opacity-80">
             <MediaTypeIcon type={msg.message_type} />
             <span className="text-xs capitalize">{msg.message_type}</span>
           </div>
         )}
         {msg.body ? (
-          <p className="whitespace-pre-wrap break-words">{msg.body}</p>
-        ) : isMedia ? (
+          <p className={cn("whitespace-pre-wrap break-words", isImage ? "px-3.5 py-2" : "")}>{msg.body}</p>
+        ) : isMedia && !isImage ? (
           <p className="italic opacity-70">{msg.message_type} message</p>
         ) : null}
         <div
           className={cn(
             "flex items-center gap-1 mt-1",
-            isOutbound ? "justify-end" : "justify-start"
+            isOutbound ? "justify-end" : "justify-start",
+            isImage && !msg.body ? "px-3.5 pb-2" : ""
           )}
         >
           <span
@@ -151,6 +175,7 @@ export function ChatThread({ contactId, height = "500px" }: ChatThreadProps) {
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState("");
   const [sending, setSending] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -270,7 +295,7 @@ export function ChatThread({ contactId, height = "500px" }: ChatThreadProps) {
                 <DateSeparator date={group.date} />
                 <div className="space-y-1.5">
                   {group.messages.map((msg) => (
-                    <MessageBubble key={msg.id} msg={msg} />
+                    <MessageBubble key={msg.id} msg={msg} onImageClick={setLightboxSrc} />
                   ))}
                 </div>
               </div>
@@ -310,6 +335,39 @@ export function ChatThread({ contactId, height = "500px" }: ChatThreadProps) {
           Free-text replies work within 24h of the contact&apos;s last message.
         </p>
       </div>
+
+      {/* Image lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <div className="absolute top-4 right-4 flex items-center gap-2">
+            <a
+              href={lightboxSrc}
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            >
+              <Download className="h-5 w-5" />
+            </a>
+            <button
+              type="button"
+              onClick={() => setLightboxSrc(null)}
+              className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Full size"
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -590,6 +590,7 @@ export const emailTemplateSchema = z.object({
   subject: z.string().min(1, "Subject line is required").max(200),
   preview_text: z.string().max(150).optional().nullable(),
   body_html: z.string().min(1, "Email body is required"),
+  plain_text: z.boolean().optional().default(false),
 });
 
 export type EmailTemplateValues = z.infer<typeof emailTemplateSchema>;

@@ -9,6 +9,7 @@ const schema = z.object({
   subject: z.string().min(1),
   body_html: z.string().min(1),
   preview_text: z.string().optional(),
+  plain_text: z.boolean().optional(),
 });
 
 export async function POST(request: Request) {
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
 
-  const { to, subject, body_html, preview_text } = parsed.data;
+  const { to, subject, body_html, preview_text, plain_text } = parsed.data;
 
   // Resolve template variables with sample/fallback data for test sends
   const testVars: Record<string, string> = {
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     subject: renderedSubject,
     bodyHtml: renderedBody,
     preview: renderedPreview,
+    plainText: !!plain_text,
   });
 
   const result = await sendEmail({

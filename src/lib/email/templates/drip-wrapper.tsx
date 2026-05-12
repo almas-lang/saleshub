@@ -77,10 +77,22 @@ function DripWrapperEmail({
   );
 }
 
+// ── Plain text render — no wrapper, just raw content + unsub ──
+function renderPlainTextEmail(props: DripWrapperProps & { subject: string }): { subject: string; html: string } {
+  const unsub = props.unsubscribeUrl
+    ? `\n<br/><br/><div style="font-size:11px;color:#999999;margin-top:40px;"><a href="${props.unsubscribeUrl}" style="color:#999999;text-decoration:underline;">Unsubscribe</a></div>`
+    : "";
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:12px 16px;font-family:sans-serif;font-size:14px;color:#222222;">${props.bodyHtml}${unsub}</body></html>`;
+  return { subject: props.subject, html };
+}
+
 // ── Render helper ───────────────────────────────────
 export async function renderDripEmail(
-  props: DripWrapperProps & { subject: string }
+  props: DripWrapperProps & { subject: string; plainText?: boolean }
 ): Promise<{ subject: string; html: string }> {
+  if (props.plainText) {
+    return renderPlainTextEmail(props);
+  }
   const wrapperHtml = await render(
     <DripWrapperEmail
       preview={props.preview ?? props.subject}
@@ -99,8 +111,12 @@ export async function renderDripEmail(
  * Returns HTML with BODY_SLOT placeholder that callers can replace per-contact.
  */
 export async function renderDripWrapper(
-  opts?: { preview?: string; unsubscribeUrl?: string }
+  opts?: { preview?: string; unsubscribeUrl?: string; plainText?: boolean }
 ): Promise<{ wrapperHtml: string; placeholder: string }> {
+  if (opts?.plainText) {
+    const wrapperHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="margin:0;padding:12px 16px;font-family:sans-serif;font-size:14px;color:#222222;">${BODY_SLOT}\n<br/><br/><div style="font-size:11px;color:#999999;margin-top:40px;"><a href="#" style="color:#999999;text-decoration:underline;">Unsubscribe</a></div></body></html>`;
+    return { wrapperHtml, placeholder: BODY_SLOT };
+  }
   const wrapperHtml = await render(
     <DripWrapperEmail preview={opts?.preview} unsubscribeUrl={opts?.unsubscribeUrl} />
   );

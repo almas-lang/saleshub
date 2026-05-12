@@ -18,6 +18,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 import { EmailBlockEditor } from "./email-block-editor";
 
 const EMAIL_VARIABLES = [
@@ -66,6 +67,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
   const [subject, setSubject] = useState(template?.subject ?? "");
   const [previewText, setPreviewText] = useState(template?.preview_text ?? "");
   const [bodyHtml, setBodyHtml] = useState(template?.body_html ?? "");
+  const [plainText, setPlainText] = useState((template as Record<string, unknown>)?.plain_text === true);
   const [saving, setSaving] = useState(false);
   const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
 
@@ -95,7 +97,7 @@ export function EmailTemplateEditorPage({ template }: Props) {
 
     setSaving(true);
     try {
-      const payload = { name, subject, preview_text: previewText || null, body_html: bodyHtml };
+      const payload = { name, subject, preview_text: previewText || null, body_html: bodyHtml, plain_text: plainText };
 
       if (isEditing && template) {
         await throwOnError(
@@ -264,6 +266,23 @@ export function EmailTemplateEditorPage({ template }: Props) {
                 <p className="text-[10px] text-muted-foreground mt-2">
                   Type these in the subject or body. They&apos;ll be replaced with real data when sent.
                 </p>
+              </div>
+
+              {/* Plain text toggle */}
+              <div className="flex items-center justify-between rounded-md border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="plain-text-toggle" className="text-sm font-medium">
+                    Plain text mode
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Send as a simple text email with no styling or branding. Looks like a personal email — higher click-through rates.
+                  </p>
+                </div>
+                <Switch
+                  id="plain-text-toggle"
+                  checked={plainText}
+                  onCheckedChange={setPlainText}
+                />
               </div>
 
               {/* Editor */}
