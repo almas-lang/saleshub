@@ -54,6 +54,24 @@ interface TimeSlot {
   assignedTo: string;
 }
 
+/**
+ * Fire a GA4 event. The gtag tag is loaded `afterInteractive` in
+ * /book/[slug]/page.tsx; if it hasn't initialised yet we queue straight onto
+ * dataLayer so nothing is lost during the brief load race.
+ */
+function gtagEvent(event: string, params?: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  const w = window as unknown as {
+    gtag?: (...args: unknown[]) => void;
+    dataLayer?: unknown[];
+  };
+  if (typeof w.gtag === "function") {
+    w.gtag("event", event, params ?? {});
+  } else {
+    (w.dataLayer = w.dataLayer || []).push(["event", event, params ?? {}]);
+  }
+}
+
 function to12Hour(time: string): string {
   const [h, m] = time.split(":").map(Number);
   const period = h >= 12 ? "PM" : "AM";
@@ -157,6 +175,62 @@ export function BookingWidget({
 
   const stepIndex = STEPS.indexOf(step);
 
+  const leadId = trackingParams.lead_id;
+
+  // ── Funnel analytics (GA4) ──────────────────────
+  const answeredFieldsRef = useRef<Set<string>>(new Set());
+  const lastAnsweredIdxRef = useRef(-1);
+  const selectedSlotRef = useRef<TimeSlot | null>(null);
+  const confirmedRef = useRef(false);
+  const abandonFiredRef = useRef(false);
+  const formViewedRef = useRef(false);
+  const pageViewedRef = useRef(false);
+
+  useEffect(() => {
+    selectedSlotRef.current = selectedSlot;
+  }, [selectedSlot]);
+
+  useEffect(() => {
+    if (pageViewedRef.current) return;
+    pageViewedRef.current = true;
+    gtagEvent("booking_page_viewed", { slug, lead_id: leadId });
+  }, [slug, leadId]);
+
+  // When the form step opens, every question is on screen — emit one viewed
+  // event per field so GA4 has the denominator for the drop-off chart.
+  useEffect(() => {
+    if (step === "confirmed") confirmedRef.current = true;
+    if (step === "form" && !formViewedRef.current) {
+      formViewedRef.current = true;
+      formFields.forEach((f, idx) =>
+        gtagEvent("booking_question_viewed", { question_index: idx, question_id: f.id })
+      );
+    }
+  }, [step, formFields]);
+
+  // Fire booking_abandoned if the user leaves after selecting a slot but
+  // before confirming. Once per session.
+  useEffect(() => {
+    const maybeAbandon = () => {
+      if (abandonFiredRef.current || confirmedRef.current) return;
+      if (!selectedSlotRef.current) return;
+      abandonFiredRef.current = true;
+      gtagEvent("booking_abandoned", {
+        last_question_index: lastAnsweredIdxRef.current,
+        had_slot: true,
+      });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") maybeAbandon();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", maybeAbandon);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", maybeAbandon);
+    };
+  }, []);
+
   const prevDefaultsRef = useRef(formDefaults);
   useEffect(() => {
     if (prevDefaultsRef.current !== formDefaults) {
@@ -178,6 +252,14 @@ export function BookingWidget({
       const emailField = formFields.find((f) => f.type === "email" || f.label.toLowerCase().includes("email"));
       const emailValue = emailField ? formData[emailField.label]?.trim() : undefined;
       if (emailValue) url.searchParams.set("email", emailValue);
+      // First name for the congrats page greeting ("Hi {first_name}!")
+      const nameField =
+        formFields.find((f) => /first/i.test(f.label) && /name/i.test(f.label)) ??
+        formFields.find((f) => f.id === "f1") ??
+        formFields.find((f) => f.type === "text" && /name/i.test(f.label));
+      const rawName = nameField ? formData[nameField.label]?.trim() : undefined;
+      const firstNameValue = rawName ? rawName.split(/\s+/)[0] : undefined;
+      if (firstNameValue) url.searchParams.set("first_name", firstNameValue);
       // Pass booking details so the congratulations page can display them
       if (selectedDate) url.searchParams.set("date", format(selectedDate, "yyyy-MM-dd"));
       if (selectedSlot) url.searchParams.set("time", selectedSlot.time);
@@ -227,11 +309,16 @@ export function BookingWidget({
     if (!date) return;
     setSelectedDate(date);
     fetchSlots(date);
+    gtagEvent("booking_date_selected", { date: format(date, "yyyy-MM-dd") });
     if (!isDesktop) setStep("time");
   }
 
   function handleSlotSelect(slot: TimeSlot) {
     setSelectedSlot(slot);
+    gtagEvent("booking_slot_selected", {
+      date: selectedDate ? format(selectedDate, "yyyy-MM-dd") : undefined,
+      time: slot.time,
+    });
     setStep("form");
   }
 
@@ -287,6 +374,17 @@ export function BookingWidget({
 
   function updateField(label: string, value: string) {
     setFormData((prev) => ({ ...prev, [label]: value }));
+    if (value.trim()) {
+      const idx = formFields.findIndex((f) => f.label === label);
+      if (idx >= 0) {
+        const f = formFields[idx];
+        if (!answeredFieldsRef.current.has(f.id)) {
+          answeredFieldsRef.current.add(f.id);
+          gtagEvent("booking_question_answered", { question_index: idx, question_id: f.id });
+        }
+        if (idx > lastAnsweredIdxRef.current) lastAnsweredIdxRef.current = idx;
+      }
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -335,6 +433,13 @@ export function BookingWidget({
 
     setSubmitting(false);
     if (result.ok) {
+      gtagEvent("booking_confirmed", {
+        date: format(selectedDate, "yyyy-MM-dd"),
+        time: selectedSlot.time,
+        duration: durationMinutes,
+        lead_id: leadId,
+      });
+      confirmedRef.current = true;
       setMeetLink(result.data.meet_link);
       setCountdown(5);
       setStep("confirmed");
@@ -950,11 +1055,7 @@ function FormFieldInput({
     }
   }, [isResearching, explorerDismissed, popupVariant]);
 
-  const fireGA4 = (event: string) => {
-    if (typeof window !== "undefined" && (window as unknown as Record<string, unknown>).gtag) {
-      (window as unknown as Record<string, ((...args: unknown[]) => void)>).gtag("event", event);
-    }
-  };
+  const fireGA4 = (event: string) => gtagEvent(event);
 
   const handleContinueBooking = () => {
     if (popupVariant === "ripple") {

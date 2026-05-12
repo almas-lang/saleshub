@@ -1,7 +1,12 @@
+import Script from "next/script";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { FormField, AvailabilityRules } from "@/types/bookings";
 import { BookingWidget } from "@/components/booking/booking-widget";
+
+// Same GA4 measurement ID as the marketing site, so booking-flow events chain
+// onto the existing funnel. Loaded only on this public route — never on the CRM app.
+const GA4_ID = "G-26R787N9N5";
 
 export async function generateMetadata({
   params,
@@ -57,6 +62,13 @@ export default async function PublicBookingPage({
 
   return (
     <div className="flex min-h-svh items-start justify-center bg-gradient-to-b from-gray-50 to-gray-100/80 px-0 py-0 sm:px-4 sm:py-8 md:items-center md:py-12">
+      <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA4_ID}`} strategy="afterInteractive" />
+      <Script id="ga4-book" strategy="afterInteractive">{`
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+        gtag('config', '${GA4_ID}');
+      `}</Script>
       <BookingWidget
         slug={page.slug}
         title={page.title}

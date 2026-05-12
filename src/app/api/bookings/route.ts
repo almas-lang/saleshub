@@ -188,15 +188,33 @@ export async function POST(request: Request) {
   // ── Step 2: Find or create contact ─────────────
   let existingContact: { id: string; funnel_id: string | null; current_stage_id: string | null; metadata: unknown; linkedin_url: string | null; phone: string | null } | null = null;
 
-  // Check by email first
-  const { data: byEmail } = await supabaseAdmin
-    .from("contacts")
-    .select("id, funnel_id, current_stage_id, metadata, linkedin_url, phone")
-    .eq("email", email)
-    .is("deleted_at", null)
-    .maybeSingle();
+  // Prefer the originating lead record when the booking link carried a lead_id
+  // (set by the create-lead webhook). Falls through to email/phone matching if
+  // the id is missing, malformed, or no longer exists — prevents duplicate
+  // contacts when someone books with a different email than they signed up with.
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const leadId = trackingParams?.lead_id?.trim();
+  if (leadId && UUID_RE.test(leadId)) {
+    const { data: byLeadId } = await supabaseAdmin
+      .from("contacts")
+      .select("id, funnel_id, current_stage_id, metadata, linkedin_url, phone")
+      .eq("id", leadId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    existingContact = byLeadId;
+  }
 
-  existingContact = byEmail;
+  // Check by email
+  if (!existingContact) {
+    const { data: byEmail } = await supabaseAdmin
+      .from("contacts")
+      .select("id, funnel_id, current_stage_id, metadata, linkedin_url, phone")
+      .eq("email", email)
+      .is("deleted_at", null)
+      .maybeSingle();
+
+    existingContact = byEmail;
+  }
 
   // If no email match and phone provided, fall back to phone lookup
   if (!existingContact && phone) {
@@ -250,6 +268,11 @@ export async function POST(request: Request) {
         phone: phone || null,
         linkedin_url: linkedinUrl || null,
         source: trackingParams?.utm_source || "booking_page",
+        utm_source: trackingParams?.utm_source || null,
+        utm_medium: trackingParams?.utm_medium || null,
+        utm_campaign: trackingParams?.utm_campaign || null,
+        utm_content: trackingParams?.utm_content || null,
+        utm_term: trackingParams?.utm_term || null,
         type: "prospect",
         tags: ["booking"],
         funnel_id: funnelId,
@@ -280,7 +303,7 @@ export async function POST(request: Request) {
     if (bookedStage) {
       const { data: currentContact } = await supabaseAdmin
         .from("contacts")
-        .select("metadata, linkedin_url, phone")
+        .select("metadata, linkedin_url, phone, utm_source, utm_medium, utm_campaign, utm_content, utm_term")
         .eq("id", contactId)
         .single();
 
@@ -306,6 +329,14 @@ export async function POST(request: Request) {
       // Fill phone if missing
       if (phone && !currentContact?.phone) {
         stageUpdate.phone = phone;
+      }
+      // Backfill UTM columns from the booking link if they aren't already set,
+      // so reporting reads one source instead of digging into metadata.
+      if (trackingParams) {
+        const cc = currentContact as Record<string, unknown> | null;
+        for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const) {
+          if (trackingParams[key] && !cc?.[key]) stageUpdate[key] = trackingParams[key];
+        }
       }
 
       await supabaseAdmin
