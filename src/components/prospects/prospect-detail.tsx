@@ -37,6 +37,7 @@ import {
   Video,
   Clock,
   User,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -1242,6 +1243,98 @@ export function ProspectDetail({
 
 const TIMELINE_PAGE_SIZE = 20;
 
+const CLICKABLE_TYPES = new Set([
+  "email_sent", "email_opened", "wa_sent", "wa_delivered", "wa_read", "wa_reply",
+]);
+
+function ActivityDetailPanel({
+  activity,
+  onClose,
+}: {
+  activity: ActivityWithUser;
+  onClose: () => void;
+}) {
+  const meta = (activity.metadata ?? {}) as Record<string, unknown>;
+  const isEmail = activity.type === "email_sent" || activity.type === "email_opened";
+  const isWa = activity.type.startsWith("wa_");
+
+  return (
+    <div className="w-[340px] shrink-0 border-l bg-card overflow-y-auto">
+      <div className="flex items-center justify-between border-b px-4 py-3">
+        <p className="text-sm font-semibold">{isEmail ? "Email Details" : isWa ? "WhatsApp Details" : "Activity Details"}</p>
+        <Button variant="ghost" size="icon" className="size-7" onClick={onClose}>
+          <X className="size-3.5" />
+        </Button>
+      </div>
+      <div className="p-4 space-y-4">
+        {/* Title */}
+        <div>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Title</p>
+          <p className="text-sm mt-1">{activity.title}</p>
+        </div>
+
+        {/* Time */}
+        <div>
+          <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Sent at</p>
+          <p className="text-sm mt-1">{new Date(activity.created_at).toLocaleString()}</p>
+        </div>
+
+        {/* Email subject */}
+        {meta.subject && (
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Subject</p>
+            <p className="text-sm mt-1">{meta.subject as string}</p>
+          </div>
+        )}
+
+        {/* WA template */}
+        {meta.template && (
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Template</p>
+            <p className="text-sm mt-1 font-mono">{meta.template as string}</p>
+          </div>
+        )}
+
+        {/* Campaign info */}
+        {meta.campaign_id && (
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Campaign</p>
+            <p className="text-xs mt-1 text-muted-foreground font-mono break-all">{meta.campaign_id as string}</p>
+            {meta.step_order && (
+              <p className="text-xs text-muted-foreground mt-0.5">Step {meta.step_order as number}</p>
+            )}
+          </div>
+        )}
+
+        {/* Error */}
+        {meta.error && (
+          <div>
+            <p className="text-[10px] font-medium text-destructive uppercase tracking-wider">Error</p>
+            <p className="text-sm mt-1 text-destructive">{meta.error as string}</p>
+          </div>
+        )}
+
+        {/* Body / content */}
+        {activity.body && (
+          <div>
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Content</p>
+            <div className="mt-1 rounded-md border bg-muted/30 p-3">
+              <p className="text-sm whitespace-pre-wrap break-words text-muted-foreground">
+                {activity.body}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* No extra info */}
+        {!meta.subject && !meta.template && !activity.body && (
+          <p className="text-sm text-muted-foreground italic">No additional details available for this activity.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TimelineContent({
   activities,
   firstName,
@@ -1251,6 +1344,7 @@ function TimelineContent({
 }) {
   const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE_SIZE);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [selectedActivity, setSelectedActivity] = useState<ActivityWithUser | null>(null);
 
   const visible = activities.slice(0, visibleCount);
   const hasMore = visibleCount < activities.length;
@@ -1279,81 +1373,100 @@ function TimelineContent({
   }
 
   return (
-    <div className="max-w-2xl">
-      <div className="relative">
-        {/* Connecting line */}
-        <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
+    <div className="flex gap-0 min-h-0">
+      <div className="flex-1 min-w-0 max-w-2xl">
+        <div className="relative">
+          {/* Connecting line */}
+          <div className="absolute left-[15px] top-8 bottom-0 w-px bg-border" />
 
-        <div className="flex flex-col">
-          {visible.map((activity) => {
-            const config =
-              ACTIVITY_ICON_CONFIG[activity.type] ?? DEFAULT_ICON_CONFIG;
-            const Icon = config.icon;
-            const isExpanded = expandedIds.has(activity.id);
-            const hasLongBody =
-              activity.body && activity.body.length > 200;
-            const userName = (activity as ActivityWithUser).team_members?.name;
+          <div className="flex flex-col">
+            {visible.map((activity) => {
+              const config =
+                ACTIVITY_ICON_CONFIG[activity.type] ?? DEFAULT_ICON_CONFIG;
+              const Icon = config.icon;
+              const isExpanded = expandedIds.has(activity.id);
+              const hasLongBody =
+                activity.body && activity.body.length > 200;
+              const userName = (activity as ActivityWithUser).team_members?.name;
+              const isClickable = CLICKABLE_TYPES.has(activity.type);
+              const isSelected = selectedActivity?.id === activity.id;
 
-            return (
-              <div key={activity.id} className="relative flex gap-4 pb-6">
+              return (
                 <div
+                  key={activity.id}
                   className={cn(
-                    "z-10 flex size-8 shrink-0 items-center justify-center rounded-full",
-                    config.bg
+                    "relative flex gap-4 pb-6 rounded-lg px-1 -mx-1 transition-colors",
+                    isClickable && "cursor-pointer hover:bg-muted/50",
+                    isSelected && "bg-muted/50"
                   )}
+                  onClick={isClickable ? () => setSelectedActivity(isSelected ? null : activity) : undefined}
                 >
-                  <Icon className={cn("size-3.5", config.fg)} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm">
-                    <span className="font-medium">{activity.title}</span>
-                  </p>
-                  {activity.body && (
-                    <div className="relative mt-1">
-                      <p
-                        className={cn(
-                          "whitespace-pre-wrap text-sm text-muted-foreground transition-all duration-200",
-                          !isExpanded && hasLongBody && "max-h-[4.5em] overflow-hidden"
-                        )}
-                      >
-                        {activity.body}
-                      </p>
-                      {hasLongBody && !isExpanded && (
-                        <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-card to-transparent" />
-                      )}
-                      {hasLongBody && (
-                        <button
-                          className="mt-0.5 text-xs font-medium text-primary hover:underline"
-                          onClick={() => toggleExpand(activity.id)}
-                        >
-                          {isExpanded ? "Show less" : "Show more"}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <p className="mt-1.5 text-xs text-muted-foreground/70" suppressHydrationWarning>
-                    {timeAgo(activity.created_at)}
-                    {userName && (
-                      <span> by {userName}</span>
+                  <div
+                    className={cn(
+                      "z-10 flex size-8 shrink-0 items-center justify-center rounded-full",
+                      config.bg
                     )}
-                  </p>
+                  >
+                    <Icon className={cn("size-3.5", config.fg)} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm">
+                      <span className="font-medium">{activity.title}</span>
+                    </p>
+                    {activity.body && (
+                      <div className="relative mt-1">
+                        <p
+                          className={cn(
+                            "whitespace-pre-wrap text-sm text-muted-foreground transition-all duration-200",
+                            !isExpanded && hasLongBody && "max-h-[4.5em] overflow-hidden"
+                          )}
+                        >
+                          {activity.body}
+                        </p>
+                        {hasLongBody && !isExpanded && (
+                          <div className="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-card to-transparent" />
+                        )}
+                        {hasLongBody && (
+                          <button
+                            className="mt-0.5 text-xs font-medium text-primary hover:underline"
+                            onClick={(e) => { e.stopPropagation(); toggleExpand(activity.id); }}
+                          >
+                            {isExpanded ? "Show less" : "Show more"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    <p className="mt-1.5 text-xs text-muted-foreground/70" suppressHydrationWarning>
+                      {timeAgo(activity.created_at)}
+                      {userName && (
+                        <span> by {userName}</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
+
+        {hasMore && (
+          <div className="mt-2 text-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setVisibleCount((c) => c + TIMELINE_PAGE_SIZE)}
+            >
+              Load more ({activities.length - visibleCount} remaining)
+            </Button>
+          </div>
+        )}
       </div>
 
-      {hasMore && (
-        <div className="mt-2 text-center">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setVisibleCount((c) => c + TIMELINE_PAGE_SIZE)}
-          >
-            Load more ({activities.length - visibleCount} remaining)
-          </Button>
-        </div>
+      {selectedActivity && (
+        <ActivityDetailPanel
+          activity={selectedActivity}
+          onClose={() => setSelectedActivity(null)}
+        />
       )}
     </div>
   );
