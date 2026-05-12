@@ -38,7 +38,7 @@
     },
     {
       "path": "/api/cron/booking-no-show",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }
