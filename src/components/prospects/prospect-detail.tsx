@@ -1261,6 +1261,7 @@ function ActivityDetailPanel({
     campaign_id: rawMeta.campaign_id ? String(rawMeta.campaign_id) : null,
     step_order: rawMeta.step_order != null ? Number(rawMeta.step_order) : null,
     error: rawMeta.error ? String(rawMeta.error) : null,
+    body_preview: rawMeta.body_preview ? String(rawMeta.body_preview) : null,
   };
   const isEmail = activity.type === "email_sent" || activity.type === "email_opened";
   const isWa = activity.type.startsWith("wa_");
@@ -1322,19 +1323,19 @@ function ActivityDetailPanel({
         )}
 
         {/* Body / content */}
-        {activity.body && (
+        {(activity.body || meta.body_preview) && (
           <div>
             <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Content</p>
             <div className="mt-1 rounded-md border bg-muted/30 p-3">
               <p className="text-sm whitespace-pre-wrap break-words text-muted-foreground">
-                {activity.body}
+                {activity.body || meta.body_preview}
               </p>
             </div>
           </div>
         )}
 
         {/* No extra info */}
-        {!meta.subject && !meta.template && !activity.body && (
+        {!meta.subject && !meta.template && !activity.body && !meta.body_preview && (
           <p className="text-sm text-muted-foreground italic">No additional details available for this activity.</p>
         )}
       </div>

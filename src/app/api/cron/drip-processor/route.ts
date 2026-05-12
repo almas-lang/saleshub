@@ -322,7 +322,26 @@ export async function GET(request: Request) {
             }
           }
 
-          if (sendSuccess) sent++;
+          // Log activity for unified campaign sends
+          if (sendSuccess) {
+            const activityType = currentStep.channel === "email" ? "email_sent" : "wa_sent";
+            const activityTitle = currentStep.channel === "email"
+              ? `Email sent: ${currentStep.subject ?? "Campaign email"}`
+              : `WhatsApp sent: ${currentStep.wa_template_name ?? "template"}`;
+            await supabaseAdmin.from("activities").insert({
+              contact_id: contact.id,
+              type: activityType,
+              title: activityTitle,
+              metadata: {
+                campaign_id: enrollment.campaign_id,
+                step_order: currentStep.order,
+                ...(currentStep.channel === "email"
+                  ? { subject: currentStep.subject, body_preview: (currentStep.body_html ?? "").replace(/<[^>]*>/g, "").slice(0, 300) }
+                  : { template: currentStep.wa_template_name }),
+              },
+            });
+            sent++;
+          }
 
           // Advance to next step
           let nextStep: UnifiedStepRow | undefined;
@@ -695,6 +714,7 @@ export async function GET(request: Request) {
               campaign_id: enrollment.campaign_id,
               step_order: currentStep.order,
               subject: currentStep.subject,
+              body_preview: currentStep.body_html.replace(/<[^>]*>/g, "").slice(0, 300),
             },
           });
 
@@ -1197,6 +1217,11 @@ export async function GET(request: Request) {
               contact_id: send.contact_id,
               type: "email_sent",
               title: `Campaign email sent: ${subject}`,
+              metadata: {
+                campaign_id: send.campaign_id,
+                subject,
+                body_preview: bodyHtml.replace(/<[^>]*>/g, "").slice(0, 300),
+              },
             }),
           ]);
           return true;
