@@ -180,7 +180,7 @@ export async function GET(request: Request) {
 
           // Skip condition steps (walk through them)
           const visitedSteps = new Set<string>();
-          while (currentStep.step_type === "condition" && currentStep.condition) {
+          while (currentStep.step_type === "condition") {
             if (visitedSteps.has(currentStep.id)) {
               await supabaseAdmin.from("drip_enrollments")
                 .update({ status: "stopped", stopped_reason: "loop_detected" })
@@ -189,11 +189,18 @@ export async function GET(request: Request) {
               break;
             }
             visitedSteps.add(currentStep.id);
-            // For now, follow "no" branch (conditions evaluated at WA/email level)
-            const nextId = currentStep.next_step_id_no;
-            if (!nextId) break;
-            currentStep = stepMap.get(nextId);
-            if (!currentStep) break;
+
+            // Try branching pointers first, then fall back to next by order
+            const nextId = currentStep.next_step_id_no ?? currentStep.next_step_id_yes;
+            let nextStep: UnifiedStepRow | undefined;
+            if (nextId) {
+              nextStep = stepMap.get(nextId);
+            }
+            if (!nextStep) {
+              nextStep = steps.find((s) => s.order > currentStep!.order);
+            }
+            if (!nextStep) break;
+            currentStep = nextStep;
           }
 
           if (!currentStep || visitedSteps.has(currentStep.id)) continue;

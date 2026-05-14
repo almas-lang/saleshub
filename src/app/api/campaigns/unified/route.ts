@@ -107,13 +107,39 @@ export async function POST(request: Request) {
         condition: s.condition ?? null,
       }));
 
-      const { error: stepsErr } = await supabase
+      const { data: insertedSteps, error: stepsErr } = await supabase
         .from("unified_steps")
-        .insert(newStepRows);
+        .insert(newStepRows)
+        .select("id, \"order\"");
 
-      if (stepsErr) {
+      if (stepsErr || !insertedSteps) {
         await supabase.from("unified_campaigns").delete().eq("id", newCampaign.id);
-        return NextResponse.json({ error: stepsErr.message }, { status: 500 });
+        return NextResponse.json({ error: stepsErr?.message ?? "Failed to copy steps" }, { status: 500 });
+      }
+
+      // Remap branching pointers (next_step_id_yes / next_step_id_no)
+      const oldIdToNewId = new Map<string, string>();
+      sourceSteps.forEach((s: Record<string, unknown>, i: number) => {
+        if (s.id && insertedSteps[i]?.id) {
+          oldIdToNewId.set(s.id as string, insertedSteps[i].id);
+        }
+      });
+
+      for (let i = 0; i < sourceSteps.length; i++) {
+        const src = sourceSteps[i] as Record<string, unknown>;
+        const newId = insertedSteps[i]?.id;
+        if (!newId) continue;
+
+        const updates: Record<string, string | null> = {};
+        if (src.next_step_id_yes && oldIdToNewId.has(src.next_step_id_yes as string)) {
+          updates.next_step_id_yes = oldIdToNewId.get(src.next_step_id_yes as string)!;
+        }
+        if (src.next_step_id_no && oldIdToNewId.has(src.next_step_id_no as string)) {
+          updates.next_step_id_no = oldIdToNewId.get(src.next_step_id_no as string)!;
+        }
+        if (Object.keys(updates).length > 0) {
+          await supabase.from("unified_steps").update(updates).eq("id", newId);
+        }
       }
     }
 
