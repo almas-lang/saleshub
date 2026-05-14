@@ -28,8 +28,9 @@ export default async function NewUnifiedCampaignPage() {
 
   const funnels = (funnelsResult.data ?? []).map((f) => ({ id: f.id, name: f.name }));
 
-  const allStages = (funnelsResult.data ?? []).flatMap((f) =>
-    ((f.funnel_stages ?? []) as { id: string; name: string; funnel_id: string; order: number }[])
+  type Stage = { id: string; name: string; funnel_id: string; order: number };
+  const allStages: Stage[] = (funnelsResult.data ?? []).flatMap((f) =>
+    ((f.funnel_stages ?? []) as Stage[])
       .map((s) => ({ id: s.id, name: s.name, funnel_id: s.funnel_id, order: s.order }))
   );
   const stages = Array.from(

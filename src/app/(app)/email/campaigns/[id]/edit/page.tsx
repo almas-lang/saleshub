@@ -53,15 +53,9 @@ export default async function EditEmailCampaignPage({
     name: f.name,
   }));
 
-  const allStages = (funnelsResult.data ?? []).flatMap((f) =>
-    (
-      (f.funnel_stages ?? []) as {
-        id: string;
-        name: string;
-        funnel_id: string;
-        order: number;
-      }[]
-    ).map((s) => ({
+  type Stage = { id: string; name: string; funnel_id: string; order: number };
+  const allStages: Stage[] = (funnelsResult.data ?? []).flatMap((f) =>
+    ((f.funnel_stages ?? []) as Stage[]).map((s) => ({
       id: s.id,
       name: s.name,
       funnel_id: s.funnel_id,
