@@ -257,7 +257,7 @@ export function LogsViewer() {
 
       {/* Detail dialog */}
       <Dialog open={viewing !== null} onOpenChange={(open) => !open && setViewing(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto overflow-x-hidden">
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto" style={{ overflowWrap: "anywhere" }}>
           {viewing && (
             <>
               <DialogHeader>
@@ -271,15 +271,15 @@ export function LogsViewer() {
                   {new Date(viewing.created_at).toLocaleString()}
                 </p>
               </DialogHeader>
-              <div className="mt-3 space-y-3">
-                <div className="rounded-lg border p-3">
+              <div className="mt-3 space-y-3 min-w-0">
+                <div className="rounded-lg border p-3 min-w-0">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Message</p>
-                  <p className="text-sm break-words">{viewing.message}</p>
+                  <p className="text-sm" style={{ overflowWrap: "anywhere" }}>{viewing.message}</p>
                 </div>
                 {viewing.metadata && Object.keys(viewing.metadata).length > 0 && (
-                  <div className="rounded-lg border p-3">
+                  <div className="rounded-lg border p-3 min-w-0">
                     <p className="text-xs font-medium text-muted-foreground mb-2">Metadata</p>
-                    <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-muted/50 rounded p-2 max-h-[300px] overflow-auto overflow-x-hidden">
+                    <pre className="text-xs font-mono whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-[300px] overflow-y-auto" style={{ overflowWrap: "anywhere" }}>
                       {JSON.stringify(viewing.metadata, null, 2)}
                     </pre>
                   </div>
