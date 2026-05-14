@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { leadCaptureSchema } from "@/lib/validations";
 import { formatPhone } from "@/lib/utils";
-import { sendEmail } from "@/lib/email/client";
-import { renderWelcomeEmail } from "@/lib/email/templates/welcome";
 import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
 
 /** Map variant field names (PascalCase, Title Case, etc.) to snake_case schema keys */
@@ -247,36 +245,6 @@ export async function POST(request: NextRequest) {
       source,
     },
   });
-
-  // ── Step 7.5: Send welcome email (new contacts only) ─
-  if (!isDuplicate) {
-    try {
-      const { subject, html } = await renderWelcomeEmail({
-        firstName: first_name,
-      });
-      const welcomeResult = await sendEmail({ to: email, subject, html });
-      if (welcomeResult.success) {
-        await Promise.all([
-          supabaseAdmin.from("activities").insert({
-            contact_id: contactId,
-            type: "email_sent",
-            title: "Welcome email sent",
-            metadata: { template: "welcome" },
-          }),
-          supabaseAdmin.from("email_sends").insert({
-            contact_id: contactId,
-            status: "sent",
-            sent_at: new Date().toISOString(),
-            resend_message_id: welcomeResult.messageId ?? null,
-          }),
-        ]);
-      } else {
-        console.error("[Lead Capture] Welcome email failed:", welcomeResult.error);
-      }
-    } catch (emailErr) {
-      console.error("[Lead Capture] Welcome email failed:", emailErr);
-    }
-  }
 
   // ── Step 8: Process booking (if call was booked) ───
   const isBooked = ["yes", "true", "1"].includes(
