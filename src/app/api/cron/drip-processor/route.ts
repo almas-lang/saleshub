@@ -198,34 +198,6 @@ export async function GET(request: Request) {
 
           if (!currentStep || visitedSteps.has(currentStep.id)) continue;
 
-          // Handle wait steps — advance to the next step with the wait's delay
-          if (currentStep.step_type === "wait") {
-            let nextStep: UnifiedStepRow | undefined;
-            if (currentStep.next_step_id_no) {
-              nextStep = stepMap.get(currentStep.next_step_id_no);
-            } else {
-              nextStep = steps.find((s) => s.order > currentStep!.order);
-            }
-
-            if (nextStep) {
-              const waitDelayMs = (currentStep.delay_hours ?? 0) * 3600_000;
-              const nextSendAt = new Date(Date.now() + waitDelayMs).toISOString();
-              await supabaseAdmin.from("drip_enrollments")
-                .update({
-                  current_step_id: nextStep.id,
-                  current_step_order: nextStep.order,
-                  next_send_at: nextSendAt,
-                })
-                .eq("id", enrollment.id);
-            } else {
-              await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "completed", completed_at: now })
-                .eq("id", enrollment.id);
-            }
-            sent++;
-            continue;
-          }
-
           // Fetch contact
           const { data: contact } = await supabaseAdmin
             .from("contacts")
@@ -546,32 +518,6 @@ export async function GET(request: Request) {
 
           // If we broke out due to completion/scheduling, skip to next enrollment
           if (!currentStep || visitedSteps.has(currentStep.id) && currentStep.step_type === "condition") {
-            continue;
-          }
-
-          // Handle wait steps — advance to next step with the wait's delay
-          if (currentStep.step_type === "wait") {
-            let nextStep: EmailStepRow | undefined;
-            if (currentStep.next_step_id_no) {
-              nextStep = stepMap.get(currentStep.next_step_id_no);
-            } else {
-              nextStep = steps.find((s) => s.order > currentStep!.order);
-            }
-            if (nextStep) {
-              const waitDelayMs = (currentStep.delay_hours ?? 0) * 3600_000;
-              await supabaseAdmin.from("drip_enrollments")
-                .update({
-                  current_step_id: nextStep.id,
-                  current_step_order: nextStep.order,
-                  next_send_at: new Date(Date.now() + waitDelayMs).toISOString(),
-                })
-                .eq("id", enrollment.id);
-            } else {
-              await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "completed", completed_at: now })
-                .eq("id", enrollment.id);
-            }
-            sent++;
             continue;
           }
 
@@ -925,32 +871,6 @@ export async function GET(request: Request) {
 
           // If we broke out due to completion/scheduling, skip to next enrollment
           if (!currentStep || (visitedSteps.has(currentStep.id) && currentStep.step_type === "condition")) {
-            continue;
-          }
-
-          // Handle wait steps — advance to next step with the wait's delay
-          if (currentStep.step_type === "wait") {
-            let nextStep: WAStep | undefined;
-            if (currentStep.next_step_id_no) {
-              nextStep = stepMap.get(currentStep.next_step_id_no);
-            } else {
-              nextStep = steps.find((s) => s.order > currentStep!.order);
-            }
-            if (nextStep) {
-              const waitDelayMs = (currentStep.delay_hours ?? 0) * 3600_000;
-              await supabaseAdmin.from("drip_enrollments")
-                .update({
-                  current_step_id: nextStep.id,
-                  current_step_order: nextStep.order,
-                  next_send_at: new Date(Date.now() + waitDelayMs).toISOString(),
-                })
-                .eq("id", enrollment.id);
-            } else {
-              await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "completed", completed_at: now })
-                .eq("id", enrollment.id);
-            }
-            sent++;
             continue;
           }
 
