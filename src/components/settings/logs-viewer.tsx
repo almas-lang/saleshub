@@ -169,8 +169,8 @@ export function LogsViewer() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border">
-        <Table>
+      <div className="rounded-xl border overflow-hidden">
+        <Table className="table-fixed w-full">
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
               <TableHead className="w-[140px]">
@@ -218,8 +218,8 @@ export function LogsViewer() {
                   <TableCell className="text-xs font-mono text-muted-foreground">
                     {log.source}
                   </TableCell>
-                  <TableCell className="text-sm truncate max-w-[400px]">
-                    {log.message}
+                  <TableCell className="text-sm">
+                    <span className="block truncate">{log.message}</span>
                   </TableCell>
                 </TableRow>
               ))
@@ -274,7 +274,7 @@ export function LogsViewer() {
               <div className="mt-3 space-y-3">
                 <div className="rounded-lg border p-3">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Message</p>
-                  <p className="text-sm">{viewing.message}</p>
+                  <p className="text-sm break-words">{viewing.message}</p>
                 </div>
                 {viewing.metadata && Object.keys(viewing.metadata).length > 0 && (
                   <div className="rounded-lg border p-3">

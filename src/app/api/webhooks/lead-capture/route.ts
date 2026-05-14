@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
     // reappears on the active prospects tab.
     const updates: Record<string, unknown> = {
       ...utmData,
+      source,
       archived_at: null,
       deleted_at: null,
     };
@@ -186,7 +187,8 @@ export async function POST(request: NextRequest) {
       updates.phone = phone;
     }
 
-    if (!existingContact.funnel_id && funnelId) {
+    // Always update funnel to match the new registration source
+    if (funnelId) {
       updates.funnel_id = funnelId;
       updates.current_stage_id = firstStageId;
     }
@@ -327,12 +329,13 @@ export async function POST(request: NextRequest) {
   }
 
   // ── Step 9: Auto-enroll into active drip sequences ─
-  if (!isDuplicate) {
-    try {
-      await autoEnrollIntoDrips(contactId);
-    } catch (err) {
-      console.error("[Lead Capture] Drip auto-enroll error:", err);
-    }
+  // Enroll both new contacts and returning contacts (re-registrations).
+  // autoEnrollIntoDrips already deduplicates — it won't double-enroll
+  // a contact into a campaign they're already active in.
+  try {
+    await autoEnrollIntoDrips(contactId);
+  } catch (err) {
+    console.error("[Lead Capture] Drip auto-enroll error:", err);
   }
 
   // ── Step 10: Return response ────────────────────────
