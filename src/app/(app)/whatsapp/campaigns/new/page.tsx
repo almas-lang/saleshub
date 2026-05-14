@@ -47,7 +47,7 @@ export default async function NewCampaignPage() {
           funnel_id: s.funnel_id,
           order: s.order,
         }))
-      ).map((s) => [s.name, s])
+      ).map((s): [string, typeof s] => [s.name, s])
     ).values()
   );
 

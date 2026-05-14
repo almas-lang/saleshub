@@ -50,7 +50,7 @@ export default async function EditUnifiedCampaignPage({
     new Map(
       (funnelsResult.data ?? []).flatMap((f: { funnel_stages?: { id: string; name: string; funnel_id: string; order: number }[] }) =>
         (f.funnel_stages ?? []).map((s) => ({ id: s.id, name: s.name, funnel_id: s.funnel_id, order: s.order }))
-      ).map((s) => [s.name, s])
+      ).map((s): [string, typeof s] => [s.name, s])
     ).values()
   );
 
