@@ -46,12 +46,11 @@ export default async function EditUnifiedCampaignPage({
 
   const funnels = (funnelsResult.data ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
 
+  const allStages = (funnelsResult.data ?? []).flatMap((f: { funnel_stages?: { id: string; name: string; funnel_id: string; order: number }[] }) =>
+    (f.funnel_stages ?? []).map((s) => ({ id: s.id, name: s.name, funnel_id: s.funnel_id, order: s.order }))
+  );
   const stages = Array.from(
-    new Map(
-      (funnelsResult.data ?? []).flatMap((f: { funnel_stages?: { id: string; name: string; funnel_id: string; order: number }[] }) =>
-        (f.funnel_stages ?? []).map((s) => ({ id: s.id, name: s.name, funnel_id: s.funnel_id, order: s.order }))
-      ).map((s): [string, typeof s] => [s.name, s])
-    ).values()
+    new Map(allStages.map((s) => [s.name, s] as const)).values()
   );
 
   const teamMembers = (membersResult.data ?? []).map((m: { id: string; name: string }) => ({ id: m.id, name: m.name }));
