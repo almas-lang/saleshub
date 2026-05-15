@@ -118,16 +118,20 @@ export async function POST(request: Request) {
       }
 
       // Remap branching pointers (next_step_id_yes / next_step_id_no)
+      // Match by order field — insertedSteps may not come back in insertion order
+      const newStepsByOrder = new Map<number, string>(
+        insertedSteps.map((s: { id: string; order: number }) => [s.order, s.id])
+      );
       const oldIdToNewId = new Map<string, string>();
-      sourceSteps.forEach((s: Record<string, unknown>, i: number) => {
-        if (s.id && insertedSteps[i]?.id) {
-          oldIdToNewId.set(s.id as string, insertedSteps[i].id);
+      sourceSteps.forEach((s: Record<string, unknown>) => {
+        const newId = newStepsByOrder.get(s.order as number);
+        if (s.id && newId) {
+          oldIdToNewId.set(s.id as string, newId);
         }
       });
 
-      for (let i = 0; i < sourceSteps.length; i++) {
-        const src = sourceSteps[i] as Record<string, unknown>;
-        const newId = insertedSteps[i]?.id;
+      for (const src of sourceSteps as Record<string, unknown>[]) {
+        const newId = oldIdToNewId.get(src.id as string);
         if (!newId) continue;
 
         const updates: Record<string, string | null> = {};
@@ -214,9 +218,12 @@ export async function POST(request: Request) {
   // 3. Set branching pointers if edges provided
   if (branching_edges?.length && insertedSteps.length > 0) {
     const nodeIdToStepId = new Map<string, string>();
-    steps.forEach((s, i) => {
-      if (s.node_id && insertedSteps[i]) {
-        nodeIdToStepId.set(s.node_id, insertedSteps[i].id);
+    // Match by order field — insertedSteps may not come back in insertion order
+    const stepsByOrder = new Map(insertedSteps.map((s) => [s.order, s.id]));
+    steps.forEach((s) => {
+      if (s.node_id && s.order != null) {
+        const dbId = stepsByOrder.get(s.order);
+        if (dbId) nodeIdToStepId.set(s.node_id, dbId);
       }
     });
 

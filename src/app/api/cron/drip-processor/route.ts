@@ -255,38 +255,100 @@ export async function GET(request: Request) {
                 unsubscribe_link: unsubscribeUrl,
               };
 
-              const rawSubject = renderVariables(currentStep.subject ?? "", variables);
-              const rawBody = renderVariables(currentStep.body_html ?? "", variables);
-              const rawPreview = currentStep.preview_text ? renderVariables(currentStep.preview_text, variables) : undefined;
+              // Add booking variables if referenced
+              const emailContent = `${currentStep.subject ?? ""} ${currentStep.body_html ?? ""} ${currentStep.preview_text ?? ""}`;
+              if (emailContent.includes("{{booking_") || emailContent.includes("{{google_calendar_link}}") || emailContent.includes("{{apple_calendar_link}}")) {
+                const { data: uniUpcoming } = await supabaseAdmin
+                  .from("bookings")
+                  .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
+                  .eq("contact_id", contact.id)
+                  .eq("status", "confirmed")
+                  .gte("starts_at", now)
+                  .order("starts_at", { ascending: true })
+                  .limit(1)
+                  .single();
+                const { data: uniFallback } = !uniUpcoming
+                  ? await supabaseAdmin
+                      .from("bookings")
+                      .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
+                      .eq("contact_id", contact.id)
+                      .eq("status", "confirmed")
+                      .order("starts_at", { ascending: false })
+                      .limit(1)
+                      .single()
+                  : { data: null };
+                const booking = uniUpcoming || uniFallback;
+                if (booking) {
+                  const dt = new Date(booking.starts_at);
+                  const endDt = new Date(booking.ends_at);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const bpData = (booking as any).booking_pages;
+                  const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
+                  variables.booking_date = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
+                  variables.booking_time = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+                  variables.booking_meet_link = booking.meet_link || "Not available";
+                  const bookingTitle = bpData?.title || "Strategy Call";
+                  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+                  const slug = bpData?.slug;
+                  if (slug) {
+                    variables.booking_reschedule_link = `${baseUrl}/book/${slug}`;
+                  }
+                  variables.google_calendar_link = buildGoogleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link });
+                  variables.apple_calendar_link = buildAppleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link, baseUrl });
+                } else {
+                  // No confirmed booking — skip this email but allow advancement
+                  await logger.info("drip-processor", `Unified: skipping email for ${contact.id}: booking variables used but no confirmed booking`, {
+                    enrollment_id: enrollment.id,
+                    contact_id: contact.id,
+                  });
+                  await supabaseAdmin.from("email_sends").insert({
+                    contact_id: contact.id,
+                    campaign_id: enrollment.campaign_id,
+                    step_id: currentStep.id,
+                    status: "failed",
+                    sent_at: null,
+                  });
+                  sendSuccess = true; // Allow advancement past this step
+                  failed++;
+                }
+              }
 
-              const { subject: resolvedSubject, html: resolvedBody } = await renderDripEmail({
-                subject: rawSubject,
-                bodyHtml: rawBody,
-                preview: rawPreview,
-                plainText: !!currentStep.plain_text,
-              });
+              if (!sendSuccess) {
+                // Only send if we haven't already skipped due to missing booking
+                const rawSubject = renderVariables(currentStep.subject ?? "", variables);
+                const rawBody = renderVariables(currentStep.body_html ?? "", variables);
+                const rawPreview = currentStep.preview_text ? renderVariables(currentStep.preview_text, variables) : undefined;
 
-              const result = await sendEmail({
-                to: contact.email,
-                subject: resolvedSubject,
-                html: resolvedBody,
-                tags: [
-                  { name: "campaign_id", value: enrollment.campaign_id },
-                  { name: "step_id", value: currentStep.id },
-                ],
-              });
+                const { subject: resolvedSubject, html: resolvedBody } = await renderDripEmail({
+                  subject: rawSubject,
+                  bodyHtml: rawBody,
+                  preview: rawPreview,
+                  plainText: !!currentStep.plain_text,
+                });
 
-              sendSuccess = result.success;
-              sendError = result.success ? null : (result.error ?? "email_failed");
+                const result = await sendEmail({
+                  to: contact.email,
+                  subject: resolvedSubject,
+                  html: resolvedBody,
+                  tags: [
+                    { name: "campaign_id", value: enrollment.campaign_id },
+                    { name: "step_id", value: currentStep.id },
+                  ],
+                });
 
-              await supabaseAdmin.from("email_sends").insert({
-                contact_id: contact.id,
-                campaign_id: enrollment.campaign_id,
-                step_id: currentStep.id,
-                status: result.success ? "sent" : "failed",
-                resend_message_id: result.messageId ?? null,
-                sent_at: result.success ? now : null,
-              });
+                sendSuccess = result.success;
+                sendError = result.success ? null : (result.error ?? "email_failed");
+
+                await supabaseAdmin.from("email_sends").insert({
+                  contact_id: contact.id,
+                  campaign_id: enrollment.campaign_id,
+                  step_id: currentStep.id,
+                  status: result.success ? "sent" : "failed",
+                  resend_message_id: result.messageId ?? null,
+                  sent_at: result.success ? now : null,
+                });
+              }
             }
             sendSuccess = sendSuccess || !contact.email; // Skip = success for advancement
           } else if (currentStep.channel === "whatsapp") {
@@ -296,6 +358,65 @@ export async function GET(request: Request) {
             } else {
               const rawParams = (currentStep.wa_template_params ?? []) as string[];
               const paramNames = (currentStep.wa_template_param_names ?? []) as string[];
+
+              // Fetch booking data if any params reference booking variables
+              const needsBooking = rawParams.some((p) => p.includes("{{booking_") || p.includes("{{google_calendar_link}}") || p.includes("{{apple_calendar_link}}"));
+              let bookingDate = "";
+              let bookingTime = "";
+              let bookingMeetLink = "";
+              let bookingRescheduleLink = "";
+              let googleCalendarLink = "";
+              let appleCalendarLink = "";
+              if (needsBooking) {
+                const { data: waUpcoming } = await supabaseAdmin
+                  .from("bookings")
+                  .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
+                  .eq("contact_id", contact.id)
+                  .eq("status", "confirmed")
+                  .gte("starts_at", now)
+                  .order("starts_at", { ascending: true })
+                  .limit(1)
+                  .single();
+                const { data: waFallback } = !waUpcoming
+                  ? await supabaseAdmin
+                      .from("bookings")
+                      .select("starts_at, ends_at, meet_link, booking_pages(slug, title, availability_rules)")
+                      .eq("contact_id", contact.id)
+                      .eq("status", "confirmed")
+                      .order("starts_at", { ascending: false })
+                      .limit(1)
+                      .single()
+                  : { data: null };
+                const booking = waUpcoming || waFallback;
+                if (!booking) {
+                  await logger.error("drip-processor", `Unified: no confirmed booking for WA send, contact ${contact.id}`, {
+                    enrollment_id: enrollment.id,
+                    contact_id: contact.id,
+                    template: currentStep.wa_template_name,
+                  });
+                  await supabaseAdmin.from("drip_enrollments")
+                    .update({ status: "stopped", stopped_reason: "no_booking_found" })
+                    .eq("id", enrollment.id);
+                  stopped++;
+                  continue;
+                }
+                const dt = new Date(booking.starts_at);
+                const endDt = new Date(booking.ends_at);
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const bpData = (booking as any).booking_pages;
+                const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
+                bookingDate = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
+                bookingTime = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+                bookingMeetLink = booking.meet_link || "Not available";
+                const bookingTitle = bpData?.title || "Strategy Call";
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                  || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+                const slug = bpData?.slug;
+                if (slug) bookingRescheduleLink = `${baseUrl}/book/${slug}`;
+                googleCalendarLink = buildGoogleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link });
+                appleCalendarLink = buildAppleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link, baseUrl });
+              }
+
               const resolvedParams = rawParams.map((p) =>
                 p
                   .replace(/\{\{first_name\}\}/g, contact.first_name || "there")
@@ -303,6 +424,12 @@ export async function GET(request: Request) {
                   .replace(/\{\{email\}\}/g, contact.email || "")
                   .replace(/\{\{phone\}\}/g, contact.phone || "")
                   .replace(/\{\{company_name\}\}/g, contact.company_name || "your company")
+                  .replace(/\{\{booking_date\}\}/g, bookingDate)
+                  .replace(/\{\{booking_time\}\}/g, bookingTime)
+                  .replace(/\{\{booking_meet_link\}\}/g, bookingMeetLink)
+                  .replace(/\{\{booking_reschedule_link\}\}/g, bookingRescheduleLink)
+                  .replace(/\{\{google_calendar_link\}\}/g, googleCalendarLink)
+                  .replace(/\{\{apple_calendar_link\}\}/g, appleCalendarLink)
               );
 
               const result = await sendTemplate(
