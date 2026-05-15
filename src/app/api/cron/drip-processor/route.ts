@@ -178,7 +178,7 @@ export async function GET(request: Request) {
             continue;
           }
 
-          // Skip condition steps (walk through them)
+          // Evaluate condition steps and follow the correct branch
           const visitedSteps = new Set<string>();
           while (currentStep.step_type === "condition") {
             if (visitedSteps.has(currentStep.id)) {
@@ -190,8 +190,20 @@ export async function GET(request: Request) {
             }
             visitedSteps.add(currentStep.id);
 
-            // Try branching pointers first, then fall back to next by order
-            const nextId = currentStep.next_step_id_no ?? currentStep.next_step_id_yes;
+            let nextId: string | null = null;
+            if (currentStep.condition) {
+              const conditionMet = await evaluateCondition(
+                currentStep.condition.check,
+                enrollment.contact_id,
+                enrollment.campaign_id,
+                currentStep.condition.value
+              );
+              nextId = conditionMet ? currentStep.next_step_id_yes : currentStep.next_step_id_no;
+            } else {
+              // No condition defined — fall through to next by order
+              nextId = currentStep.next_step_id_yes ?? currentStep.next_step_id_no;
+            }
+
             let nextStep: UnifiedStepRow | undefined;
             if (nextId) {
               nextStep = stepMap.get(nextId);
@@ -529,6 +541,8 @@ export async function GET(request: Request) {
           }
 
           // ── Condition check on send steps (legacy + branching) ──
+          // If condition is NOT met, skip this send and follow the "no" branch.
+          // If condition IS met, fall through to send the email normally.
           if (currentStep.condition && currentStep.step_type === "send") {
             const conditionMet = await evaluateCondition(
               currentStep.condition.check,
@@ -537,18 +551,18 @@ export async function GET(request: Request) {
               currentStep.condition.value
             );
 
-            if (conditionMet) {
-              // Branching: follow yes path if available
-              if (currentStep.next_step_id_yes) {
-                const yesStep = stepMap.get(currentStep.next_step_id_yes);
-                if (yesStep) {
-                  const nextSendAt = yesStep.delay_hours > 0
-                    ? new Date(Date.now() + yesStep.delay_hours * 60 * 60 * 1000).toISOString()
+            if (!conditionMet) {
+              // Condition not met — skip this send, follow "no" branch
+              if (currentStep.next_step_id_no) {
+                const noStep = stepMap.get(currentStep.next_step_id_no);
+                if (noStep) {
+                  const nextSendAt = noStep.delay_hours > 0
+                    ? new Date(Date.now() + noStep.delay_hours * 60 * 60 * 1000).toISOString()
                     : now;
                   await supabaseAdmin.from("drip_enrollments")
                     .update({
-                      current_step_id: yesStep.id,
-                      current_step_order: yesStep.order,
+                      current_step_id: noStep.id,
+                      current_step_order: noStep.order,
                       next_send_at: nextSendAt,
                     })
                     .eq("id", enrollment.id);
@@ -882,6 +896,8 @@ export async function GET(request: Request) {
           }
 
           // ── Condition check on send steps (legacy + branching) ──
+          // If condition is NOT met, skip this send and follow the "no" branch.
+          // If condition IS met, fall through to send the message normally.
           if (currentStep.condition && currentStep.step_type === "send") {
             const conditionMet = await evaluateCondition(
               currentStep.condition.check,
@@ -890,17 +906,18 @@ export async function GET(request: Request) {
               currentStep.condition.value
             );
 
-            if (conditionMet) {
-              if (currentStep.next_step_id_yes) {
-                const yesStep = stepMap.get(currentStep.next_step_id_yes);
-                if (yesStep) {
-                  const nextSendAt = yesStep.delay_hours > 0
-                    ? new Date(Date.now() + yesStep.delay_hours * 60 * 60 * 1000).toISOString()
+            if (!conditionMet) {
+              // Condition not met — skip this send, follow "no" branch
+              if (currentStep.next_step_id_no) {
+                const noStep = stepMap.get(currentStep.next_step_id_no);
+                if (noStep) {
+                  const nextSendAt = noStep.delay_hours > 0
+                    ? new Date(Date.now() + noStep.delay_hours * 60 * 60 * 1000).toISOString()
                     : now;
                   await supabaseAdmin.from("drip_enrollments")
                     .update({
-                      current_step_id: yesStep.id,
-                      current_step_order: yesStep.order,
+                      current_step_id: noStep.id,
+                      current_step_order: noStep.order,
                       next_send_at: nextSendAt,
                     })
                     .eq("id", enrollment.id);
