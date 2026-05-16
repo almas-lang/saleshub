@@ -93,12 +93,22 @@ export async function GET(request: Request) {
   try {
     const now = new Date().toISOString();
 
-    // 1. Fetch due enrollments
+    // 1. Fetch due enrollments (ordered by next_send_at to prevent starvation)
     const { data: enrollments, error: enrollError } = await supabaseAdmin.from("drip_enrollments")
       .select("*")
       .eq("status", "active")
       .lte("next_send_at", now)
+      .order("next_send_at", { ascending: true })
       .limit(BATCH_LIMIT);
+
+    // Claim enrollments by bumping next_send_at to prevent duplicate processing by concurrent cron runs
+    if (enrollments?.length) {
+      const claimTime = new Date(Date.now() + 120_000).toISOString(); // 2 min claim window
+      await supabaseAdmin.from("drip_enrollments")
+        .update({ next_send_at: claimTime })
+        .in("id", enrollments.map((e) => e.id))
+        .eq("status", "active");
+    }
 
     if (enrollError) {
       await logger.error("drip-processor", "Failed to query enrollments", { error: enrollError.message });
@@ -200,18 +210,31 @@ export async function GET(request: Request) {
               );
               nextId = conditionMet ? currentStep.next_step_id_yes : currentStep.next_step_id_no;
             } else {
-              // No condition defined — fall through to next by order
               nextId = currentStep.next_step_id_yes ?? currentStep.next_step_id_no;
             }
 
-            let nextStep: UnifiedStepRow | undefined;
-            if (nextId) {
-              nextStep = stepMap.get(nextId);
+            // If branching pointers are null, do NOT silently fall through by order —
+            // that skips the condition logic entirely and sends contacts down wrong paths
+            if (!nextId) {
+              await logger.error("drip-processor", `Condition step ${currentStep.id} has no branching pointer for result, stopping enrollment`, {
+                enrollment_id: enrollment.id,
+                condition: currentStep.condition?.check,
+              });
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "missing_branch_pointer" })
+                .eq("id", enrollment.id);
+              stopped++;
+              break;
             }
+
+            const nextStep = stepMap.get(nextId);
             if (!nextStep) {
-              nextStep = steps.find((s) => s.order > currentStep!.order);
+              await supabaseAdmin.from("drip_enrollments")
+                .update({ status: "stopped", stopped_reason: "branch_target_not_found" })
+                .eq("id", enrollment.id);
+              stopped++;
+              break;
             }
-            if (!nextStep) break;
             currentStep = nextStep;
           }
 
@@ -240,11 +263,12 @@ export async function GET(request: Request) {
             if (!contact.email) {
               // Skip this step, advance to next
             } else if (contact.email_unsubscribed_at) {
-              await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "stopped", stopped_reason: "unsubscribed" })
-                .eq("id", enrollment.id);
-              stopped++;
-              continue;
+              // Skip this email step but don't stop enrollment — future WA steps should still send
+              await logger.info("drip-processor", `Skipping email step for unsubscribed contact ${contact.id}, advancing`, {
+                enrollment_id: enrollment.id,
+                step_order: currentStep.order,
+              });
+              sendSuccess = true; // Allow advancement past this step
             } else {
               // Resolve variables
               const unsubscribeUrl = getUnsubscribeUrl(contact.id);
@@ -389,32 +413,31 @@ export async function GET(request: Request) {
                   : { data: null };
                 const booking = waUpcoming || waFallback;
                 if (!booking) {
-                  await logger.error("drip-processor", `Unified: no confirmed booking for WA send, contact ${contact.id}`, {
+                  // No booking — skip this WA step and advance instead of stopping permanently
+                  await logger.info("drip-processor", `Unified: skipping WA send for ${contact.id}: booking variables used but no confirmed booking`, {
                     enrollment_id: enrollment.id,
                     contact_id: contact.id,
                     template: currentStep.wa_template_name,
                   });
-                  await supabaseAdmin.from("drip_enrollments")
-                    .update({ status: "stopped", stopped_reason: "no_booking_found" })
-                    .eq("id", enrollment.id);
-                  stopped++;
-                  continue;
+                  sendSuccess = true; // Allow advancement past this step
                 }
-                const dt = new Date(booking.starts_at);
-                const endDt = new Date(booking.ends_at);
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const bpData = (booking as any).booking_pages;
-                const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
-                bookingDate = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
-                bookingTime = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
-                bookingMeetLink = booking.meet_link || "Not available";
-                const bookingTitle = bpData?.title || "Strategy Call";
-                const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-                  || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
-                const slug = bpData?.slug;
-                if (slug) bookingRescheduleLink = `${baseUrl}/book/${slug}`;
-                googleCalendarLink = buildGoogleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link });
-                appleCalendarLink = buildAppleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link, baseUrl });
+                if (booking) {
+                  const dt = new Date(booking.starts_at);
+                  const endDt = new Date(booking.ends_at);
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const bpData = (booking as any).booking_pages;
+                  const tz = (bpData?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
+                  bookingDate = dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" });
+                  bookingTime = dt.toLocaleTimeString("en-US", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true });
+                  bookingMeetLink = booking.meet_link || "Not available";
+                  const bookingTitle = bpData?.title || "Strategy Call";
+                  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+                    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+                  const slug = bpData?.slug;
+                  if (slug) bookingRescheduleLink = `${baseUrl}/book/${slug}`;
+                  googleCalendarLink = buildGoogleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link });
+                  appleCalendarLink = buildAppleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link, baseUrl });
+                }
               }
 
               const resolvedParams = rawParams.map((p) =>
@@ -803,12 +826,35 @@ export async function GET(request: Request) {
                 baseUrl,
               });
             } else {
-              // No confirmed booking found — skip this email send
+              // No confirmed booking found — skip this email but advance to next step
               await logger.info("drip-processor", `Skipping email for ${contact.id}: booking variables used but no confirmed booking found`, {
                 enrollment_id: enrollment.id,
                 contact_id: contact.id,
               });
-              failed++;
+              await supabaseAdmin.from("email_sends").insert({
+                contact_id: contact.id,
+                campaign_id: enrollment.campaign_id,
+                step_id: currentStep.id,
+                status: "failed",
+                sent_at: null,
+              });
+              // Advance to next step instead of stalling
+              let nextStep: EmailStepRow | undefined;
+              if (currentStep.next_step_id_no) {
+                nextStep = stepMap.get(currentStep.next_step_id_no);
+              } else {
+                nextStep = steps.find((s) => s.order > currentStep!.order);
+              }
+              if (nextStep) {
+                const nextSendAt = new Date(Date.now() + nextStep.delay_hours * 60 * 60 * 1000).toISOString();
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ current_step_id: nextStep.id, current_step_order: nextStep.order, next_send_at: nextSendAt })
+                  .eq("id", enrollment.id);
+              } else {
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "completed", completed_at: now })
+                  .eq("id", enrollment.id);
+              }
               continue;
             }
           }
@@ -1122,16 +1168,29 @@ export async function GET(request: Request) {
               : { data: null };
             const booking = upcoming || fallback;
             if (!booking) {
-              // No confirmed booking — stop enrollment instead of sending broken message
-              await logger.error("drip-processor", `No confirmed booking for contact ${contact.id}, stopping enrollment`, {
+              // No booking — skip this WA step and advance instead of stopping permanently
+              await logger.info("drip-processor", `Skipping WA send for ${contact.id}: booking variables used but no confirmed booking, advancing`, {
                 enrollment_id: enrollment.id,
                 contact_id: contact.id,
                 template: currentStep.wa_template_name,
               });
-              await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "stopped", stopped_reason: "no_booking_found" })
-                .eq("id", enrollment.id);
-              stopped++;
+              // Advance to next step
+              let skipNextStep: WAStep | undefined;
+              if (currentStep.next_step_id_no) {
+                skipNextStep = stepMap.get(currentStep.next_step_id_no);
+              } else {
+                skipNextStep = steps.find((s) => s.order > currentStep!.order);
+              }
+              if (skipNextStep) {
+                const nextSendAt = new Date(Date.now() + skipNextStep.delay_hours * 60 * 60 * 1000).toISOString();
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ current_step_id: skipNextStep.id, current_step_order: skipNextStep.order, next_send_at: nextSendAt })
+                  .eq("id", enrollment.id);
+              } else {
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "completed", completed_at: now })
+                  .eq("id", enrollment.id);
+              }
               continue;
             }
             const dt = new Date(booking.starts_at);

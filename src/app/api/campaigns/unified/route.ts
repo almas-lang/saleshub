@@ -227,15 +227,27 @@ export async function POST(request: Request) {
       }
     });
 
+    // Group edges by source+branch to handle parallel sends (e.g., condition yes→email + yes→WA)
+    // When multiple targets share the same branch, chain them: first gets the pointer, first→second via next_step_id_no
+    const edgeGroups = new Map<string, string[]>(); // key: "sourceDbId:branch" → targetDbIds[]
     for (const edge of branching_edges) {
       const sourceDbId = nodeIdToStepId.get(edge.source_node_id);
       const targetDbId = nodeIdToStepId.get(edge.target_node_id);
       if (!sourceDbId || !targetDbId) continue;
-      const column = edge.branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
-      await supabase
-        .from("unified_steps")
-        .update({ [column]: targetDbId })
-        .eq("id", sourceDbId);
+      const key = `${sourceDbId}:${edge.branch}`;
+      if (!edgeGroups.has(key)) edgeGroups.set(key, []);
+      edgeGroups.get(key)!.push(targetDbId);
+    }
+
+    for (const [key, targets] of edgeGroups) {
+      const [sourceDbId, branch] = key.split(":");
+      const column = branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
+      // Point condition to first target
+      await supabase.from("unified_steps").update({ [column]: targets[0] }).eq("id", sourceDbId);
+      // Chain parallel targets: first→second via next_step_id_no (linear advancement pointer)
+      for (let i = 0; i < targets.length - 1; i++) {
+        await supabase.from("unified_steps").update({ next_step_id_no: targets[i + 1] }).eq("id", targets[i]);
+      }
     }
   }
 
@@ -333,6 +345,14 @@ export async function PATCH(request: NextRequest) {
 
   // Replace steps if provided (only for draft/paused campaigns)
   if (Array.isArray(body.steps) && body.steps.length > 0) {
+    // Reset enrollments that reference old step IDs before deleting steps
+    await supabaseAdmin
+      .from("drip_enrollments")
+      .update({ current_step_id: null })
+      .eq("campaign_id", id)
+      .eq("campaign_type", "unified")
+      .in("status", ["active", "paused"]);
+
     await supabase.from("unified_steps").delete().eq("campaign_id", id);
 
     const stepRows = (body.steps as Array<Record<string, unknown>>).map((s) => ({
@@ -352,7 +372,43 @@ export async function PATCH(request: NextRequest) {
       condition: s.condition ?? null,
     }));
 
-    await supabase.from("unified_steps").insert(stepRows).select("id, order");
+    const { data: insertedSteps } = await supabase.from("unified_steps").insert(stepRows).select("id, order");
+
+    // Set branching pointers (same logic as POST)
+    const branchingEdges = body.branching_edges as Array<{ source_node_id: string; target_node_id: string; branch: string | null }> | undefined;
+    const steps = body.steps as Array<Record<string, unknown>>;
+    if (branchingEdges?.length && insertedSteps?.length) {
+      const nodeIdToStepId = new Map<string, string>();
+      const stepsByOrder = new Map<number, string>(
+        insertedSteps.map((s: { id: string; order: number }) => [s.order, s.id])
+      );
+      steps.forEach((s) => {
+        if (s.node_id && s.order != null) {
+          const dbId = stepsByOrder.get(s.order as number);
+          if (dbId) nodeIdToStepId.set(s.node_id as string, dbId);
+        }
+      });
+
+      // Group edges by source+branch to handle parallel sends (same as POST)
+      const edgeGroups = new Map<string, string[]>();
+      for (const edge of branchingEdges) {
+        const sourceDbId = nodeIdToStepId.get(edge.source_node_id);
+        const targetDbId = nodeIdToStepId.get(edge.target_node_id);
+        if (!sourceDbId || !targetDbId) continue;
+        const key = `${sourceDbId}:${edge.branch}`;
+        if (!edgeGroups.has(key)) edgeGroups.set(key, []);
+        edgeGroups.get(key)!.push(targetDbId);
+      }
+
+      for (const [key, targets] of edgeGroups) {
+        const [sourceDbId, branch] = key.split(":");
+        const column = branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
+        await supabase.from("unified_steps").update({ [column]: targets[0] }).eq("id", sourceDbId);
+        for (let i = 0; i < targets.length - 1; i++) {
+          await supabase.from("unified_steps").update({ next_step_id_no: targets[i + 1] }).eq("id", targets[i]);
+        }
+      }
+    }
   }
 
   // ── Status transition side-effects ──

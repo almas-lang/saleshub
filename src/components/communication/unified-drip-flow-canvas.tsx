@@ -98,6 +98,15 @@ export function getUnifiedFlowErrors(flow: FlowData): string[] {
     }
   }
 
+  // Check condition nodes have a check selected
+  const conditionNodes = flow.nodes.filter((n) => n.type === "condition");
+  for (const n of conditionNodes) {
+    const d = n.data as unknown as ConditionNodeData;
+    if (!d.check) {
+      errors.push("A Condition node has no check selected. Select a condition type (e.g., Has Booking).");
+    }
+  }
+
   // Check connectivity
   const adjacency = new Map<string, string[]>();
   for (const n of flow.nodes) adjacency.set(n.id, []);

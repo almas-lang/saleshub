@@ -15,7 +15,8 @@ export async function evaluateCondition(
       const { count } = await supabaseAdmin
         .from("bookings")
         .select("id", { count: "exact", head: true })
-        .eq("contact_id", contactId);
+        .eq("contact_id", contactId)
+        .eq("status", "confirmed");
       return (count ?? 0) > 0;
     }
 
