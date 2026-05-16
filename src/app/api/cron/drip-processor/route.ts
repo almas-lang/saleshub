@@ -213,17 +213,25 @@ export async function GET(request: Request) {
               nextId = currentStep.next_step_id_yes ?? currentStep.next_step_id_no;
             }
 
-            // If branching pointers are null, do NOT silently fall through by order —
-            // that skips the condition logic entirely and sends contacts down wrong paths
             if (!nextId) {
-              await logger.error("drip-processor", `Condition step ${currentStep.id} has no branching pointer for result, stopping enrollment`, {
-                enrollment_id: enrollment.id,
-                condition: currentStep.condition?.check,
-              });
-              await supabaseAdmin.from("drip_enrollments")
-                .update({ status: "stopped", stopped_reason: "missing_branch_pointer" })
-                .eq("id", enrollment.id);
-              stopped++;
+              // Distinguish: BOTH pointers null = broken campaign (pointers never set).
+              // Only ONE null = intentional STOP for this branch (e.g., "showed up" → done).
+              const bothNull = !currentStep.next_step_id_yes && !currentStep.next_step_id_no;
+              if (bothNull) {
+                await logger.error("drip-processor", `Condition step ${currentStep.id} has no branching pointers set — campaign may need re-save`, {
+                  enrollment_id: enrollment.id,
+                  condition: currentStep.condition?.check,
+                });
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "stopped", stopped_reason: "missing_branch_pointer" })
+                  .eq("id", enrollment.id);
+                stopped++;
+              } else {
+                // Intentional stop — this branch leads to a STOP node
+                await supabaseAdmin.from("drip_enrollments")
+                  .update({ status: "completed", completed_at: now })
+                  .eq("id", enrollment.id);
+              }
               break;
             }
 
