@@ -528,6 +528,17 @@ export async function GET(request: Request) {
             nextStep = steps.find((s) => s.order > currentStep!.order);
           }
 
+          // Loop guard: if next step points back to current step (A→B→A), break the cycle
+          if (nextStep && nextStep.id === currentStep.id) {
+            await logger.error("drip-processor", `Circular pointer detected: step ${currentStep.id} points to itself`, { enrollment_id: enrollment.id });
+            nextStep = steps.find((s) => s.order > currentStep!.order && s.id !== currentStep!.id);
+          } else if (nextStep && nextStep.next_step_id_no === currentStep.id) {
+            await logger.error("drip-processor", `Circular pointer detected: step ${currentStep.id} <-> step ${nextStep.id}`, { enrollment_id: enrollment.id });
+            // Skip the circular pair and find the next step after both
+            const maxOrder = Math.max(currentStep.order, nextStep.order);
+            nextStep = steps.find((s) => s.order > maxOrder);
+          }
+
           if (nextStep) {
             let nextSendAt: string;
             if (nextStep.delay_mode === "before_booking") {
@@ -933,6 +944,14 @@ export async function GET(request: Request) {
             nextStep = steps.find((s) => s.order > currentStep!.order);
           }
 
+          // Loop guard
+          if (nextStep && nextStep.id === currentStep.id) {
+            nextStep = steps.find((s) => s.order > currentStep!.order && s.id !== currentStep!.id);
+          } else if (nextStep && nextStep.next_step_id_no === currentStep.id) {
+            const maxOrder = Math.max(currentStep.order, nextStep.order);
+            nextStep = steps.find((s) => s.order > maxOrder);
+          }
+
           if (nextStep) {
             const nextSendAt = new Date(
               Date.now() + nextStep.delay_hours * 60 * 60 * 1000
@@ -1304,6 +1323,14 @@ export async function GET(request: Request) {
           } else {
             // Legacy linear: find next by order
             nextStep = steps.find((s) => s.order > currentStep!.order);
+          }
+
+          // Loop guard
+          if (nextStep && nextStep.id === currentStep.id) {
+            nextStep = steps.find((s) => s.order > currentStep!.order && s.id !== currentStep!.id);
+          } else if (nextStep && nextStep.next_step_id_no === currentStep.id) {
+            const maxOrder = Math.max(currentStep.order, nextStep.order);
+            nextStep = steps.find((s) => s.order > maxOrder);
           }
 
           if (nextStep) {

@@ -239,14 +239,25 @@ export async function POST(request: Request) {
       edgeGroups.get(key)!.push(targetDbId);
     }
 
+    // Track steps whose next_step_id_no has been set by chaining to avoid overwrites
+    const chainedSteps = new Set<string>();
+
     for (const [key, targets] of edgeGroups) {
       const [sourceDbId, branch] = key.split(":");
       const column = branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
       // Point condition to first target
       await supabase.from("unified_steps").update({ [column]: targets[0] }).eq("id", sourceDbId);
       // Chain parallel targets: first→second via next_step_id_no (linear advancement pointer)
+      // Skip if the step's next_step_id_no was already set by a previous chain group
       for (let i = 0; i < targets.length - 1; i++) {
-        await supabase.from("unified_steps").update({ next_step_id_no: targets[i + 1] }).eq("id", targets[i]);
+        if (!chainedSteps.has(targets[i])) {
+          await supabase.from("unified_steps").update({ next_step_id_no: targets[i + 1] }).eq("id", targets[i]);
+          chainedSteps.add(targets[i]);
+        }
+      }
+      // Mark the last target in the chain too (its next_step_id_no should not be overwritten by another group)
+      if (targets.length > 1) {
+        chainedSteps.add(targets[targets.length - 1]);
       }
     }
   }
@@ -400,12 +411,20 @@ export async function PATCH(request: NextRequest) {
         edgeGroups.get(key)!.push(targetDbId);
       }
 
+      const chainedSteps = new Set<string>();
+
       for (const [key, targets] of edgeGroups) {
         const [sourceDbId, branch] = key.split(":");
         const column = branch === "yes" ? "next_step_id_yes" : "next_step_id_no";
         await supabase.from("unified_steps").update({ [column]: targets[0] }).eq("id", sourceDbId);
         for (let i = 0; i < targets.length - 1; i++) {
-          await supabase.from("unified_steps").update({ next_step_id_no: targets[i + 1] }).eq("id", targets[i]);
+          if (!chainedSteps.has(targets[i])) {
+            await supabase.from("unified_steps").update({ next_step_id_no: targets[i + 1] }).eq("id", targets[i]);
+            chainedSteps.add(targets[i]);
+          }
+        }
+        if (targets.length > 1) {
+          chainedSteps.add(targets[targets.length - 1]);
         }
       }
     }
