@@ -17,8 +17,9 @@ import {
   Check,
 } from "lucide-react";
 import { safeFetch } from "@/lib/fetch";
+import { groupFieldsBySection } from "@/lib/booking-form";
 import { toast } from "sonner";
-import type { FormField, AvailabilityRules, DaySchedule } from "@/types/bookings";
+import type { FormField, FormSection, AvailabilityRules, DaySchedule } from "@/types/bookings";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -85,6 +86,7 @@ interface BookingWidgetProps {
   description: string | null;
   durationMinutes: number;
   formFields: FormField[];
+  formSections?: FormSection[];
   availability: AvailabilityRules | null;
   trackingParams?: Record<string, string>;
   redirectUrl?: string | null;
@@ -102,6 +104,7 @@ export function BookingWidget({
   description,
   durationMinutes,
   formFields,
+  formSections = [],
   availability,
   trackingParams = {},
   redirectUrl: redirectUrlProp,
@@ -791,7 +794,7 @@ export function BookingWidget({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {renderFormFields(formFields, formData, updateField, errors, slug)}
+                  {renderFormSections(formFields, formSections, formData, updateField, errors, slug)}
 
                   <Separator className="bg-gray-100" />
 
@@ -937,6 +940,46 @@ export function BookingWidget({
 
 // ── Smart Form Field Renderer ──────────────────
 
+/**
+ * Render fields grouped under their section headers. The ungrouped bucket (legacy
+ * flat forms) renders first with no header, so existing pages look unchanged.
+ * The 2-col short-text pairing in renderFormFields runs within each group, so it
+ * never pairs across a section boundary.
+ */
+function renderFormSections(
+  fields: FormField[],
+  sections: FormSection[],
+  formData: Record<string, string>,
+  updateField: (label: string, value: string) => void,
+  fieldErrors: Set<string>,
+  slug?: string
+) {
+  const groups = groupFieldsBySection(fields, sections);
+
+  return groups.map((group) => {
+    if (group.fields.length === 0) return null;
+    const body = renderFormFields(group.fields, formData, updateField, fieldErrors, slug);
+    if (!group.section) {
+      return (
+        <div key="ungrouped" className="space-y-6">
+          {body}
+        </div>
+      );
+    }
+    return (
+      <div key={group.section.id} className="space-y-4">
+        <div className="space-y-1 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0">
+          <h3 className="text-base font-semibold text-gray-900">{group.section.title}</h3>
+          {group.section.description && (
+            <p className="text-sm italic text-gray-500">{group.section.description}</p>
+          )}
+        </div>
+        <div className="space-y-6">{body}</div>
+      </div>
+    );
+  });
+}
+
 function renderFormFields(
   fields: FormField[],
   formData: Record<string, string>,
@@ -999,6 +1042,9 @@ function renderFormFields(
   return elements;
 }
 
+/** Sentinel value used to represent the "Other" choice in radio/select fields. */
+const OTHER_SENTINEL = "__other__";
+
 function FormFieldInput({
   field,
   value,
@@ -1015,6 +1061,22 @@ function FormFieldInput({
   const id = `field-${field.id}`;
   const errorClass = hasError && !value?.trim() ? "border-red-300 ring-red-100" : "border-gray-200";
   const inputBase = `h-11 rounded-lg bg-white text-gray-900 placeholder:text-gray-400 shadow-sm transition-all focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 ${errorClass}`;
+
+  // "Other / enter your own text" support for radio + select.
+  // Re-hydrate as selected when the saved answer isn't one of the preset options.
+  const [otherSelected, setOtherSelected] = useState(
+    () => !!field.allowOther && !!value && !(field.options ?? []).includes(value),
+  );
+  const otherLabel = field.otherLabel || "Something else…";
+  const handleChoice = (v: string) => {
+    if (v === OTHER_SENTINEL) {
+      setOtherSelected(true);
+      onChange("");
+    } else {
+      setOtherSelected(false);
+      onChange(v);
+    }
+  };
 
   const continuingRef = useRef(false);
 
@@ -1160,32 +1222,46 @@ function FormFieldInput({
       )}
 
       {field.type === "select" && (
-        <Select
-          value={value}
-          onValueChange={onChange}
-          required={field.required}
-        >
-          <SelectTrigger
-            id={`${id}-input`}
-            className={`h-11 w-full rounded-lg bg-white text-gray-900 shadow-sm ${errorClass}`}
+        <>
+          <Select
+            value={otherSelected ? OTHER_SENTINEL : value}
+            onValueChange={handleChoice}
+            required={field.required}
           >
-            <SelectValue placeholder={field.placeholder || "Select..."} />
-          </SelectTrigger>
-          <SelectContent>
-            {(field.options ?? []).map((opt) => (
-              <SelectItem key={opt} value={opt}>
-                {opt}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <SelectTrigger
+              id={`${id}-input`}
+              className={`h-11 w-full rounded-lg bg-white text-gray-900 shadow-sm ${errorClass}`}
+            >
+              <SelectValue placeholder={field.placeholder || "Select..."} />
+            </SelectTrigger>
+            <SelectContent>
+              {(field.options ?? []).map((opt) => (
+                <SelectItem key={opt} value={opt}>
+                  {opt}
+                </SelectItem>
+              ))}
+              {field.allowOther && (
+                <SelectItem value={OTHER_SENTINEL}>{otherLabel}</SelectItem>
+              )}
+            </SelectContent>
+          </Select>
+          {field.allowOther && otherSelected && (
+            <Input
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Please specify..."
+              required={field.required}
+              className={`mt-2 ${inputBase}`}
+            />
+          )}
+        </>
       )}
 
       {field.type === "radio" && (
         <>
           <RadioGroup
-            value={value}
-            onValueChange={onChange}
+            value={otherSelected ? OTHER_SENTINEL : value}
+            onValueChange={handleChoice}
             className="!gap-1.5"
           >
             {(field.options ?? []).map((opt) => (
@@ -1204,7 +1280,31 @@ function FormFieldInput({
                 </span>
               </label>
             ))}
+            {field.allowOther && (
+              <label
+                htmlFor={`${id}-other`}
+                className="flex cursor-pointer items-start gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-gray-300 hover:bg-gray-50 active:scale-[0.995] has-[[data-state=checked]]:border-indigo-300 has-[[data-state=checked]]:bg-indigo-50 has-[[data-state=checked]]:shadow-none"
+              >
+                <RadioGroupItem
+                  value={OTHER_SENTINEL}
+                  id={`${id}-other`}
+                  className="mt-0.5 bg-white border-gray-300 data-[state=checked]:border-indigo-500"
+                />
+                <span className="text-sm leading-snug text-gray-700">
+                  {otherLabel}
+                </span>
+              </label>
+            )}
           </RadioGroup>
+          {field.allowOther && otherSelected && (
+            <Input
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Please specify..."
+              required={field.required}
+              className={`mt-2 ${inputBase}`}
+            />
+          )}
           <Dialog open={popupVariant !== null} onOpenChange={handlePopupOpenChange}>
             <DialogContent className="sm:max-w-md">
               {popupVariant === "ripple" && (

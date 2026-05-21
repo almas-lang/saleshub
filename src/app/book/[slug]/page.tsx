@@ -1,7 +1,7 @@
 import Script from "next/script";
 import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { FormField, AvailabilityRules } from "@/types/bookings";
+import type { FormField, FormSection, AvailabilityRules } from "@/types/bookings";
 import { BookingWidget } from "@/components/booking/booking-widget";
 
 // Same GA4 measurement ID as the marketing site, so booking-flow events chain
@@ -41,7 +41,7 @@ export default async function PublicBookingPage({
 
   const { data: page, error } = await supabaseAdmin
     .from("booking_pages")
-    .select("id, title, slug, description, duration_minutes, form_fields, availability_rules, redirect_url, is_active")
+    .select("id, title, slug, description, duration_minutes, form_fields, form_sections, availability_rules, redirect_url, is_active")
     .eq("slug", slug)
     .eq("is_active", true)
     .single();
@@ -51,6 +51,7 @@ export default async function PublicBookingPage({
   }
 
   const formFields = (page.form_fields as unknown as FormField[]) ?? [];
+  const formSections = (page.form_sections as unknown as FormSection[]) ?? [];
   const availability = (page.availability_rules as unknown as AvailabilityRules) ?? null;
 
   // Extract tracking params to pass through the booking flow
@@ -75,6 +76,7 @@ export default async function PublicBookingPage({
         description={page.description}
         durationMinutes={page.duration_minutes}
         formFields={formFields}
+        formSections={formSections}
         availability={availability}
         trackingParams={trackingParams}
         redirectUrl={page.redirect_url}

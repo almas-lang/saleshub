@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Pencil, Trash2, Check, X, Plus, Lock } from "lucide-react";
-import type { FormField } from "@/types/bookings";
+import { GripVertical, Pencil, Trash2, Check, X, Plus, Lock, BookmarkPlus } from "lucide-react";
+import { toast } from "sonner";
+import { safeFetch } from "@/lib/fetch";
+import type { FormField, FormSection } from "@/types/bookings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,14 +37,17 @@ const TYPE_COLORS: Record<string, string> = {
   select: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300",
 };
 
+const NO_SECTION = "__none__";
+
 interface FormFieldCardProps {
   field: FormField;
   locked?: boolean;
+  sections?: FormSection[];
   onUpdate: (field: FormField) => void;
   onDelete: (id: string) => void;
 }
 
-export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCardProps) {
+export function FormFieldCard({ field, locked, sections = [], onUpdate, onDelete }: FormFieldCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(field.label);
   const [editType, setEditType] = useState(field.type);
@@ -50,6 +55,9 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
   const [editPlaceholder, setEditPlaceholder] = useState(field.placeholder ?? "");
   const [editOptions, setEditOptions] = useState<string[]>(field.options ?? []);
   const [newOption, setNewOption] = useState("");
+  const [editAllowOther, setEditAllowOther] = useState(field.allowOther ?? false);
+  const [editOtherLabel, setEditOtherLabel] = useState(field.otherLabel ?? "");
+  const [editSectionId, setEditSectionId] = useState(field.sectionId ?? NO_SECTION);
 
   const {
     attributes,
@@ -76,6 +84,9 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
       required: editRequired,
       placeholder: editPlaceholder || undefined,
       options: hasOptions ? editOptions : undefined,
+      allowOther: hasOptions ? editAllowOther : undefined,
+      otherLabel: hasOptions && editAllowOther && editOtherLabel.trim() ? editOtherLabel.trim() : undefined,
+      sectionId: editSectionId === NO_SECTION ? undefined : editSectionId,
     });
     setIsEditing(false);
   }
@@ -86,6 +97,9 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
     setEditRequired(field.required);
     setEditPlaceholder(field.placeholder ?? "");
     setEditOptions(field.options ?? []);
+    setEditAllowOther(field.allowOther ?? false);
+    setEditOtherLabel(field.otherLabel ?? "");
+    setEditSectionId(field.sectionId ?? NO_SECTION);
     setIsEditing(false);
   }
 
@@ -97,6 +111,26 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
 
   function removeOption(index: number) {
     setEditOptions(editOptions.filter((_, i) => i !== index));
+  }
+
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
+  async function handleSaveToLibrary() {
+    setSavingToLibrary(true);
+    // Strip page-local id/sectionId — the library stores reusable questions only.
+    const { id: _id, sectionId: _sid, ...rest } = field;
+    void _id;
+    void _sid;
+    const result = await safeFetch("/api/form-field-library", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ field: rest }),
+    });
+    setSavingToLibrary(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Saved to library");
   }
 
   return (
@@ -159,6 +193,25 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
             placeholder="Placeholder text (optional)"
           />
 
+          {sections.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Section</span>
+              <Select value={editSectionId} onValueChange={setEditSectionId}>
+                <SelectTrigger className="h-8 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_SECTION}>No section</SelectItem>
+                  {sections.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {hasOptions && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">Options</p>
@@ -199,6 +252,21 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
                   <Plus className="size-3" />
                 </Button>
               </div>
+              <label className="flex items-center gap-1.5 text-sm">
+                <Checkbox
+                  checked={editAllowOther}
+                  onCheckedChange={(c) => setEditAllowOther(c === true)}
+                />
+                Allow &ldquo;Other&rdquo; (free text)
+              </label>
+              {editAllowOther && (
+                <Input
+                  value={editOtherLabel}
+                  onChange={(e) => setEditOtherLabel(e.target.value)}
+                  className="h-7 text-sm"
+                  placeholder="Other option label (default: Something else…)"
+                />
+              )}
             </div>
           )}
 
@@ -227,6 +295,16 @@ export function FormFieldCard({ field, locked, onUpdate, onDelete }: FormFieldCa
             </Badge>
           )}
           <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              onClick={handleSaveToLibrary}
+              disabled={savingToLibrary}
+              title="Save to library"
+            >
+              <BookmarkPlus className="size-3.5" />
+            </Button>
             <Button
               size="icon"
               variant="ghost"

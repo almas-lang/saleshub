@@ -32,6 +32,20 @@ export interface FormField {
   placeholder?: string;
   options?: string[];
   defaultValue?: string;
+  /** For radio/select: show an "Other" choice that reveals a free-text input. */
+  allowOther?: boolean;
+  /** Label for the "Other" choice. Defaults to "Something else…". */
+  otherLabel?: string;
+  /** Section this field belongs to. Undefined/unknown = ungrouped (renders first, no header). */
+  sectionId?: string;
+}
+
+/** A group of form fields rendered under a heading on the booking page. */
+export interface FormSection {
+  id: string;
+  title: string;
+  description?: string;
+  order: number;
 }
 
 export interface DaySchedule {

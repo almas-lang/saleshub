@@ -379,6 +379,16 @@ export const formFieldSchema = z.object({
   placeholder: z.string().optional(),
   options: z.array(z.string()).optional(),
   defaultValue: z.string().optional(),
+  allowOther: z.boolean().optional(),
+  otherLabel: z.string().optional(),
+  sectionId: z.string().optional(),
+});
+
+export const formSectionSchema = z.object({
+  id: z.string(),
+  title: z.string().min(1, "Title is required"),
+  description: z.string().optional(),
+  order: z.number().int(),
 });
 
 export const dayScheduleSchema = z.object({
@@ -404,6 +414,7 @@ export const bookingPageSchema = z.object({
   description: z.string().nullable().optional(),
   duration_minutes: z.number().int().min(15).max(480),
   form_fields: z.array(formFieldSchema).nullable().optional(),
+  form_sections: z.array(formSectionSchema).nullable().optional(),
   availability_rules: availabilityRulesSchema.nullable().optional(),
   assigned_to: z.array(z.string().uuid()).nullable().optional(),
   redirect_url: z.string().url().nullable().optional(),

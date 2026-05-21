@@ -10,6 +10,7 @@ import { DURATION_OPTIONS, DEFAULT_AVAILABILITY_RULES } from "@/lib/constants";
 import type {
   BookingPageWithCount,
   FormField,
+  FormSection,
   AvailabilityRules,
   TeamMember,
 } from "@/types/bookings";
@@ -29,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { FormFieldEditor } from "./form-field-editor";
+import { FormSectionsManager } from "./form-sections-manager";
 import { AvailabilityEditor } from "./availability-editor";
 
 function slugify(text: string) {
@@ -68,6 +70,11 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
   // Form fields
   const [formFields, setFormFields] = useState<FormField[]>(
     (page.form_fields as unknown as FormField[]) ?? []
+  );
+
+  // Form sections
+  const [formSections, setFormSections] = useState<FormSection[]>(
+    (page.form_sections as unknown as FormSection[]) ?? []
   );
 
   // Redirect URL after booking
@@ -116,6 +123,7 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
         assigned_to: assignedTo.length > 0 ? assignedTo : null,
         availability_rules: availability,
         form_fields: formFields,
+        form_sections: formSections,
         redirect_url: redirectUrl.trim() || null,
         confirmation_email: confirmEmail,
         confirmation_wa: confirmWa,
@@ -134,7 +142,7 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
     router.refresh();
   }, [
     title, slug, description, durationMinutes, isActive,
-    assignedTo, availability, formFields, redirectUrl, confirmEmail, confirmWa,
+    assignedTo, availability, formFields, formSections, redirectUrl, confirmEmail, confirmWa,
     page.id, router,
   ]);
 
@@ -292,6 +300,25 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
 
         <Separator />
 
+        {/* Form Sections */}
+        <section className="space-y-4">
+          <div>
+            <h2 className="text-lg font-medium">Sections</h2>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              Group questions under headings. Questions with no section appear first.
+            </p>
+          </div>
+          <FormSectionsManager
+            sections={formSections}
+            onChange={(sections) => {
+              setFormSections(sections);
+              markDirty();
+            }}
+          />
+        </section>
+
+        <Separator />
+
         {/* Form Fields */}
         <section className="space-y-4">
           <h2 className="text-lg font-medium">
@@ -299,6 +326,7 @@ export function BookingPageBuilder({ page, teamMembers }: BookingPageBuilderProp
           </h2>
           <FormFieldEditor
             fields={formFields}
+            sections={formSections}
             onChange={(fields) => {
               setFormFields(fields);
               markDirty();

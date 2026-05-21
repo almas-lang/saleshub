@@ -16,9 +16,10 @@ import {
   arrayMove,
 } from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
-import type { FormField } from "@/types/bookings";
+import type { FormField, FormSection } from "@/types/bookings";
 import { Button } from "@/components/ui/button";
 import { FormFieldCard } from "./form-field-card";
+import { LibraryPicker } from "./library-picker";
 
 /** Fields with these types cannot be deleted — they're required for bookings to work. */
 function isLocked(field: FormField) {
@@ -27,10 +28,11 @@ function isLocked(field: FormField) {
 
 interface FormFieldEditorProps {
   fields: FormField[];
+  sections?: FormSection[];
   onChange: (fields: FormField[]) => void;
 }
 
-export function FormFieldEditor({ fields, onChange }: FormFieldEditorProps) {
+export function FormFieldEditor({ fields, sections = [], onChange }: FormFieldEditorProps) {
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -68,6 +70,10 @@ export function FormFieldEditor({ fields, onChange }: FormFieldEditorProps) {
     onChange([...fields, newField]);
   }
 
+  function handleAddFromLibrary(field: Omit<FormField, "id" | "sectionId">) {
+    onChange([...fields, { ...field, id: `f-${Date.now()}` }]);
+  }
+
   return (
     <div className="space-y-3">
       <DndContext
@@ -85,6 +91,7 @@ export function FormFieldEditor({ fields, onChange }: FormFieldEditorProps) {
                 key={field.id}
                 field={field}
                 locked={isLocked(field)}
+                sections={sections}
                 onUpdate={handleUpdate}
                 onDelete={handleDelete}
               />
@@ -93,14 +100,17 @@ export function FormFieldEditor({ fields, onChange }: FormFieldEditorProps) {
         </SortableContext>
       </DndContext>
 
-      <Button
-        variant="outline"
-        className="w-full border-dashed border-muted-foreground/25"
-        onClick={handleAdd}
-      >
-        <Plus className="mr-2 size-4" />
-        Add question
-      </Button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          variant="outline"
+          className="w-full border-dashed border-muted-foreground/25"
+          onClick={handleAdd}
+        >
+          <Plus className="mr-2 size-4" />
+          Add question
+        </Button>
+        <LibraryPicker onAdd={handleAddFromLibrary} />
+      </div>
     </div>
   );
 }

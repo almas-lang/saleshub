@@ -132,6 +132,7 @@ export type Database = {
           description: string | null
           duration_minutes: number
           form_fields: Json | null
+          form_sections: Json | null
           google_calendar_id: string | null
           id: string
           is_active: boolean
@@ -149,6 +150,7 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           form_fields?: Json | null
+          form_sections?: Json | null
           google_calendar_id?: string | null
           id?: string
           is_active?: boolean
@@ -166,6 +168,7 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           form_fields?: Json | null
+          form_sections?: Json | null
           google_calendar_id?: string | null
           id?: string
           is_active?: boolean
@@ -242,6 +245,35 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_field_library: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          field: Json
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          field: Json
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          field?: Json
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_field_library_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "team_members"
             referencedColumns: ["id"]
           },
         ]
