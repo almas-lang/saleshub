@@ -174,26 +174,18 @@ export function BookingWidget({
 
   const [formData, setFormData] = useState<Record<string, string>>(formDefaults);
 
-  // Sections whose data is already filled start collapsed (returning leads with
-  // prefilled answers); empty sections start open. After mount this is purely
-  // user-driven via the header toggle / Edit button — we never auto-collapse
-  // mid-typing.
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
-    const collapsed = new Set<string>();
-    for (const group of groupFieldsBySection(formFields, formSections)) {
-      if (group.section && isSectionComplete(group.fields, formDefaults)) {
-        collapsed.add(group.section.id);
-      }
-    }
-    return collapsed;
+  // Only the contact details (the ungrouped bucket: name, email, phone) collapse.
+  // Question sections always render expanded. Contact starts collapsed when it's
+  // already filled (returning leads with prefilled answers); otherwise open.
+  // After mount this is purely user-driven via the header toggle / Edit button —
+  // we never auto-collapse mid-typing.
+  const [contactCollapsed, setContactCollapsed] = useState<boolean>(() => {
+    const contact = groupFieldsBySection(formFields, formSections).find(
+      (g) => !g.section
+    );
+    return contact ? isSectionComplete(contact.fields, formDefaults) : false;
   });
-  const toggleSection = (id: string) =>
-    setCollapsedSections((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggleContact = () => setContactCollapsed((v) => !v);
 
   const [submitting, setSubmitting] = useState(false);
   const [meetLink, setMeetLink] = useState<string | null>(null);
@@ -818,7 +810,7 @@ export function BookingWidget({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {renderFormSections(formFields, formSections, formData, updateField, errors, collapsedSections, toggleSection, slug)}
+                  {renderFormSections(formFields, formSections, formData, updateField, errors, contactCollapsed, toggleContact, slug)}
 
                   <Separator className="bg-gray-100" />
 
@@ -965,8 +957,8 @@ export function BookingWidget({
 // ── Smart Form Field Renderer ──────────────────
 
 /**
- * A section is "filled" when it has at least one answered field and no required
- * field is left blank — the trigger for starting it collapsed.
+ * The contact bucket is "filled" when it has at least one answered field and no
+ * required field is left blank — the trigger for starting it collapsed.
  */
 function isSectionComplete(
   fields: FormField[],
@@ -981,13 +973,14 @@ function isSectionComplete(
 }
 
 /**
- * Render fields grouped under their section headers. The ungrouped bucket (legacy
- * flat forms) renders first with no header, so existing pages look unchanged.
- * The 2-col short-text pairing in renderFormFields runs within each group, so it
- * never pairs across a section boundary.
+ * Render fields grouped under their section headers. The 2-col short-text pairing
+ * in renderFormFields runs within each group, so it never pairs across a section
+ * boundary.
  *
- * Sections in `collapsedSections` render as a compact summary of their answers
- * with an "Edit" button instead of the full field list.
+ * Only the ungrouped bucket (the lead's contact details: name, email, phone)
+ * collapses — when collapsed it shows a compact summary of the answers with an
+ * "Edit" button instead of the full field list. Named question sections always
+ * render expanded.
  */
 function renderFormSections(
   fields: FormField[],
@@ -995,8 +988,8 @@ function renderFormSections(
   formData: Record<string, string>,
   updateField: (label: string, value: string) => void,
   fieldErrors: Set<string>,
-  collapsedSections: Set<string>,
-  toggleSection: (id: string) => void,
+  contactCollapsed: boolean,
+  toggleContact: () => void,
   slug?: string
 ) {
   const groups = groupFieldsBySection(fields, sections);
@@ -1004,56 +997,59 @@ function renderFormSections(
   return groups.map((group) => {
     if (group.fields.length === 0) return null;
     const body = renderFormFields(group.fields, formData, updateField, fieldErrors, slug);
+
+    // Ungrouped bucket = contact details. Collapsible + editable.
     if (!group.section) {
+      const summary = group.fields
+        .map((f) => ({ label: f.label, value: (formData[f.label] ?? "").trim() }))
+        .filter((entry) => entry.value);
+
       return (
-        <div key="ungrouped" className="space-y-6">
-          {body}
+        <div key="contact" className="space-y-4">
+          <button
+            type="button"
+            onClick={toggleContact}
+            className="flex w-full items-center justify-between gap-3 text-left"
+            aria-expanded={!contactCollapsed}
+          >
+            <h3 className="text-base font-semibold text-gray-900">Your details</h3>
+            {contactCollapsed ? (
+              <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-indigo-600">
+                <Pencil className="size-3.5" />
+                Edit
+              </span>
+            ) : (
+              <ChevronDown className="size-5 shrink-0 text-gray-400" />
+            )}
+          </button>
+
+          {contactCollapsed ? (
+            <dl className="space-y-2 rounded-lg bg-gray-50 px-4 py-3">
+              {summary.map((entry) => (
+                <div key={entry.label} className="flex flex-col gap-0.5">
+                  <dt className="text-xs font-medium text-gray-500">{entry.label}</dt>
+                  <dd className="text-sm text-gray-900">{entry.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <div className="space-y-6">{body}</div>
+          )}
         </div>
       );
     }
 
+    // Named question sections always render expanded — never collapsible.
     const section = group.section;
-    const collapsed = collapsedSections.has(section.id);
-    const summary = group.fields
-      .map((f) => ({ label: f.label, value: (formData[f.label] ?? "").trim() }))
-      .filter((entry) => entry.value);
-
     return (
       <div key={section.id} className="space-y-4">
-        <button
-          type="button"
-          onClick={() => toggleSection(section.id)}
-          className="flex w-full items-start justify-between gap-3 border-t border-gray-100 pt-5 text-left first:border-t-0 first:pt-0"
-          aria-expanded={!collapsed}
-        >
-          <div className="space-y-1">
-            <h3 className="text-base font-semibold text-gray-900">{section.title}</h3>
-            {section.description && (
-              <p className="text-sm italic text-gray-500">{section.description}</p>
-            )}
-          </div>
-          {collapsed ? (
-            <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-indigo-600">
-              <Pencil className="size-3.5" />
-              Edit
-            </span>
-          ) : (
-            <ChevronDown className="size-5 shrink-0 text-gray-400" />
+        <div className="space-y-1 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0">
+          <h3 className="text-base font-semibold text-gray-900">{section.title}</h3>
+          {section.description && (
+            <p className="text-sm italic text-gray-500">{section.description}</p>
           )}
-        </button>
-
-        {collapsed ? (
-          <dl className="space-y-2 rounded-lg bg-gray-50 px-4 py-3">
-            {summary.map((entry) => (
-              <div key={entry.label} className="flex flex-col gap-0.5">
-                <dt className="text-xs font-medium text-gray-500">{entry.label}</dt>
-                <dd className="text-sm text-gray-900">{entry.value}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <div className="space-y-6">{body}</div>
-        )}
+        </div>
+        <div className="space-y-6">{body}</div>
       </div>
     );
   });
