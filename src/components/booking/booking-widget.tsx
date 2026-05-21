@@ -14,7 +14,9 @@ import {
   Phone,
   Mail,
   ChevronRight,
+  ChevronDown,
   Check,
+  Pencil,
 } from "lucide-react";
 import { safeFetch } from "@/lib/fetch";
 import { groupFieldsBySection } from "@/lib/booking-form";
@@ -171,6 +173,28 @@ export function BookingWidget({
   }, [formFields]);
 
   const [formData, setFormData] = useState<Record<string, string>>(formDefaults);
+
+  // Sections whose data is already filled start collapsed (returning leads with
+  // prefilled answers); empty sections start open. After mount this is purely
+  // user-driven via the header toggle / Edit button — we never auto-collapse
+  // mid-typing.
+  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
+    const collapsed = new Set<string>();
+    for (const group of groupFieldsBySection(formFields, formSections)) {
+      if (group.section && isSectionComplete(group.fields, formDefaults)) {
+        collapsed.add(group.section.id);
+      }
+    }
+    return collapsed;
+  });
+  const toggleSection = (id: string) =>
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const [submitting, setSubmitting] = useState(false);
   const [meetLink, setMeetLink] = useState<string | null>(null);
   const [errors, setErrors] = useState<Set<string>>(new Set());
@@ -794,7 +818,7 @@ export function BookingWidget({
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  {renderFormSections(formFields, formSections, formData, updateField, errors, slug)}
+                  {renderFormSections(formFields, formSections, formData, updateField, errors, collapsedSections, toggleSection, slug)}
 
                   <Separator className="bg-gray-100" />
 
@@ -941,10 +965,29 @@ export function BookingWidget({
 // ── Smart Form Field Renderer ──────────────────
 
 /**
+ * A section is "filled" when it has at least one answered field and no required
+ * field is left blank — the trigger for starting it collapsed.
+ */
+function isSectionComplete(
+  fields: FormField[],
+  formData: Record<string, string>
+): boolean {
+  if (fields.length === 0) return false;
+  const hasValue = fields.some((f) => (formData[f.label] ?? "").trim());
+  const requiredOk = fields.every(
+    (f) => !f.required || (formData[f.label] ?? "").trim()
+  );
+  return hasValue && requiredOk;
+}
+
+/**
  * Render fields grouped under their section headers. The ungrouped bucket (legacy
  * flat forms) renders first with no header, so existing pages look unchanged.
  * The 2-col short-text pairing in renderFormFields runs within each group, so it
  * never pairs across a section boundary.
+ *
+ * Sections in `collapsedSections` render as a compact summary of their answers
+ * with an "Edit" button instead of the full field list.
  */
 function renderFormSections(
   fields: FormField[],
@@ -952,6 +995,8 @@ function renderFormSections(
   formData: Record<string, string>,
   updateField: (label: string, value: string) => void,
   fieldErrors: Set<string>,
+  collapsedSections: Set<string>,
+  toggleSection: (id: string) => void,
   slug?: string
 ) {
   const groups = groupFieldsBySection(fields, sections);
@@ -966,15 +1011,49 @@ function renderFormSections(
         </div>
       );
     }
+
+    const section = group.section;
+    const collapsed = collapsedSections.has(section.id);
+    const summary = group.fields
+      .map((f) => ({ label: f.label, value: (formData[f.label] ?? "").trim() }))
+      .filter((entry) => entry.value);
+
     return (
-      <div key={group.section.id} className="space-y-4">
-        <div className="space-y-1 border-t border-gray-100 pt-5 first:border-t-0 first:pt-0">
-          <h3 className="text-base font-semibold text-gray-900">{group.section.title}</h3>
-          {group.section.description && (
-            <p className="text-sm italic text-gray-500">{group.section.description}</p>
+      <div key={section.id} className="space-y-4">
+        <button
+          type="button"
+          onClick={() => toggleSection(section.id)}
+          className="flex w-full items-start justify-between gap-3 border-t border-gray-100 pt-5 text-left first:border-t-0 first:pt-0"
+          aria-expanded={!collapsed}
+        >
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-gray-900">{section.title}</h3>
+            {section.description && (
+              <p className="text-sm italic text-gray-500">{section.description}</p>
+            )}
+          </div>
+          {collapsed ? (
+            <span className="flex shrink-0 items-center gap-1 text-sm font-medium text-indigo-600">
+              <Pencil className="size-3.5" />
+              Edit
+            </span>
+          ) : (
+            <ChevronDown className="size-5 shrink-0 text-gray-400" />
           )}
-        </div>
-        <div className="space-y-6">{body}</div>
+        </button>
+
+        {collapsed ? (
+          <dl className="space-y-2 rounded-lg bg-gray-50 px-4 py-3">
+            {summary.map((entry) => (
+              <div key={entry.label} className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium text-gray-500">{entry.label}</dt>
+                <dd className="text-sm text-gray-900">{entry.value}</dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <div className="space-y-6">{body}</div>
+        )}
       </div>
     );
   });
