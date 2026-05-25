@@ -95,9 +95,11 @@ export async function GET(request: Request) {
     const now = new Date().toISOString();
 
     // 1. Fetch due enrollments (ordered by next_send_at to prevent starvation)
-    const { data: enrollments, error: enrollError } = await supabaseAdmin.from("drip_enrollments")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: enrollments, error: enrollError } = await (supabaseAdmin as any).from("drip_enrollments")
       .select("*")
       .eq("status", "active")
+      .neq("engine", "v2") // v2 runs are handled by /api/cron/journey-worker — never double-process
       .lte("next_send_at", now)
       .order("next_send_at", { ascending: true })
       .limit(BATCH_LIMIT);
@@ -107,7 +109,7 @@ export async function GET(request: Request) {
       const claimTime = new Date(Date.now() + 120_000).toISOString(); // 2 min claim window
       await supabaseAdmin.from("drip_enrollments")
         .update({ next_send_at: claimTime })
-        .in("id", enrollments.map((e) => e.id))
+        .in("id", enrollments.map((e: { id: string }) => e.id))
         .eq("status", "active");
     }
 

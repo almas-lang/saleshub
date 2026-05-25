@@ -5,6 +5,25 @@ import { createUnifiedCampaignSchema } from "@/lib/validations";
 import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
 import { buildNodeToDbIdMap } from "@/lib/campaigns/journey-engine";
 import { validateCampaignForActivation } from "@/lib/campaigns/campaign-validation";
+import { buildJourneyEdges } from "@/lib/campaigns/v2/import";
+
+/**
+ * Persist the v2 journey graph (journey_edges) for a campaign. Additive and
+ * idempotent — keeps the v2 graph in sync on every save so cutover is just an
+ * engine flag flip. Never throws into the save flow.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function persistJourneyEdges(supabase: any, campaignId: string, flowData: unknown, insertedSteps: { id: string; order: number }[]) {
+  try {
+    const flow = (flowData as { nodes?: unknown[]; edges?: unknown[] }) ?? { nodes: [], edges: [] };
+    if (!flow.nodes?.length || !insertedSteps.length) return;
+    const imp = buildJourneyEdges(flow as { nodes: never[]; edges: never[] }, insertedSteps, campaignId, "unified", { missingPolicy: "skip" });
+    await supabase.from("journey_edges").delete().eq("campaign_id", campaignId);
+    if (imp.edgeRows.length) await supabase.from("journey_edges").insert(imp.edgeRows);
+  } catch (e) {
+    console.error("[unified] persistJourneyEdges failed (non-fatal):", e instanceof Error ? e.message : e);
+  }
+}
 
 export async function GET(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -266,6 +285,9 @@ export async function POST(request: Request) {
     }
   }
 
+  // 3b. Persist the v2 journey graph (additive; engine flip happens at cutover)
+  await persistJourneyEdges(supabase, campaign.id, flow_data, insertedSteps);
+
   // 4. Activate if requested
   if (activate) {
     await supabase
@@ -452,6 +474,9 @@ export async function PATCH(request: NextRequest) {
         }
       }
     }
+
+    // persist the v2 journey graph for the replaced steps
+    await persistJourneyEdges(supabase, id, body.flow_data ?? null, (insertedSteps ?? []) as { id: string; order: number }[]);
   }
 
   // ── Status transition side-effects ──
