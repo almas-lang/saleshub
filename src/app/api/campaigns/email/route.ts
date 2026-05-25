@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createEmailCampaignSchema } from "@/lib/validations";
 import type { EmailCampaignWithStats, EmailCampaign, EmailSendStatus, AudienceFilter } from "@/types/campaigns";
 import { enrollEmailAudience, getEmailAudienceContactIds } from "@/lib/campaigns/email-audience";
+import { buildNodeToDbIdMap } from "@/lib/campaigns/journey-engine";
+import { validateCampaignForActivation } from "@/lib/campaigns/campaign-validation";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -156,6 +158,16 @@ export async function POST(request: Request) {
 
   const { name, type, audience_filter, steps, activate, flow_data, trigger_event, branching_edges, stop_condition } = parsed.data;
 
+  // Validate before creating anything when activating — a broken journey must not go live.
+  let activationWarnings: string[] = [];
+  if (activate) {
+    const { errors, warnings } = await validateCampaignForActivation({ steps, edges: branching_edges });
+    if (errors.length) {
+      return NextResponse.json({ error: errors.join(" ") }, { status: 400 });
+    }
+    activationWarnings = warnings;
+  }
+
   const { data: campaign, error: campaignError } = await supabase
     .from("email_campaigns")
     .insert({
@@ -203,15 +215,8 @@ export async function POST(request: Request) {
 
   // Pass 2: Set branching pointers if edges provided
   if (branching_edges?.length && insertedSteps.length > 0) {
-    // Map node_id → DB step UUID
-    const nodeToDbId = new Map<string, string>();
-    for (let i = 0; i < steps.length; i++) {
-      const nodeId = steps[i].node_id;
-      const dbStep = insertedSteps[i];
-      if (nodeId && dbStep) {
-        nodeToDbId.set(nodeId, dbStep.id);
-      }
-    }
+    // Map node_id → DB step UUID (matched by `order`, not array position)
+    const nodeToDbId = buildNodeToDbIdMap(steps, insertedSteps);
 
     // Apply branching edges
     for (const edge of branching_edges) {
@@ -270,7 +275,10 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json(campaign, { status: 201 });
+  return NextResponse.json(
+    activationWarnings.length ? { ...campaign, warnings: activationWarnings } : campaign,
+    { status: 201 },
+  );
 }
 
 export async function PATCH(request: NextRequest) {
@@ -320,6 +328,21 @@ export async function PATCH(request: NextRequest) {
     .select("status, type, audience_filter")
     .eq("id", id)
     .single();
+
+  // Validate on first activation (draft→active) only. Email PATCH never changes
+  // step structure (content-only edits), so a resume can't introduce breakage.
+  let activationWarnings: string[] = [];
+  if (update.status === "active" && existing && existing.status === "draft") {
+    const { data: storedSteps } = await supabase
+      .from("email_steps")
+      .select("step_type, condition, next_step_id_yes, next_step_id_no")
+      .eq("campaign_id", id);
+    const result = await validateCampaignForActivation({ steps: storedSteps ?? [] });
+    if (result.errors.length) {
+      return NextResponse.json({ error: result.errors.join(" ") }, { status: 400 });
+    }
+    activationWarnings = result.warnings;
+  }
 
   let data: Record<string, unknown> | null = null;
   let error: { message: string } | null = null;
@@ -392,7 +415,7 @@ export async function PATCH(request: NextRequest) {
         const extraOnly: AudienceFilter = { source: "__custom_only__", extra_emails: filter.extra_emails };
         enrolled = await enrollEmailAudience(id, extraOnly);
       }
-      return NextResponse.json({ ...data, enrolled });
+      return NextResponse.json({ ...data, enrolled, ...(activationWarnings.length ? { warnings: activationWarnings } : {}) });
     } else {
       // One-time / newsletter: queue email_sends
       const { data: firstStep } = await supabase
@@ -414,12 +437,12 @@ export async function PATCH(request: NextRequest) {
           }));
           await supabase.from("email_sends").insert(sendRows);
         }
-        return NextResponse.json({ ...data, queued: contactIds.length });
+        return NextResponse.json({ ...data, queued: contactIds.length, ...(activationWarnings.length ? { warnings: activationWarnings } : {}) });
       }
     }
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(activationWarnings.length ? { ...data, warnings: activationWarnings } : data);
 }
 
 export async function DELETE(request: NextRequest) {

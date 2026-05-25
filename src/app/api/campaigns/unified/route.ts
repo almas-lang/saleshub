@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { createUnifiedCampaignSchema } from "@/lib/validations";
 import { autoEnrollIntoDrips } from "@/lib/contacts/auto-enroll";
+import { buildNodeToDbIdMap } from "@/lib/campaigns/journey-engine";
+import { validateCampaignForActivation } from "@/lib/campaigns/campaign-validation";
 
 export async function GET(request: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -160,6 +162,16 @@ export async function POST(request: Request) {
 
   const { name, type, audience_filter, steps, activate, flow_data, branching_edges, stop_condition, trigger_event, trigger_stage_id } = parsed.data;
 
+  // Validate before creating anything when activating — a broken journey must not go live.
+  let activationWarnings: string[] = [];
+  if (activate) {
+    const { errors, warnings } = await validateCampaignForActivation({ steps, edges: branching_edges });
+    if (errors.length) {
+      return NextResponse.json({ error: errors.join(" ") }, { status: 400 });
+    }
+    activationWarnings = warnings;
+  }
+
   // 1. Insert campaign as draft
   const { data: campaign, error: campaignError } = await supabase
     .from("unified_campaigns")
@@ -217,15 +229,7 @@ export async function POST(request: Request) {
 
   // 3. Set branching pointers if edges provided
   if (branching_edges?.length && insertedSteps.length > 0) {
-    const nodeIdToStepId = new Map<string, string>();
-    // Match by order field — insertedSteps may not come back in insertion order
-    const stepsByOrder = new Map(insertedSteps.map((s) => [s.order, s.id]));
-    steps.forEach((s) => {
-      if (s.node_id && s.order != null) {
-        const dbId = stepsByOrder.get(s.order);
-        if (dbId) nodeIdToStepId.set(s.node_id, dbId);
-      }
-    });
+    const nodeIdToStepId = buildNodeToDbIdMap(steps, insertedSteps);
 
     // Group edges by source+branch to handle parallel sends (e.g., condition yes→email + yes→WA)
     // When multiple targets share the same branch, chain them: first gets the pointer, first→second via next_step_id_no
@@ -302,7 +306,11 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ id: campaign.id, status: activate ? "active" : "draft" });
+  return NextResponse.json({
+    id: campaign.id,
+    status: activate ? "active" : "draft",
+    ...(activationWarnings.length ? { warnings: activationWarnings } : {}),
+  });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -338,6 +346,28 @@ export async function PATCH(request: NextRequest) {
       { error: "Cannot modify steps of an active campaign. Pause it first." },
       { status: 400 }
     );
+  }
+
+  // Validate on first activation (draft→active) or when steps are being changed.
+  // A plain resume (paused→active with no step changes) skips validation so an
+  // operational pause/resume can't be blocked by drift it didn't introduce.
+  let activationWarnings: string[] = [];
+  const uniStepsChanged = Array.isArray(body.steps) && body.steps.length > 0;
+  if (newStatus === "active" && oldStatus !== "active" && (oldStatus === "draft" || uniStepsChanged)) {
+    let result;
+    if (uniStepsChanged) {
+      result = await validateCampaignForActivation({ steps: body.steps, edges: body.branching_edges });
+    } else {
+      const { data: storedSteps } = await supabase
+        .from("unified_steps")
+        .select("step_type, channel, condition, wa_template_name, wa_template_language, wa_template_params, next_step_id_yes, next_step_id_no")
+        .eq("campaign_id", id);
+      result = await validateCampaignForActivation({ steps: storedSteps ?? [] });
+    }
+    if (result.errors.length) {
+      return NextResponse.json({ error: result.errors.join(" ") }, { status: 400 });
+    }
+    activationWarnings = result.warnings;
   }
 
   const update: Record<string, unknown> = {};
@@ -389,16 +419,10 @@ export async function PATCH(request: NextRequest) {
     const branchingEdges = body.branching_edges as Array<{ source_node_id: string; target_node_id: string; branch: string | null }> | undefined;
     const steps = body.steps as Array<Record<string, unknown>>;
     if (branchingEdges?.length && insertedSteps?.length) {
-      const nodeIdToStepId = new Map<string, string>();
-      const stepsByOrder = new Map<number, string>(
-        insertedSteps.map((s: { id: string; order: number }) => [s.order, s.id])
+      const nodeIdToStepId = buildNodeToDbIdMap(
+        steps as { node_id?: string | null; order?: number | null }[],
+        insertedSteps,
       );
-      steps.forEach((s) => {
-        if (s.node_id && s.order != null) {
-          const dbId = stepsByOrder.get(s.order as number);
-          if (dbId) nodeIdToStepId.set(s.node_id as string, dbId);
-        }
-      });
 
       // Group edges by source+branch to handle parallel sends (same as POST)
       const edgeGroups = new Map<string, string[]>();
@@ -508,7 +532,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { data } = await supabase.from("unified_campaigns").select("*").eq("id", id).single();
-  return NextResponse.json(data);
+  return NextResponse.json(activationWarnings.length ? { ...data, warnings: activationWarnings } : data);
 }
 
 export async function DELETE(request: NextRequest) {

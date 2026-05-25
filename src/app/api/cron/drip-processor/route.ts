@@ -5,6 +5,7 @@ import { sendEmail, renderVariables, getUnsubscribeUrl } from "@/lib/email/clien
 import { renderDripEmail } from "@/lib/email/templates/drip-wrapper";
 import { renderDripWrapper } from "@/lib/email/templates/drip-wrapper";
 import { evaluateCondition } from "@/lib/campaigns/condition-evaluators";
+import { isLegacyLinearCampaign, resolveNextStep } from "@/lib/campaigns/journey-engine";
 import { buildGoogleCalendarUrl, buildAppleCalendarUrl } from "@/lib/calendar-links";
 import { logger } from "@/lib/logger";
 
@@ -129,7 +130,7 @@ export async function GET(request: Request) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: campaign } = await (supabaseAdmin as any)
             .from("unified_campaigns")
-            .select("id, status, type, stop_condition")
+            .select("id, status, type, stop_condition, flow_data")
             .eq("id", enrollment.campaign_id)
             .single();
 
@@ -175,6 +176,7 @@ export async function GET(request: Request) {
 
           const steps = uniSteps as unknown as UnifiedStepRow[];
           const stepMap = new Map(steps.map((s) => [s.id, s]));
+          const isLegacyLinear = isLegacyLinearCampaign(campaign.flow_data, steps);
 
           let currentStep: UnifiedStepRow | undefined;
           if (enrollment.current_step_id) currentStep = stepMap.get(enrollment.current_step_id);
@@ -520,24 +522,10 @@ export async function GET(request: Request) {
             sent++;
           }
 
-          // Advance to next step
-          let nextStep: UnifiedStepRow | undefined;
-          if (currentStep.next_step_id_no) {
-            nextStep = stepMap.get(currentStep.next_step_id_no);
-          } else {
-            nextStep = steps.find((s) => s.order > currentStep!.order);
-          }
-
-          // Loop guard: if next step points back to current step (A→B→A), break the cycle
-          if (nextStep && nextStep.id === currentStep.id) {
-            await logger.error("drip-processor", `Circular pointer detected: step ${currentStep.id} points to itself`, { enrollment_id: enrollment.id });
-            nextStep = steps.find((s) => s.order > currentStep!.order && s.id !== currentStep!.id);
-          } else if (nextStep && nextStep.next_step_id_no === currentStep.id) {
-            await logger.error("drip-processor", `Circular pointer detected: step ${currentStep.id} <-> step ${nextStep.id}`, { enrollment_id: enrollment.id });
-            // Skip the circular pair and find the next step after both
-            const maxOrder = Math.max(currentStep.order, nextStep.order);
-            nextStep = steps.find((s) => s.order > maxOrder);
-          }
+          // Advance to next step.
+          // Graph campaigns: a branch leaf (no next pointer) terminates here.
+          // Legacy linear campaigns: advance by order. Loop guards live in the helper.
+          const nextStep = resolveNextStep(currentStep, steps, stepMap, isLegacyLinear);
 
           if (nextStep) {
             let nextSendAt: string;
@@ -580,7 +568,7 @@ export async function GET(request: Request) {
           // ── EMAIL DRIP BRANCH ──
           const { data: campaign } = await supabaseAdmin
             .from("email_campaigns")
-            .select("id, status, type, stop_condition")
+            .select("id, status, type, stop_condition, flow_data")
             .eq("id", enrollment.campaign_id)
             .single();
 
@@ -626,6 +614,7 @@ export async function GET(request: Request) {
 
           const steps = emailSteps as EmailStepRow[];
           const stepMap = new Map(steps.map((s) => [s.id, s]));
+          const isLegacyLinear = isLegacyLinearCampaign(campaign.flow_data, steps);
 
           // Resolve current step: prefer step ID, fallback to order
           let currentStep: EmailStepRow | undefined;
@@ -857,13 +846,8 @@ export async function GET(request: Request) {
                 status: "failed",
                 sent_at: null,
               });
-              // Advance to next step instead of stalling
-              let nextStep: EmailStepRow | undefined;
-              if (currentStep.next_step_id_no) {
-                nextStep = stepMap.get(currentStep.next_step_id_no);
-              } else {
-                nextStep = steps.find((s) => s.order > currentStep!.order);
-              }
+              // Advance to next step instead of stalling (graph leaf terminates)
+              const nextStep = resolveNextStep(currentStep, steps, stepMap, isLegacyLinear);
               if (nextStep) {
                 const nextSendAt = new Date(Date.now() + nextStep.delay_hours * 60 * 60 * 1000).toISOString();
                 await supabaseAdmin.from("drip_enrollments")
@@ -934,23 +918,9 @@ export async function GET(request: Request) {
           sent++;
 
           // ── Advance to next step ──
-          let nextStep: EmailStepRow | undefined;
-
-          if (currentStep.next_step_id_no) {
-            // Branching campaign: follow the "no" (default/next) pointer
-            nextStep = stepMap.get(currentStep.next_step_id_no);
-          } else {
-            // Legacy linear: find next by order
-            nextStep = steps.find((s) => s.order > currentStep!.order);
-          }
-
-          // Loop guard
-          if (nextStep && nextStep.id === currentStep.id) {
-            nextStep = steps.find((s) => s.order > currentStep!.order && s.id !== currentStep!.id);
-          } else if (nextStep && nextStep.next_step_id_no === currentStep.id) {
-            const maxOrder = Math.max(currentStep.order, nextStep.order);
-            nextStep = steps.find((s) => s.order > maxOrder);
-          }
+          // Graph campaigns: a branch leaf (no next pointer) terminates here.
+          // Legacy linear campaigns: advance by order. Loop guards live in the helper.
+          const nextStep = resolveNextStep(currentStep, steps, stepMap, isLegacyLinear);
 
           if (nextStep) {
             const nextSendAt = new Date(
@@ -972,7 +942,7 @@ export async function GET(request: Request) {
           // ── WHATSAPP DRIP BRANCH (with branching support) ──
           const { data: campaign } = await supabaseAdmin
             .from("wa_campaigns")
-            .select("id, status, type, stop_condition")
+            .select("id, status, type, stop_condition, flow_data")
             .eq("id", enrollment.campaign_id)
             .single();
 
@@ -1017,6 +987,7 @@ export async function GET(request: Request) {
 
           const steps = waSteps as unknown as WAStep[];
           const stepMap = new Map(steps.map((s) => [s.id, s]));
+          const isLegacyLinear = isLegacyLinearCampaign(campaign.flow_data, steps);
 
           // Resolve current step: prefer step ID, fallback to order
           let currentStep: WAStep | undefined;
@@ -1201,13 +1172,8 @@ export async function GET(request: Request) {
                 contact_id: contact.id,
                 template: currentStep.wa_template_name,
               });
-              // Advance to next step
-              let skipNextStep: WAStep | undefined;
-              if (currentStep.next_step_id_no) {
-                skipNextStep = stepMap.get(currentStep.next_step_id_no);
-              } else {
-                skipNextStep = steps.find((s) => s.order > currentStep!.order);
-              }
+              // Advance to next step (graph leaf terminates)
+              const skipNextStep = resolveNextStep(currentStep, steps, stepMap, isLegacyLinear);
               if (skipNextStep) {
                 const nextSendAt = new Date(Date.now() + skipNextStep.delay_hours * 60 * 60 * 1000).toISOString();
                 await supabaseAdmin.from("drip_enrollments")
@@ -1315,23 +1281,9 @@ export async function GET(request: Request) {
           sent++;
 
           // ── Advance to next step ──
-          let nextStep: WAStep | undefined;
-
-          if (currentStep.next_step_id_no) {
-            // Branching campaign: follow the "no" (default/next) pointer
-            nextStep = stepMap.get(currentStep.next_step_id_no);
-          } else {
-            // Legacy linear: find next by order
-            nextStep = steps.find((s) => s.order > currentStep!.order);
-          }
-
-          // Loop guard
-          if (nextStep && nextStep.id === currentStep.id) {
-            nextStep = steps.find((s) => s.order > currentStep!.order && s.id !== currentStep!.id);
-          } else if (nextStep && nextStep.next_step_id_no === currentStep.id) {
-            const maxOrder = Math.max(currentStep.order, nextStep.order);
-            nextStep = steps.find((s) => s.order > maxOrder);
-          }
+          // Graph campaigns: a branch leaf (no next pointer) terminates here.
+          // Legacy linear campaigns: advance by order. Loop guards live in the helper.
+          const nextStep = resolveNextStep(currentStep, steps, stepMap, isLegacyLinear);
 
           if (nextStep) {
             const nextSendAt = new Date(

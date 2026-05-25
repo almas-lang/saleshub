@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createCampaignSchema } from "@/lib/validations";
 import type { WACampaignWithStats, WACampaign, WASendStatus, AudienceFilter } from "@/types/campaigns";
 import { enrollAudience } from "@/lib/campaigns/wa-audience";
+import { buildNodeToDbIdMap } from "@/lib/campaigns/journey-engine";
+import { validateCampaignForActivation } from "@/lib/campaigns/campaign-validation";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -154,6 +156,16 @@ export async function POST(request: Request) {
 
   const { name, type, audience_filter, steps, activate, flow_data, branching_edges, stop_condition } = parsed.data;
 
+  // Validate before creating anything when activating — a broken journey must not go live.
+  let activationWarnings: string[] = [];
+  if (activate) {
+    const { errors, warnings } = await validateCampaignForActivation({ steps, edges: branching_edges });
+    if (errors.length) {
+      return NextResponse.json({ error: errors.join(" ") }, { status: 400 });
+    }
+    activationWarnings = warnings;
+  }
+
   // 1. Insert campaign as draft
   const { data: campaign, error: campaignError } = await supabase
     .from("wa_campaigns")
@@ -203,15 +215,8 @@ export async function POST(request: Request) {
 
   // 3. Pass 2: Set branching pointers if edges provided
   if (branching_edges?.length && insertedSteps.length > 0) {
-    // Map node_id → DB step UUID
-    const nodeToDbId = new Map<string, string>();
-    for (let i = 0; i < steps.length; i++) {
-      const nodeId = steps[i].node_id;
-      const dbStep = insertedSteps[i];
-      if (nodeId && dbStep) {
-        nodeToDbId.set(nodeId, dbStep.id);
-      }
-    }
+    // Map node_id → DB step UUID (matched by `order`, not array position)
+    const nodeToDbId = buildNodeToDbIdMap(steps, insertedSteps);
 
     // Apply branching edges
     for (const edge of branching_edges) {
@@ -235,7 +240,10 @@ export async function POST(request: Request) {
       .eq("id", campaign.id);
   }
 
-  return NextResponse.json(campaign, { status: 201 });
+  return NextResponse.json(
+    activationWarnings.length ? { ...campaign, warnings: activationWarnings } : campaign,
+    { status: 201 },
+  );
 }
 
 export async function PATCH(request: NextRequest) {
@@ -280,6 +288,30 @@ export async function PATCH(request: NextRequest) {
     .select("status, type, audience_filter")
     .eq("id", id)
     .single();
+
+  // Validate on first activation (draft→active) or when steps are being changed.
+  // A plain resume (paused→active with no step changes) skips validation.
+  let activationWarnings: string[] = [];
+  const waStepsChanged = Array.isArray(body.steps) && body.steps.length > 0;
+  if (update.status === "active" && existing && existing.status !== "active" && (existing.status === "draft" || waStepsChanged)) {
+    let result;
+    if (waStepsChanged) {
+      result = await validateCampaignForActivation({
+        steps: body.steps as Parameters<typeof validateCampaignForActivation>[0]["steps"],
+        edges: body.branching_edges as Parameters<typeof validateCampaignForActivation>[0]["edges"],
+      });
+    } else {
+      const { data: storedSteps } = await supabase
+        .from("wa_steps")
+        .select("step_type, condition, wa_template_name, wa_template_language, wa_template_params, next_step_id_yes, next_step_id_no")
+        .eq("campaign_id", id);
+      result = await validateCampaignForActivation({ steps: storedSteps ?? [] });
+    }
+    if (result.errors.length) {
+      return NextResponse.json({ error: result.errors.join(" ") }, { status: 400 });
+    }
+    activationWarnings = result.warnings;
+  }
 
   const { data, error } = await supabase
     .from("wa_campaigns")
@@ -328,15 +360,8 @@ export async function PATCH(request: NextRequest) {
     }> | undefined;
 
     if (branchingEdges?.length && insertedSteps?.length) {
-      const steps = body.steps as Array<{ node_id?: string }>;
-      const nodeToDbId = new Map<string, string>();
-      for (let i = 0; i < steps.length; i++) {
-        const nodeId = steps[i].node_id;
-        const dbStep = insertedSteps[i];
-        if (nodeId && dbStep) {
-          nodeToDbId.set(nodeId, dbStep.id);
-        }
-      }
+      const steps = body.steps as Array<{ node_id?: string; order?: number }>;
+      const nodeToDbId = buildNodeToDbIdMap(steps, insertedSteps);
 
       for (const edge of branchingEdges) {
         const sourceDbId = nodeToDbId.get(edge.source_node_id);
@@ -364,11 +389,11 @@ export async function PATCH(request: NextRequest) {
     // Only bulk-enroll for "existing" or "both" — "new_leads" are auto-enrolled via auto-enroll.ts
     if (enrollmentType === "existing" || enrollmentType === "both") {
       const enrolled = await enrollAudience(id, af);
-      return NextResponse.json({ ...data, enrolled });
+      return NextResponse.json({ ...data, enrolled, ...(activationWarnings.length ? { warnings: activationWarnings } : {}) });
     }
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(activationWarnings.length ? { ...data, warnings: activationWarnings } : data);
 }
 
 export async function DELETE(request: NextRequest) {
