@@ -2,22 +2,28 @@
  * v2 journey engine — the pure routing core.
  *
  * `runTick` advances one run from its current node as far as it can WITHOUT
- * waiting: it emits every 0-delay send it passes (this is how parallel sends,
- * chained at 0 delay, all fire together), evaluates conditions deterministically,
- * and stops at the first future wait ("park") or at a terminal ("terminate").
+ * waiting: it processes the current (already-due) node, then walks forward,
+ * emitting every 0-delay send it passes (this is how parallel sends, chained at
+ * 0 delay, all fire together), evaluating conditions deterministically, and
+ * stopping at the first node whose delay pushes it into the future ("park") or at
+ * a terminal ("terminate").
+ *
+ * Delay model: each node carries its own `delay` (the builder collapses separate
+ * wait blocks into the next step — matches `unified_steps.delay_hours/delay_mode`).
+ * A node's delay is applied when the journey ARRIVES at it. The starting cursor
+ * node is always already-due, so its own delay is not re-applied.
  *
  * Guarantees that fix the old engine:
- *  - Routing follows edges only. There is NO "next by order" fallback. An
- *    unmatched condition branch or a missing edge is an explicit, logged
- *    terminal — a branch leaf ends the run instead of bleeding into a sibling.
+ *  - Routing follows edges only. No "next by order" fallback. An unmatched
+ *    condition branch or a missing edge is an explicit, logged terminal — a
+ *    branch leaf ends the run instead of bleeding into a sibling.
  *  - Timing comes from the scheduler with explicit inputs, logged every time.
- *  - Pure: no DB, no `new Date()`. The clock and all lookups are injected, so the
- *    whole thing is replayable in the simulation harness.
+ *  - Pure: no DB, no `new Date()`. Clock and lookups are injected → replayable.
  */
 
 import { computeWaitTime, type WaitSpec } from "./scheduler.ts";
 
-export type NodeType = "trigger" | "send" | "wait" | "condition" | "stop";
+export type NodeType = "trigger" | "send" | "condition" | "stop";
 export type Branch = "default" | "yes" | "no";
 
 export interface ConditionSpec {
@@ -29,8 +35,8 @@ export interface JourneyNode {
   id: string;
   type: NodeType;
   channel?: "email" | "whatsapp"; // send nodes
-  wait?: WaitSpec; // wait nodes
   condition?: ConditionSpec; // condition nodes
+  delay?: WaitSpec; // applied when the journey arrives at this node
 }
 
 export interface JourneyEdge {
@@ -47,7 +53,7 @@ export interface Graph {
 export interface TickContext {
   now: Date;
   evaluateCondition: (spec: ConditionSpec) => boolean;
-  /** resolve an event time (e.g. next confirmed booking) for event-relative waits */
+  /** resolve an event time (e.g. next confirmed booking) for event-relative delays */
   eventTime: (event: string) => Date | null;
 }
 
@@ -71,7 +77,7 @@ export interface TickResult {
   events: LogEvent[];
 }
 
-/** When a wait's event is missing and policy is "hold", re-check this soon. */
+/** When an event-relative delay's event is missing and policy is "hold". */
 const HOLD_RECHECK_MS = 60 * 60 * 1000; // 1h
 
 export function buildGraph(nodes: JourneyNode[], edges: JourneyEdge[]): Graph {
@@ -96,15 +102,14 @@ export function runTick(graph: Graph, startNodeId: string, ctx: TickContext): Ti
   const events: LogEvent[] = [];
   const visited = new Set<string>(); // loop guard within this synchronous tick
   let nodeId = startNodeId;
-  let scheduledAt = ctx.now;
+
+  const done = (reason: string): TickResult => {
+    events.push({ type: "cursor_terminated", nodeId, detail: { reason } });
+    return { sends, park: null, terminate: reason, events };
+  };
 
   // hard cap so a malformed graph can never hang the worker
   for (let guard = 0; guard < 10_000; guard++) {
-    // Park as soon as a wait pushed us into the future — resume here next time.
-    if (scheduledAt.getTime() > ctx.now.getTime()) {
-      events.push({ type: "send_scheduled", nodeId, detail: { at: scheduledAt.toISOString() } });
-      return { sends, park: { nodeId, at: scheduledAt }, terminate: null, events };
-    }
     if (visited.has(nodeId)) {
       events.push({ type: "cursor_terminated", nodeId, detail: { reason: "loop_detected" } });
       return { sends, park: null, terminate: "loop_detected", events };
@@ -118,80 +123,72 @@ export function runTick(graph: Graph, startNodeId: string, ctx: TickContext): Ti
     }
     events.push({ type: "node_entered", nodeId, detail: { nodeType: node.type } });
 
+    // ── Process the current (already-due) node ──
+    let branch: Branch;
     switch (node.type) {
       case "stop":
-        events.push({ type: "cursor_terminated", nodeId, detail: { reason: "stop" } });
-        return { sends, park: null, terminate: "stop", events };
-
-      case "trigger": {
-        const next = pickEdge(graph, nodeId, "default");
-        if (!next) return done("empty_journey");
-        nodeId = next.to;
+        return done("stop");
+      case "trigger":
+        branch = "default";
         break;
-      }
-
-      case "send": {
+      case "send":
         sends.push({ nodeId: node.id, channel: node.channel });
         events.push({ type: "message_enqueued", nodeId, detail: { channel: node.channel } });
-        const next = pickEdge(graph, nodeId, "default");
-        if (next?.multiple) events.push({ type: "warning", nodeId, detail: { reason: "multiple_default_edges" } });
-        if (!next) return done("end_of_branch");
-        nodeId = next.to; // scheduledAt stays = now → next node processed this tick
+        branch = "default";
         break;
-      }
-
       case "condition": {
         const result = ctx.evaluateCondition(node.condition!);
         events.push({ type: "condition_evaluated", nodeId, detail: { check: node.condition?.check, value: node.condition?.value, result } });
-        const next = pickEdge(graph, nodeId, result ? "yes" : "no");
-        if (!next) {
-          // EXPLICIT terminal — no fallback. This is what kills the leaf-bleed.
-          events.push({ type: "cursor_terminated", nodeId, detail: { reason: "condition_unmatched", branch: result ? "yes" : "no" } });
-          return { sends, park: null, terminate: "condition_unmatched", events };
-        }
-        nodeId = next.to;
+        branch = result ? "yes" : "no";
         break;
       }
-
-      case "wait": {
-        const evt = node.wait?.event ? ctx.eventTime(node.wait.event) : null;
-        const r = computeWaitTime(node.wait!, ctx.now, evt);
-        events.push({
-          type: "wait_computed",
-          nodeId,
-          detail: {
-            mode: node.wait?.mode,
-            hours: node.wait?.hours,
-            event: node.wait?.event,
-            eventTime: evt ? evt.toISOString() : null,
-            result: r.kind,
-            at: r.kind === "at" ? r.at.toISOString() : null,
-          },
-        });
-        if (r.kind === "hold") {
-          return { sends, park: { nodeId, at: new Date(ctx.now.getTime() + HOLD_RECHECK_MS) }, terminate: null, events };
-        }
-        const next = pickEdge(graph, nodeId, "default");
-        if (!next) return done("end_of_branch");
-        if (r.kind === "skip") {
-          nodeId = next.to; // skip the wait, process next now
-          break;
-        }
-        scheduledAt = r.at; // "at" — will park at next node on the next loop iteration
-        nodeId = next.to;
-        break;
-      }
-
       default:
         return done("unknown_node_type");
     }
+
+    // ── Pick the outgoing edge. No edge on the taken branch = explicit terminal. ──
+    const next = pickEdge(graph, nodeId, branch);
+    if (!next) {
+      return done(node.type === "condition" ? "condition_unmatched" : node.type === "trigger" ? "empty_journey" : "end_of_branch");
+    }
+    if (next.multiple) events.push({ type: "warning", nodeId, detail: { reason: "multiple_edges_on_branch", branch } });
+
+    const nextNode = graph.nodes.get(next.to);
+    if (!nextNode) {
+      nodeId = next.to;
+      return done("node_missing");
+    }
+
+    // ── Apply the NEXT node's delay (it is applied on arrival). ──
+    if (nextNode.delay) {
+      const evt = nextNode.delay.event ? ctx.eventTime(nextNode.delay.event) : null;
+      const r = computeWaitTime(nextNode.delay, ctx.now, evt);
+      events.push({
+        type: "delay_computed",
+        nodeId: nextNode.id,
+        detail: {
+          mode: nextNode.delay.mode,
+          hours: nextNode.delay.hours,
+          event: nextNode.delay.event,
+          eventTime: evt ? evt.toISOString() : null,
+          result: r.kind,
+          at: r.kind === "at" ? r.at.toISOString() : null,
+        },
+      });
+      if (r.kind === "hold") {
+        events.push({ type: "send_scheduled", nodeId: nextNode.id, detail: { hold: true } });
+        return { sends, park: { nodeId: nextNode.id, at: new Date(ctx.now.getTime() + HOLD_RECHECK_MS) }, terminate: null, events };
+      }
+      if (r.kind === "at" && r.at.getTime() > ctx.now.getTime()) {
+        events.push({ type: "send_scheduled", nodeId: nextNode.id, detail: { at: r.at.toISOString() } });
+        return { sends, park: { nodeId: nextNode.id, at: r.at }, terminate: null, events };
+      }
+      // r.kind === "skip" or computed time already passed → process next node now
+    }
+
+    nodeId = next.to;
   }
 
   events.push({ type: "cursor_terminated", detail: { reason: "guard_exceeded" } });
   return { sends, park: null, terminate: "guard_exceeded", events };
-
-  function done(reason: string): TickResult {
-    events.push({ type: "cursor_terminated", nodeId, detail: { reason } });
-    return { sends, park: null, terminate: reason, events };
-  }
 }
