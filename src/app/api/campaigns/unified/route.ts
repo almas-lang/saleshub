@@ -166,6 +166,15 @@ export async function POST(request: Request) {
           await supabase.from("unified_steps").update(updates).eq("id", newId);
         }
       }
+
+      // Persist the v2 journey graph for the duplicated steps so the new campaign
+      // is v2-ready from creation. Mirrors the POST path; idempotent.
+      await persistJourneyEdges(
+        supabase,
+        newCampaign.id,
+        source.flow_data,
+        insertedSteps as { id: string; order: number }[],
+      );
     }
 
     return NextResponse.json(newCampaign, { status: 201 });
