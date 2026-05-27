@@ -39,6 +39,14 @@
     {
       "path": "/api/cron/booking-no-show",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/journey-shadow",
+      "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/api/cron/journey-worker",
+      "schedule": "0 5 * * *"
     }
   ]
 }

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { UnifiedCampaignListClient } from "@/components/communication/unified-campaign-list";
@@ -55,11 +56,16 @@ export default async function CampaignsPage() {
 
   return (
     <div className="page-enter space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          Unified drip sequences mixing WhatsApp and Email in a single flow.
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Unified drip sequences mixing WhatsApp and Email in a single flow.
+          </p>
+        </div>
+        <Link href="/campaigns/shadow" className="text-sm text-muted-foreground hover:text-foreground hover:underline">
+          Engine v2 shadow →
+        </Link>
       </div>
 
       <UnifiedCampaignListClient
