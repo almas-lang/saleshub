@@ -54,15 +54,16 @@ export async function autoEnrollIntoDrips(contactId: string) {
   if (contact?.is_customer) return;
 
   // Find active WhatsApp drip campaigns with lead_created trigger
-  const { data: waCampaigns } = await supabaseAdmin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: waCampaigns } = await (supabaseAdmin as any)
     .from("wa_campaigns")
-    .select("id, flow_data, audience_filter")
+    .select("id, flow_data, audience_filter, engine")
     .eq("type", "drip")
     .eq("status", "active");
 
   console.log(`[Auto-Enroll] Found ${waCampaigns?.length ?? 0} active WA drip campaigns for contact ${contactId}`);
 
-  const waToEnroll: string[] = [];
+  const waToEnroll: { id: string; engine: string }[] = [];
   for (const c of waCampaigns ?? []) {
     const af = c.audience_filter as AudienceFilter | null;
     if (af?.enrollment_type === "existing") {
@@ -88,36 +89,37 @@ export async function autoEnrollIntoDrips(contactId: string) {
       continue;
     }
 
-    waToEnroll.push(c.id);
+    waToEnroll.push({ id: c.id, engine: c.engine ?? "legacy" });
   }
 
   // Find active email drip campaigns with lead_created trigger
-  const { data: emailCampaigns } = await supabaseAdmin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: emailCampaigns } = await (supabaseAdmin as any)
     .from("email_campaigns")
-    .select("id, audience_filter")
+    .select("id, audience_filter, engine")
     .eq("type", "drip")
     .eq("status", "active")
     .eq("trigger_event", "lead_created");
 
   // Filter by audience — only enroll if contact matches the campaign's filter
   // Skip campaigns with enrollment_type "existing"
-  const emailToEnroll: string[] = [];
+  const emailToEnroll: { id: string; engine: string }[] = [];
   for (const c of emailCampaigns ?? []) {
     const filter = c.audience_filter as AudienceFilter | null;
     if (filter?.enrollment_type === "existing") continue;
     const matches = await contactMatchesFilter(contactId, filter);
-    if (matches) emailToEnroll.push(c.id);
+    if (matches) emailToEnroll.push({ id: c.id, engine: (c as { engine?: string }).engine ?? "legacy" });
   }
 
   // Find active unified drip campaigns with lead_created trigger
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: unifiedCampaigns } = await (supabaseAdmin as any)
     .from("unified_campaigns")
-    .select("id, flow_data, audience_filter")
+    .select("id, flow_data, audience_filter, engine")
     .eq("type", "drip")
     .eq("status", "active");
 
-  const unifiedToEnroll: string[] = [];
+  const unifiedToEnroll: { id: string; engine: string }[] = [];
   for (const c of unifiedCampaigns ?? []) {
     const af = c.audience_filter as AudienceFilter | null;
     if (af?.enrollment_type === "existing") continue;
@@ -127,13 +129,13 @@ export async function autoEnrollIntoDrips(contactId: string) {
     );
     if (!hasTrigger) continue;
     const matches = await contactMatchesFilter(contactId, af);
-    if (matches) unifiedToEnroll.push(c.id);
+    if (matches) unifiedToEnroll.push({ id: c.id, engine: (c.engine as string | undefined) ?? "legacy" });
   }
 
   if (!waToEnroll.length && !emailToEnroll.length && !unifiedToEnroll.length) return;
 
   // Check existing enrollments to avoid duplicates
-  const allCampaignIds = [...waToEnroll, ...emailToEnroll, ...unifiedToEnroll];
+  const allCampaignIds = [...waToEnroll, ...emailToEnroll, ...unifiedToEnroll].map((c) => c.id);
   const { data: existing } = await supabaseAdmin
     .from("drip_enrollments")
     .select("campaign_id")
@@ -151,10 +153,11 @@ export async function autoEnrollIntoDrips(contactId: string) {
     current_step_id: string | null;
     status: "active";
     next_send_at: string;
+    engine: string;
   }[] = [];
 
   // Build WA enrollment rows
-  for (const campaignId of waToEnroll) {
+  for (const { id: campaignId, engine } of waToEnroll) {
     if (alreadyEnrolled.has(campaignId)) continue;
     const { data: firstStep } = await supabaseAdmin
       .from("wa_steps")
@@ -172,11 +175,12 @@ export async function autoEnrollIntoDrips(contactId: string) {
       current_step_id: firstStep?.id ?? null,
       status: "active",
       next_send_at: now,
+      engine,
     });
   }
 
   // Build email enrollment rows
-  for (const campaignId of emailToEnroll) {
+  for (const { id: campaignId, engine } of emailToEnroll) {
     if (alreadyEnrolled.has(campaignId)) continue;
     const { data: firstStep } = await supabaseAdmin
       .from("email_steps")
@@ -194,11 +198,12 @@ export async function autoEnrollIntoDrips(contactId: string) {
       current_step_id: firstStep?.id ?? null,
       status: "active",
       next_send_at: now,
+      engine,
     });
   }
 
   // Build unified enrollment rows
-  for (const campaignId of unifiedToEnroll) {
+  for (const { id: campaignId, engine } of unifiedToEnroll) {
     if (alreadyEnrolled.has(campaignId)) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: firstStep } = await (supabaseAdmin as any)
@@ -217,6 +222,7 @@ export async function autoEnrollIntoDrips(contactId: string) {
       current_step_id: firstStep?.id ?? null,
       status: "active",
       next_send_at: now,
+      engine,
     });
   }
 

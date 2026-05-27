@@ -17,9 +17,10 @@ export async function enrollContactByTrigger(
   if (contactGate?.is_customer) return;
 
   // Find active unified campaigns matching this trigger
-  const { data: campaigns } = await supabaseAdmin
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: campaigns } = await (supabaseAdmin as any)
     .from("unified_campaigns")
-    .select("id, trigger_event, audience_filter")
+    .select("id, trigger_event, audience_filter, engine")
     .eq("status", "active")
     .eq("trigger_event", triggerEvent);
   if (!campaigns?.length) return;
@@ -66,7 +67,7 @@ export async function enrollContactByTrigger(
     const firstStep = steps?.[0];
     if (!firstStep) continue;
 
-    // Enroll
+    // Enroll — inherit engine flag from the campaign so v2 campaigns get v2 enrollments
     await supabaseAdmin.from("drip_enrollments").insert({
       contact_id: contactId,
       campaign_id: campaign.id,
@@ -75,6 +76,7 @@ export async function enrollContactByTrigger(
       current_step_id: firstStep.id,
       status: "active",
       next_send_at: new Date().toISOString(),
+      engine: (campaign as { engine?: string }).engine ?? "legacy",
     });
   }
 }
