@@ -115,19 +115,33 @@ async function writeEvents(run: RunRow, events: LogEvent[]) {
   );
 }
 
-/** Enqueue a send to the outbox, exactly-once via idempotency_key = run:step. */
+/**
+ * Enqueue a send to the outbox, exactly-once via idempotency_key = run:step.
+ *
+ * We use plain insert + catch the unique-violation rather than `.upsert({onConflict})`.
+ * Reason: the migration declared `idempotency_key` as a PARTIAL unique index
+ * (`WHERE idempotency_key IS NOT NULL`), and supabase-js's onConflict path doesn't
+ * reliably match partial indexes — it silently dropped every insert without throwing,
+ * so v2 produced zero send rows in prod despite the engine logging `message_enqueued`.
+ * Plain insert + duplicate-key check is the boring, explicit version.
+ */
 async function enqueueSend(run: RunRow, stepId: string, channel?: string) {
   const table = channel === "email" ? "email_sends" : "wa_sends";
-  await sb.from(table).upsert(
-    {
-      contact_id: run.contact_id,
-      campaign_id: run.campaign_id,
-      step_id: stepId,
-      status: "queued",
-      idempotency_key: `${run.id}:${stepId}`,
-    },
-    { onConflict: "idempotency_key", ignoreDuplicates: true },
-  );
+  const { error } = await sb.from(table).insert({
+    contact_id: run.contact_id,
+    campaign_id: run.campaign_id,
+    step_id: stepId,
+    status: "queued",
+    idempotency_key: `${run.id}:${stepId}`,
+  });
+  if (error) {
+    // Postgres unique-violation code = 23505. Idempotency hit → already enqueued, fine.
+    // Anything else is a real failure we need to know about.
+    if (error.code !== "23505") {
+      const { logger } = await import("@/lib/logger");
+      await logger.error("journey-worker", `enqueueSend ${channel} failed: ${error.message}`, { table, run_id: run.id, step_id: stepId, code: error.code });
+    }
+  }
 }
 
 export async function processRun(run: RunRow, graph: Graph, now: Date, opts: { dryRun?: boolean } = {}): Promise<RunPlan> {
