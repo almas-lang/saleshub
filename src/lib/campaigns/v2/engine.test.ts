@@ -82,6 +82,22 @@ test("reminder: window already passed → clamps to now, never negative", () => 
   assert.equal(r.sends[0].at.toISOString(), start.toISOString());
 });
 
+// ── THE no-show regression: after_event fires AFTER the call, not before ──
+test("after_event: no-show step fires relative to the call, not the previous step", () => {
+  const g = buildGraph(
+    [N("t", "trigger"),
+     N("rem", "send", { channel: "whatsapp", delay: { mode: "before_event", event: "booking", hours: 1 } }),
+     N("noshow", "send", { channel: "whatsapp", delay: { mode: "after_event", event: "booking", hours: 0.25 } })],
+    [E("t", "rem"), E("rem", "noshow")],
+  );
+  const start = iso("2026-06-02T05:00:00Z");
+  const call = iso("2026-06-02T10:30:00Z"); // 4pm IST test call
+  const r = simulate(g, { start, startNodeId: "t", eventTime: () => call });
+  assert.deepEqual(sendIds(r), ["rem", "noshow"]);
+  assert.equal(r.sends[0].at.toISOString(), "2026-06-02T09:30:00.000Z", "reminder at call-1h");
+  assert.equal(r.sends[1].at.toISOString(), "2026-06-02T10:45:00.000Z", "no-show step at call+15min, AFTER the call (was firing before)");
+});
+
 // ── after_previous delay ──
 test("delay: after_previous schedules relative to now", () => {
   const g = buildGraph(

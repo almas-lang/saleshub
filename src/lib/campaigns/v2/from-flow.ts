@@ -55,7 +55,7 @@ export function deriveGraphFromFlow(flow: FlowData, opts: { missingPolicy?: Miss
     if (n.type === "delay") {
       const m = (n.data?.delayMode as string) ?? "after_previous";
       const h = (n.data?.hours as number) ?? 0;
-      const newAcc = m === "before_booking" ? h : acc + h;
+      const newAcc = m === "before_booking" || m === "after_booking" ? h : acc + h;
       for (const e of outRaw.get(id) ?? []) walkDelays(e.target, newAcc, m, seen);
     } else if (isActionable(n)) {
       delayHours.set(id, acc);
@@ -85,6 +85,7 @@ export function deriveGraphFromFlow(flow: FlowData, opts: { missingPolicy?: Miss
     const h = delayHours.get(id) ?? 0;
     const m = delayMode.get(id) ?? "after_previous";
     if (m === "before_booking") return { mode: "before_event", event: "booking", hours: h, missingPolicy: opts.missingPolicy ?? "skip" };
+    if (m === "after_booking") return { mode: "after_event", event: "booking", hours: h, missingPolicy: opts.missingPolicy ?? "skip" };
     if (h > 0) return { mode: "after_previous", hours: h };
     return undefined;
   };

@@ -88,7 +88,7 @@ export interface SendNodeData {
 }
 
 export type DelayUnit = "minutes" | "hours" | "days";
-export type DelayMode = "after_previous" | "before_booking";
+export type DelayMode = "after_previous" | "before_booking" | "after_booking";
 
 export interface DelayNodeData {
   nodeType: "delay";

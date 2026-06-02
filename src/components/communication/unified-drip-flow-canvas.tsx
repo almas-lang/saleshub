@@ -162,7 +162,7 @@ export function flowToUnifiedStepsWithBranching(
     if (node.type === "delay") {
       const d = node.data as unknown as DelayNodeData;
       const mode = d.delayMode ?? "after_previous";
-      const newAcc = mode === "before_booking" ? (d.hours ?? 0) : accumulated + (d.hours ?? 0);
+      const newAcc = mode === "before_booking" || mode === "after_booking" ? (d.hours ?? 0) : accumulated + (d.hours ?? 0);
       for (const edge of outgoing.get(nodeId) ?? []) walkDelays(edge.target, newAcc, mode, seen);
     } else if (node.type === "unified_send" || node.type === "condition") {
       delayBefore.set(nodeId, accumulated);
@@ -213,7 +213,7 @@ export function flowToUnifiedStepsWithBranching(
         step_type: "send",
         channel,
         delay_hours: delayBefore.get(nodeId) ?? 0,
-        delay_mode: (delayModeBefore.get(nodeId) ?? "after_previous") as "after_previous" | "before_booking",
+        delay_mode: (delayModeBefore.get(nodeId) ?? "after_previous") as "after_previous" | "before_booking" | "after_booking",
         // Email fields
         ...(channel === "email" ? {
           subject: d.subject ?? "",

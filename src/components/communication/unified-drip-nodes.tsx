@@ -569,6 +569,7 @@ function DelayNode({ id, data }: NodeProps) {
             <SelectContent>
               <SelectItem value="after_previous">After previous step</SelectItem>
               <SelectItem value="before_booking">Before scheduled call</SelectItem>
+              <SelectItem value="after_booking">After scheduled call</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2">
@@ -590,6 +591,9 @@ function DelayNode({ id, data }: NodeProps) {
           </div>
           {mode === "before_booking" && (
             <p className="text-[9px] text-muted-foreground">Sends {displayValue || "?"} {unit} before the scheduled call time</p>
+          )}
+          {mode === "after_booking" && (
+            <p className="text-[9px] text-muted-foreground">Sends {displayValue || "?"} {unit} after the scheduled call time (use for no-show / post-call steps)</p>
           )}
         </div>
       </NodeShell>

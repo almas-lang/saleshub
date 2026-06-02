@@ -54,6 +54,7 @@ export interface RunPlan {
 function mkDelay(step: StepRow): WaitSpec | undefined {
   const h = step.delay_hours ?? 0;
   if (step.delay_mode === "before_booking") return { mode: "before_event", event: "booking", hours: h, missingPolicy: "skip" };
+  if (step.delay_mode === "after_booking") return { mode: "after_event", event: "booking", hours: h, missingPolicy: "skip" };
   if (h > 0) return { mode: "after_previous", hours: h };
   return undefined;
 }
