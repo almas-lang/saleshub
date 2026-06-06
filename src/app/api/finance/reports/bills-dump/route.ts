@@ -34,20 +34,25 @@ export async function GET(request: Request) {
   archive.pipe(passthrough);
 
   // ── 1. Bills folder: all expense attachments ──
+  // Bills can be stored in either attachment_url or receipt_url
   const { data: expenses } = await supabaseAdmin
     .from("transactions")
-    .select("id, description, category, amount, date, attachment_url")
+    .select("id, description, category, amount, date, attachment_url, receipt_url")
     .eq("type", "expense")
     .gte("date", from)
     .lte("date", to)
-    .not("attachment_url", "is", null)
-    .not("attachment_url", "eq", "")
+    .or("and(attachment_url.not.is.null,attachment_url.neq.),and(receipt_url.not.is.null,receipt_url.neq.)")
     .order("date", { ascending: true });
 
   const bills: { bill_no: number; filename: string; url: string; amount: number; vendor: string; date: string; category: string }[] = [];
   let billNo = 1;
   for (const exp of expenses ?? []) {
-    const urls = (exp.attachment_url ?? "").split(",").filter(Boolean);
+    // Collect URLs from both attachment_url and receipt_url (deduplicated)
+    const allUrls = [
+      ...(exp.attachment_url ?? "").split(","),
+      ...(exp.receipt_url ?? "").split(","),
+    ].map((u) => u.trim()).filter(Boolean);
+    const urls = [...new Set(allUrls)];
     for (const url of urls) {
       const date = exp.date.replace(/-/g, "");
       const vendor = (exp.description ?? exp.category ?? "unknown")

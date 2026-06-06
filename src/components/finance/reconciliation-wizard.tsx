@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import * as XLSX from "xlsx";
 import {
   Upload,
   CheckCircle2,
@@ -46,6 +47,18 @@ import {
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import type { BankTransaction, ReconciliationBatch } from "@/types/finance";
 
+/* ── XLSX → CSV helper ────────────────────────────────── */
+
+async function fileToText(file: File): Promise<string> {
+  if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+    const data = new Uint8Array(await file.arrayBuffer());
+    const wb = XLSX.read(data, { type: "array" });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_csv(sheet);
+  }
+  return file.text();
+}
+
 /* ── File Detection + Parsers ─────────────────────────── */
 
 type FileType = "bank" | "cashfree" | "settlement" | "card" | "unknown";
@@ -62,6 +75,12 @@ function detectFileType(text: string): FileType {
 
   // Cashfree Settlement Report
   if (header.includes("total transaction amount") && header.includes("net settlement amount")) return "settlement";
+
+  // Standard CSV credit card statement (CRED, other banks): has "merchant" or "billed" in header,
+  // or filename-based keywords detected via header patterns
+  if ((header.includes("merchant") || header.includes("billedstatement") || header.includes("billed")) && (header.includes("amount") || header.includes("debit"))) return "card";
+  // Credit card CSV with transaction date + amount but no narration/withdrawal (not a bank statement)
+  if (header.includes("transaction date") && header.includes("amount") && !header.includes("narration") && !header.includes("withdrawal")) return "card";
 
   // HDFC Bank Statement: has "Narration" and "Withdrawal" in first 30 lines
   const first30 = text.split("\n").slice(0, 30).join("\n").toLowerCase();
@@ -162,30 +181,67 @@ function parseSettlementCSV(text: string) {
 function parseCardCSV(text: string) {
   const lines = text.split("\n").filter((l) => l.trim());
   const rows: { date: string; description: string; amount: number; type: "debit" | "credit"; reference?: string }[] = [];
-  if (!text.includes("~|~")) return rows;
-  let hIdx = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].toLowerCase().includes("transaction type") && lines[i].includes("~|~") && lines[i].toLowerCase().includes("amt")) { hIdx = i; break; }
+
+  // ── HDFC format: uses ~|~ delimiter ──
+  if (text.includes("~|~")) {
+    let hIdx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].toLowerCase().includes("transaction type") && lines[i].includes("~|~") && lines[i].toLowerCase().includes("amt")) { hIdx = i; break; }
+    }
+    if (hIdx === -1) return rows;
+    const headers = lines[hIdx].split("~|~").map((h) => h.trim().toLowerCase());
+    const fc = (kw: string[]) => headers.findIndex((h) => kw.some((k) => h.includes(k)));
+    const iD = fc(["date"]), iDe = fc(["description"]), iA = fc(["amt", "amount"]), iDC = fc(["debit", "credit"]);
+    for (let i = hIdx + 1; i < lines.length; i++) {
+      if (!lines[i].includes("~|~")) continue;
+      const c = lines[i].split("~|~").map((s) => s.trim());
+      const f = c[0]?.toLowerCase() ?? "";
+      if (!f.includes("domestic") && !f.includes("international")) continue;
+      const dv = iD >= 0 ? c[iD] ?? "" : "";
+      if (!dv.match(/\d{2}\/\d{2}\/\d{4}/)) continue;
+      const dp = dv.split(" ")[0]; const [d, m, y] = dp.split("/");
+      const pd = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+      const amt = parseFloat((iA >= 0 ? c[iA] ?? "" : "").replace(/,/g, "")) || 0;
+      if (amt === 0) continue;
+      const dc = iDC >= 0 ? (c[iDC] ?? "").toLowerCase().trim() : "";
+      const desc = iDe >= 0 ? c[iDe] ?? "" : "";
+      rows.push({ date: pd, description: desc, amount: amt, type: dc.includes("cr") ? "credit" : "debit" });
+    }
+    return rows;
   }
-  if (hIdx === -1) return rows;
-  const headers = lines[hIdx].split("~|~").map((h) => h.trim().toLowerCase());
+
+  // ── Standard comma-delimited CSV (CRED, other banks) ──
+  const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
   const fc = (kw: string[]) => headers.findIndex((h) => kw.some((k) => h.includes(k)));
-  const iD = fc(["date"]), iDe = fc(["description"]), iA = fc(["amt", "amount"]), iDC = fc(["debit", "credit"]);
-  for (let i = hIdx + 1; i < lines.length; i++) {
-    if (!lines[i].includes("~|~")) continue;
-    const c = lines[i].split("~|~").map((s) => s.trim());
-    const f = c[0]?.toLowerCase() ?? "";
-    if (!f.includes("domestic") && !f.includes("international")) continue;
-    const dv = iD >= 0 ? c[iD] ?? "" : "";
-    if (!dv.match(/\d{2}\/\d{2}\/\d{4}/)) continue;
-    const dp = dv.split(" ")[0]; const [d, m, y] = dp.split("/");
-    const pd = `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+  const iD = fc(["date", "transaction date", "txn date"]);
+  const iDe = fc(["description", "narration", "particulars", "details", "merchant"]);
+  const iA = fc(["amount", "transaction amount", "debit", "amt"]);
+  const iDC = fc(["type", "dr/cr", "debit/credit", "cr/dr"]);
+  const iRef = fc(["reference", "ref", "auth code"]);
+
+  for (let i = 1; i < lines.length; i++) {
+    const c = parseQuotedCSV(lines[i]);
+    const dateVal = iD >= 0 ? c[iD] ?? "" : c[0] ?? "";
+    if (!dateVal.match(/\d/)) continue;
+    let pd = dateVal;
+    if (dateVal.includes("/")) {
+      const parts = dateVal.split("/");
+      if (parts.length === 3) {
+        const [dd, mm, yy] = parts;
+        pd = `${yy.length === 2 ? "20" + yy : yy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
+      }
+    }
     const amt = parseFloat((iA >= 0 ? c[iA] ?? "" : "").replace(/,/g, "")) || 0;
     if (amt === 0) continue;
-    const dc = iDC >= 0 ? (c[iDC] ?? "").toLowerCase().trim() : "";
-    const desc = iDe >= 0 ? c[iDe] ?? "" : "";
-    // Include ALL rows — IGST, EMI, FCY markup — everything is a real charge
-    rows.push({ date: pd, description: desc, amount: amt, type: dc.includes("cr") ? "credit" : "debit" });
+    const typeVal = iDC >= 0 ? (c[iDC] ?? "").toLowerCase() : "debit";
+    const isCredit = typeVal.includes("cr") || typeVal.includes("credit") || typeVal.includes("refund");
+    rows.push({
+      date: pd,
+      description: iDe >= 0 ? c[iDe] ?? "" : c[1] ?? "",
+      amount: amt,
+      type: isCredit ? "credit" : "debit",
+      reference: iRef >= 0 ? c[iRef] : undefined,
+    });
   }
   return rows;
 }
@@ -205,7 +261,7 @@ function StepUpload({ files, onAddFiles, onRemoveFile, month, onMonthChange, onN
   const processFiles = useCallback(async (fl: FileList) => {
     const nf: UploadedFile[] = [];
     for (let i = 0; i < fl.length; i++) {
-      const f = fl[i]; const text = await f.text(); const type = detectFileType(text);
+      const f = fl[i]; const text = await fileToText(f); const type = detectFileType(text);
       let rc = 0;
       if (type === "bank") rc = parseBankCSV(text).length;
       else if (type === "cashfree") rc = parseCashfreeCSV(text).length;
@@ -242,7 +298,7 @@ function StepUpload({ files, onAddFiles, onRemoveFile, month, onMonthChange, onN
         <p className="text-xs text-muted-foreground mt-1 mb-4">Bank statement, Cashfree reports, Credit card statement — all at once</p>
         <label>
           <Button variant="outline" size="sm" asChild><span><Upload className="mr-2 size-4" />Browse Files</span></Button>
-          <input type="file" accept=".csv" multiple className="hidden" onChange={(e) => e.target.files && processFiles(e.target.files)} />
+          <input type="file" accept=".csv,.xlsx,.xls" multiple className="hidden" onChange={(e) => e.target.files && processFiles(e.target.files)} />
         </label>
       </div>
       {files.length > 0 && (
@@ -550,7 +606,7 @@ function ReplaceFileButton({ batchId, onReplaced }: { batchId: string; onReplace
     if (!file) return;
     setReplacing(true);
     try {
-      const text = await file.text();
+      const text = await fileToText(file);
       const type = detectFileType(text);
 
       if (type === "unknown") {
@@ -587,7 +643,7 @@ function ReplaceFileButton({ batchId, onReplaced }: { batchId: string; onReplace
           Replace File
         </span>
       </Button>
-      <input type="file" accept=".csv" className="hidden" onChange={handleReplace} disabled={replacing} />
+      <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={handleReplace} disabled={replacing} />
     </label>
   );
 }
@@ -1355,10 +1411,10 @@ export function ReconciliationWizard({ batches }: { batches: ReconciliationBatch
     try {
       const bf = files.find((f) => f.type === "bank"), cf = files.find((f) => f.type === "cashfree"),
         sf = files.find((f) => f.type === "settlement"), ccf = files.find((f) => f.type === "card");
-      const br = bf ? parseBankCSV(await bf.file.text()) : undefined;
-      const cr = cf ? parseCashfreeCSV(await cf.file.text()) : undefined;
-      const sr = sf ? parseSettlementCSV(await sf.file.text()) : undefined;
-      const ccr = ccf ? parseCardCSV(await ccf.file.text()) : undefined;
+      const br = bf ? parseBankCSV(await fileToText(bf.file)) : undefined;
+      const cr = cf ? parseCashfreeCSV(await fileToText(cf.file)) : undefined;
+      const sr = sf ? parseSettlementCSV(await fileToText(sf.file)) : undefined;
+      const ccr = ccf ? parseCardCSV(await fileToText(ccf.file)) : undefined;
 
       // Upload files for record-keeping
       for (const f of files) {
