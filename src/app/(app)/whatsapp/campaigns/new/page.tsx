@@ -6,7 +6,7 @@ import { CampaignWizard } from "@/components/communication/campaign-wizard";
 export default async function NewCampaignPage() {
   const supabase = await createClient();
 
-  const [funnelsResult, membersResult, sourcesResult] = await Promise.all([
+  const [funnelsResult, membersResult, sourcesResult, waCampaignsResult, emailCampaignsResult, unifiedCampaignsResult] = await Promise.all([
     supabase
       .from("funnels")
       .select("id, name, funnel_stages(id, name, funnel_id, order)")
@@ -24,6 +24,9 @@ export default async function NewCampaignPage() {
       .eq("is_customer", false)
       .is("deleted_at", null)
       .not("source", "is", null),
+    supabase.from("wa_campaigns").select("id, name, type").order("name"),
+    supabase.from("email_campaigns").select("id, name, type").order("name"),
+    supabase.from("unified_campaigns").select("id, name, type").order("name"),
   ]);
 
   const funnels = (funnelsResult.data ?? []).map((f) => ({
@@ -84,6 +87,11 @@ export default async function NewCampaignPage() {
         stages={stages}
         teamMembers={teamMembers}
         sources={sources}
+        campaigns={[
+          ...(waCampaignsResult.data ?? []).map((c) => ({ id: c.id, name: c.name, type: c.type ?? "whatsapp" })),
+          ...(emailCampaignsResult.data ?? []).map((c) => ({ id: c.id, name: c.name, type: c.type ?? "email" })),
+          ...(unifiedCampaignsResult.data ?? []).map((c) => ({ id: c.id, name: c.name, type: c.type ?? "unified" })),
+        ]}
       />
     </div>
   );

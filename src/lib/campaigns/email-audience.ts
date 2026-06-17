@@ -68,18 +68,31 @@ export async function getEmailAudienceContactIds(
     }
 
     if (audienceFilter) {
-      if (audienceFilter.source) query = query.eq("source", audienceFilter.source);
-      if (audienceFilter.funnel_id) query = query.eq("funnel_id", audienceFilter.funnel_id);
-      if (audienceFilter.stage_id) query = query.eq("current_stage_id", audienceFilter.stage_id);
-      if (audienceFilter.assigned_to) query = query.eq("assigned_to", audienceFilter.assigned_to);
+      // Support both old single-value and new multi-value fields
+      const sources = audienceFilter.sources?.length ? audienceFilter.sources : audienceFilter.source ? [audienceFilter.source] : [];
+      const funnelIds = audienceFilter.funnel_ids?.length ? audienceFilter.funnel_ids : audienceFilter.funnel_id ? [audienceFilter.funnel_id] : [];
+      const stageIds = audienceFilter.stage_ids?.length ? audienceFilter.stage_ids : audienceFilter.stage_id ? [audienceFilter.stage_id] : [];
+      const assignedTos = audienceFilter.assigned_tos?.length ? audienceFilter.assigned_tos : audienceFilter.assigned_to ? [audienceFilter.assigned_to] : [];
+
+      if (sources.length > 0 && sources[0] !== "__custom_only__") query = query.in("source", sources);
+      if (funnelIds.length > 0) query = query.in("funnel_id", funnelIds);
+      if (stageIds.length > 0) query = query.in("current_stage_id", stageIds);
+      if (assignedTos.length > 0) query = query.in("assigned_to", assignedTos);
       if (audienceFilter.tags?.length) {
         query = query.overlaps("tags", audienceFilter.tags);
       }
+      if (audienceFilter.created_after) query = query.gte("created_at", audienceFilter.created_after);
+      if (audienceFilter.created_before) query = query.lte("created_at", audienceFilter.created_before + "T23:59:59.999Z");
     }
 
     const { data: contacts } = await query;
     if (contacts) {
-      contactIds.push(...contacts.map((c) => c.id));
+      let ids = contacts.map((c) => c.id);
+      if (audienceFilter?.excluded_contact_ids?.length) {
+        const excludedSet = new Set(audienceFilter.excluded_contact_ids);
+        ids = ids.filter((id) => !excludedSet.has(id));
+      }
+      contactIds.push(...ids);
     }
   }
 

@@ -14,7 +14,8 @@ import type {
   FlowData,
 } from "@/types/campaigns";
 import { CampaignStepDetails } from "./campaign-step-details";
-import { CampaignStepAudience } from "./campaign-step-audience";
+import { CampaignStepAudience, type CampaignOption } from "./campaign-step-audience";
+import { buildAudienceCountParams } from "./audience-filter-utils";
 import { CampaignStepMessages } from "./campaign-step-messages";
 import { CampaignStepReview } from "./campaign-step-review";
 import { DripFlowCanvas, validateFlow, getFlowErrors, flowToSteps, flowToWaStepsWithBranching } from "./drip-flow-canvas";
@@ -73,6 +74,7 @@ interface CampaignWizardProps {
   teamMembers: FilterOption[];
   sources: string[];
   initialData?: CampaignWizardInitialData;
+  campaigns?: CampaignOption[];
 }
 
 const STEPS = [
@@ -88,6 +90,7 @@ export function CampaignWizard({
   teamMembers,
   sources,
   initialData,
+  campaigns = [],
 }: CampaignWizardProps) {
   const router = useRouter();
   const isEditing = !!initialData;
@@ -163,17 +166,11 @@ export function CampaignWizard({
 
   // Audience count — debounced
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (audienceFilter.source) params.set("source", audienceFilter.source);
-    if (audienceFilter.funnel_id) params.set("funnel_id", audienceFilter.funnel_id);
-    if (audienceFilter.stage_id) params.set("stage_id", audienceFilter.stage_id);
-    if (audienceFilter.assigned_to) params.set("assigned_to", audienceFilter.assigned_to);
-    if (audienceFilter.tags?.length) params.set("tags", audienceFilter.tags.join(","));
-    if (audienceFilter.include_archived) params.set("include_archived", "true");
+    const params = buildAudienceCountParams(audienceFilter, "whatsapp");
 
     const timeout = setTimeout(() => {
       safeFetch<{ count: number }>(
-        `/api/campaigns/whatsapp/audience-count?${params.toString()}`
+        `/api/campaigns/audience-count?${params.toString()}`
       ).then((result) => {
         setCountLoading(false);
         if (result.ok) {
@@ -426,6 +423,7 @@ export function CampaignWizard({
             audienceCount={audienceCount}
             countLoading={countLoading}
             campaignType={type}
+            campaigns={campaigns}
           />
         )}
 

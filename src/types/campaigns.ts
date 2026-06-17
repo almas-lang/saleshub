@@ -27,14 +27,38 @@ export type EnrollmentType = "new_leads" | "existing" | "both";
 // Audience filter for campaign targeting
 export interface AudienceFilter {
   enrollment_type?: EnrollmentType;
+
+  // ── Legacy single-value fields (kept for backward compat with existing campaigns) ──
   source?: string;
   funnel_id?: string;
   stage_id?: string;
   assigned_to?: string;
+
+  // ── New multi-select fields (used by new campaigns) ──
+  sources?: string[];
+  funnel_ids?: string[];
+  stage_ids?: string[];
+  assigned_tos?: string[];
+
   tags?: string[];
   extra_emails?: string[];
   include_archived?: boolean;
+
+  // ── New advanced filters ──
+  created_after?: string;   // ISO date string
+  created_before?: string;  // ISO date string
+  in_campaigns?: string[];  // enrolled in any of these campaign IDs
+  not_in_campaigns?: string[]; // NOT enrolled in any of these campaign IDs
+  booking_statuses?: BookingStatusFilter[]; // contacts matching these booking states
+  excluded_contact_ids?: string[]; // manually deselected from preview
 }
+
+export type BookingStatusFilter =
+  | "never_booked"
+  | "confirmed"
+  | "completed"
+  | "no_show"
+  | "cancelled";
 
 // Draft step shape used in the campaign wizard
 export interface CampaignStepDraft {

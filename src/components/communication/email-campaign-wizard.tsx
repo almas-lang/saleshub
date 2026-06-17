@@ -14,7 +14,8 @@ import type {
   FlowData,
 } from "@/types/campaigns";
 import { CampaignStepDetails } from "./campaign-step-details";
-import { CampaignStepAudience } from "./campaign-step-audience";
+import { CampaignStepAudience, type CampaignOption } from "./campaign-step-audience";
+import { buildAudienceCountParams } from "./audience-filter-utils";
 import { EmailCampaignStepMessages } from "./email-campaign-step-messages";
 import { EmailCampaignStepReview } from "./email-campaign-step-review";
 import { EmailDripFlowCanvas, validateEmailFlow, flowToEmailSteps, flowToEmailStepsWithBranching } from "./email-drip-flow-canvas";
@@ -44,6 +45,7 @@ interface EmailCampaignWizardProps {
   teamMembers: FilterOption[];
   sources: string[];
   initialData?: EmailCampaignInitialData;
+  campaigns?: CampaignOption[];
 }
 
 const STEPS = [
@@ -59,6 +61,7 @@ export function EmailCampaignWizard({
   teamMembers,
   sources,
   initialData,
+  campaigns = [],
 }: EmailCampaignWizardProps) {
   const router = useRouter();
   const isEditing = !!initialData;
@@ -126,17 +129,11 @@ export function EmailCampaignWizard({
 
   // Audience count -- debounced
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (audienceFilter.source) params.set("source", audienceFilter.source);
-    if (audienceFilter.funnel_id) params.set("funnel_id", audienceFilter.funnel_id);
-    if (audienceFilter.stage_id) params.set("stage_id", audienceFilter.stage_id);
-    if (audienceFilter.assigned_to) params.set("assigned_to", audienceFilter.assigned_to);
-    if (audienceFilter.tags?.length) params.set("tags", audienceFilter.tags.join(","));
-    if (audienceFilter.include_archived) params.set("include_archived", "true");
+    const params = buildAudienceCountParams(audienceFilter, "email");
 
     const timeout = setTimeout(() => {
       safeFetch<{ count: number }>(
-        `/api/campaigns/email/audience-count?${params.toString()}`
+        `/api/campaigns/audience-count?${params.toString()}`
       ).then((result) => {
         setCountLoading(false);
         if (result.ok) {
@@ -387,6 +384,7 @@ export function EmailCampaignWizard({
             countLoading={countLoading}
             channel="email"
             campaignType={type}
+            campaigns={campaigns}
           />
         )}
 

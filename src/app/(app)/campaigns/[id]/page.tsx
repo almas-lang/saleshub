@@ -24,7 +24,7 @@ export default async function EditUnifiedCampaignPage({
   if (campaignError || !campaign) notFound();
 
   // Load filter options (same as /campaigns/new)
-  const [funnelsResult, membersResult, sourcesResult] = await Promise.all([
+  const [funnelsResult, membersResult, sourcesResult, waCampaignsResult, emailCampaignsResult, unifiedCampaignsResult] = await Promise.all([
     supabase
       .from("funnels")
       .select("id, name, funnel_stages(id, name, funnel_id, order)")
@@ -42,6 +42,9 @@ export default async function EditUnifiedCampaignPage({
       .eq("is_customer", false)
       .is("deleted_at", null)
       .not("source", "is", null),
+    supabase.from("wa_campaigns").select("id, name, type").order("name"),
+    supabase.from("email_campaigns").select("id, name, type").order("name"),
+    supabase.from("unified_campaigns").select("id, name, type").order("name"),
   ]);
 
   const funnels = (funnelsResult.data ?? []).map((f: { id: string; name: string }) => ({ id: f.id, name: f.name }));
@@ -95,6 +98,11 @@ export default async function EditUnifiedCampaignPage({
           stop_condition: campaign.stop_condition,
           flow_data: campaign.flow_data,
         }}
+        campaigns={[
+          ...(waCampaignsResult.data ?? []).map((c: { id: string; name: string; type: string }) => ({ id: c.id, name: c.name, type: c.type ?? "whatsapp" })),
+          ...(emailCampaignsResult.data ?? []).map((c: { id: string; name: string; type: string }) => ({ id: c.id, name: c.name, type: c.type ?? "email" })),
+          ...(unifiedCampaignsResult.data ?? []).map((c: { id: string; name: string; type: string }) => ({ id: c.id, name: c.name, type: c.type ?? "unified" })),
+        ]}
       />
 
       {/* Enrollment stats + table (only for non-draft campaigns) */}

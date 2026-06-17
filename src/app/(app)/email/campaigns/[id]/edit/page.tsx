@@ -14,7 +14,7 @@ export default async function EditEmailCampaignPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const [campaignRes, stepsRes, funnelsResult, membersResult, sourcesResult] =
+  const [campaignRes, stepsRes, funnelsResult, membersResult, sourcesResult, waCampaignsResult, emailCampaignsResult, unifiedCampaignsResult] =
     await Promise.all([
       supabase.from("email_campaigns").select("*").eq("id", id).single(),
       supabase
@@ -39,6 +39,9 @@ export default async function EditEmailCampaignPage({
         .eq("is_customer", false)
         .is("deleted_at", null)
         .not("source", "is", null),
+      supabase.from("wa_campaigns").select("id, name, type").order("name"),
+      supabase.from("email_campaigns").select("id, name, type").order("name"),
+      supabase.from("unified_campaigns").select("id, name, type").order("name"),
     ]);
 
   if (campaignRes.error || !campaignRes.data) {
@@ -129,6 +132,11 @@ export default async function EditEmailCampaignPage({
           teamMembers={teamMembers}
           sources={sources}
           initialData={initialData}
+          campaigns={[
+            ...(waCampaignsResult.data ?? []).map((c) => ({ id: c.id, name: c.name, type: c.type ?? "whatsapp" })),
+            ...(emailCampaignsResult.data ?? []).map((c) => ({ id: c.id, name: c.name, type: c.type ?? "email" })),
+            ...(unifiedCampaignsResult.data ?? []).map((c) => ({ id: c.id, name: c.name, type: c.type ?? "unified" })),
+          ]}
         />
       </div>
     </>

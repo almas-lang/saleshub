@@ -9,7 +9,8 @@ import { safeFetch } from "@/lib/fetch";
 import { Button } from "@/components/ui/button";
 import type { AudienceFilter, CampaignType, FlowData } from "@/types/campaigns";
 import { CampaignStepDetails, type StopCondition } from "./campaign-step-details";
-import { CampaignStepAudience } from "./campaign-step-audience";
+import { CampaignStepAudience, type CampaignOption } from "./campaign-step-audience";
+import { buildAudienceCountParams } from "./audience-filter-utils";
 import { UnifiedDripFlowCanvas, validateUnifiedFlow, getUnifiedFlowErrors, flowToUnifiedStepsWithBranching } from "./unified-drip-flow-canvas";
 
 // Shape returned by Meta API
@@ -59,6 +60,7 @@ interface UnifiedCampaignWizardProps {
   teamMembers: FilterOption[];
   sources: string[];
   existingCampaign?: ExistingCampaign;
+  campaigns?: CampaignOption[];
 }
 
 const STEPS = [
@@ -74,6 +76,7 @@ export function UnifiedCampaignWizard({
   teamMembers,
   sources,
   existingCampaign,
+  campaigns = [],
 }: UnifiedCampaignWizardProps) {
   const router = useRouter();
   // Resume at the furthest completed step
@@ -130,16 +133,10 @@ export function UnifiedCampaignWizard({
 
   // Audience count
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (audienceFilter.source) params.set("source", audienceFilter.source);
-    if (audienceFilter.funnel_id) params.set("funnel_id", audienceFilter.funnel_id);
-    if (audienceFilter.stage_id) params.set("stage_id", audienceFilter.stage_id);
-    if (audienceFilter.assigned_to) params.set("assigned_to", audienceFilter.assigned_to);
-    if (audienceFilter.tags?.length) params.set("tags", audienceFilter.tags.join(","));
-    if (audienceFilter.include_archived) params.set("include_archived", "true");
+    const params = buildAudienceCountParams(audienceFilter, "whatsapp");
 
     const timer = setTimeout(() => {
-      safeFetch<{ count: number }>(`/api/campaigns/whatsapp/audience-count?${params}`).then(
+      safeFetch<{ count: number }>(`/api/campaigns/audience-count?${params}`).then(
         (result) => {
           setCountLoading(false);
           if (result.ok) setAudienceCount(result.data.count);
@@ -333,6 +330,7 @@ export function UnifiedCampaignWizard({
             audienceCount={audienceCount}
             countLoading={countLoading}
             campaignType={type}
+            campaigns={campaigns}
           />
         )}
 

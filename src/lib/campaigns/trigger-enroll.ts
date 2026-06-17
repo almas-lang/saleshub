@@ -42,6 +42,10 @@ export async function enrollContactByTrigger(
     // Check audience filter match
     const filter = campaign.audience_filter as Record<string, unknown> | null;
     if (filter) {
+      // Check if contact is manually excluded
+      const excludedIds = filter.excluded_contact_ids as string[] | undefined;
+      if (excludedIds?.includes(contactId)) continue;
+
       const { data: contact } = await supabaseAdmin
         .from("contacts")
         .select("source, funnel_id, current_stage_id, assigned_to, archived_at")
@@ -49,10 +53,17 @@ export async function enrollContactByTrigger(
         .single();
 
       if (!contact) continue;
-      if (filter.source && contact.source !== filter.source) continue;
-      if (filter.funnel_id && contact.funnel_id !== filter.funnel_id) continue;
-      if (filter.stage_id && contact.current_stage_id !== filter.stage_id) continue;
-      if (filter.assigned_to && contact.assigned_to !== filter.assigned_to) continue;
+
+      // Support both old single-value and new multi-value fields
+      const sources = (filter.sources as string[])?.length ? (filter.sources as string[]) : filter.source ? [filter.source as string] : [];
+      const funnelIds = (filter.funnel_ids as string[])?.length ? (filter.funnel_ids as string[]) : filter.funnel_id ? [filter.funnel_id as string] : [];
+      const stageIds = (filter.stage_ids as string[])?.length ? (filter.stage_ids as string[]) : filter.stage_id ? [filter.stage_id as string] : [];
+      const assignedTos = (filter.assigned_tos as string[])?.length ? (filter.assigned_tos as string[]) : filter.assigned_to ? [filter.assigned_to as string] : [];
+
+      if (sources.length > 0 && !sources.includes(contact.source ?? "")) continue;
+      if (funnelIds.length > 0 && !funnelIds.includes(contact.funnel_id ?? "")) continue;
+      if (stageIds.length > 0 && !stageIds.includes(contact.current_stage_id ?? "")) continue;
+      if (assignedTos.length > 0 && !assignedTos.includes(contact.assigned_to ?? "")) continue;
       if (!filter.include_archived && contact.archived_at) continue;
     }
 
