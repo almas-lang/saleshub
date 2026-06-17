@@ -325,7 +325,7 @@ export async function GET(request: Request) {
                   variables.booking_meet_link = booking.meet_link || "Not available";
                   const bookingTitle = bpData?.title || "Strategy Call";
                   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-                    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+                    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://app.xperiencewave.com");
                   const slug = bpData?.slug;
                   if (slug) {
                     variables.booking_reschedule_link = `${baseUrl}/book/${slug}`;
@@ -444,7 +444,7 @@ export async function GET(request: Request) {
                   bookingMeetLink = booking.meet_link || "Not available";
                   const bookingTitle = bpData?.title || "Strategy Call";
                   const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-                    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+                    || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://app.xperiencewave.com");
                   const slug = bpData?.slug;
                   if (slug) bookingRescheduleLink = `${baseUrl}/book/${slug}`;
                   googleCalendarLink = buildGoogleCalendarUrl({ title: bookingTitle, startsAt: dt, endsAt: endDt, meetLink: booking.meet_link });
@@ -817,7 +817,7 @@ export async function GET(request: Request) {
               variables.booking_meet_link = booking.meet_link || "Not available";
               const bookingTitle = bpData?.title || "Strategy Call";
               const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-                || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+                || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://app.xperiencewave.com");
               const slug = bpData?.slug;
               if (slug) {
                 variables.booking_reschedule_link = `${baseUrl}/book/${slug}`;
@@ -1198,7 +1198,7 @@ export async function GET(request: Request) {
             bookingMeetLink = booking.meet_link || "Not available";
             const bookingTitle = bpData?.title || "Strategy Call";
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-              || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+              || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://app.xperiencewave.com");
             const slug = bpData?.slug;
             if (slug) {
               bookingRescheduleLink = `${baseUrl}/book/${slug}`;

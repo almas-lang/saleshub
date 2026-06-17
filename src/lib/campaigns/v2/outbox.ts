@@ -45,7 +45,7 @@ async function bookingVars(contactId: string, now: string): Promise<Record<strin
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const bp = (booking as any).booking_pages;
   const tz = (bp?.availability_rules as { timezone?: string } | null)?.timezone ?? "Asia/Kolkata";
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://saleshub.vercel.app");
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "https://app.xperiencewave.com");
   const title = bp?.title || "Strategy Call";
   return {
     booking_date: dt.toLocaleDateString("en-US", { timeZone: tz, day: "2-digit", month: "short", year: "numeric" }),
