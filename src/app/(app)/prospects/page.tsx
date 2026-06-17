@@ -132,12 +132,27 @@ export default async function ProspectsPage({
       .select("id, name")
       .eq("is_active", true)
       .order("name"),
-    supabase
-      .from("contacts")
-      .select("source")
-      .eq("type", "prospect")
-      .is("deleted_at", null)
-      .not("source", "is", null),
+    // Distinct sources for the filter dropdown. Supabase caps a single
+    // fetch at 1000 rows, so with >1000 prospects a naive select would
+    // miss sources whose only contacts fall outside that window (e.g. a
+    // brand-new "ai-webinar" lead). Page through all rows and dedupe.
+    (async () => {
+      const pageSize = 1000;
+      const seen = new Set<string>();
+      for (let offset = 0; ; offset += pageSize) {
+        const { data, error } = await supabase
+          .from("contacts")
+          .select("source")
+          .eq("type", "prospect")
+          .is("deleted_at", null)
+          .not("source", "is", null)
+          .range(offset, offset + pageSize - 1);
+        if (error || !data || data.length === 0) break;
+        for (const r of data) if (r.source) seen.add(r.source);
+        if (data.length < pageSize) break;
+      }
+      return { data: [...seen].map((source) => ({ source })) };
+    })(),
     activeCountQuery,
     archivedCountQuery,
     supabase
