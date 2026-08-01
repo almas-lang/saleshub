@@ -10,7 +10,6 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q") ?? "";
-  const amount = searchParams.get("amount");
 
   // Search invoices by number, client name, or amount
   let query = supabaseAdmin
@@ -25,13 +24,8 @@ export async function GET(request: Request) {
     );
   }
 
-  // If amount provided, also search by exact amount match
-  if (amount) {
-    const amt = parseFloat(amount);
-    if (!isNaN(amt)) {
-      query = query.gte("total", amt - 1).lte("total", amt + 1);
-    }
-  }
+  // No amount filtering — let the user search freely and pick any invoice
+  // (a transaction may be a partial payment toward a larger invoice)
 
   const { data: invoices } = await query;
 
@@ -42,12 +36,7 @@ export async function GET(request: Request) {
     .order("due_date", { ascending: true })
     .limit(30);
 
-  if (amount) {
-    const amt = parseFloat(amount);
-    if (!isNaN(amt)) {
-      instQuery = instQuery.gte("amount", amt - 1).lte("amount", amt + 1);
-    }
-  }
+  // No amount filtering on installments either — user searches freely
 
   const { data: installments } = await instQuery;
 

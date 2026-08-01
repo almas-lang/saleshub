@@ -815,6 +815,7 @@ function TxnTable({ transactions, type, onToggle, onLink, onLinkExpense, onExpen
                     <DropdownMenuContent align="end">
                       {onEdit && <DropdownMenuItem onClick={() => onEdit(txn)}><Pencil className="mr-2 size-3.5" />Edit Details</DropdownMenuItem>}
                       <DropdownMenuItem onClick={() => onLink(txn)}><Link2 className="mr-2 size-3.5" />Link to Invoice</DropdownMenuItem>
+                      {txn.credit > 0 && <DropdownMenuItem onClick={() => { window.open(`/invoices/new`, "_blank"); }}><FileText className="mr-2 size-3.5" />Generate Invoice</DropdownMenuItem>}
                       {txn.debit > 0 && onLinkExpense && <DropdownMenuItem onClick={() => onLinkExpense(txn)}><Link2 className="mr-2 size-3.5" />Link to Expense</DropdownMenuItem>}
                       {txn.debit > 0 && <DropdownMenuItem onClick={() => onExpense(txn)}><Plus className="mr-2 size-3.5" />Record Bill / Expense</DropdownMenuItem>}
                       {txn.debit > 0 && <DropdownMenuItem onClick={() => onSalary(txn)}><Users className="mr-2 size-3.5" />Record Salary</DropdownMenuItem>}
@@ -843,8 +844,8 @@ function LinkDialog({ txn, onClose, onLink }: { txn: BankTransaction; onClose: (
   const [results, setResults] = useState<{ invoices: { id: string; invoice_number: string; total: number; status: string; client_name: string }[]; installments: { id: string; invoice_id: string; installment_number: number; amount: number; status: string; invoice_number: string; client_name: string }[] }>({ invoices: [], installments: [] });
   const [loading, setLoading] = useState(false);
   async function doSearch(q: string) {
-    setLoading(true); const amt = txn.credit > 0 ? txn.credit : txn.debit; const p = new URLSearchParams();
-    if (q) p.set("q", q); if (amt > 0) p.set("amount", String(amt));
+    setLoading(true); const p = new URLSearchParams();
+    if (q) p.set("q", q);
     const r = await fetch(`/api/finance/reconciliation/search-invoices?${p}`); if (r.ok) setResults(await r.json()); setLoading(false);
   }
   useState(() => { doSearch(""); });
