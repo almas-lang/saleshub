@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   const { data: invoices } = await query;
 
   // Also fetch installments for matching
-  let instQuery = supabaseAdmin
+  const instQuery = supabaseAdmin
     .from("installments")
     .select("id, invoice_id, installment_number, amount, status, due_date, paid_at")
     .order("due_date", { ascending: true })
