@@ -329,17 +329,15 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
               Copy Link
             </Button>
           )}
-          {invoice.status !== "paid" && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="mr-1.5 size-3.5" />
-              Delete
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="mr-1.5 size-3.5" />
+            Delete
+          </Button>
         </div>
       </div>
 
@@ -646,7 +644,11 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Delete Invoice"
-        description={`Permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`}
+        description={
+          invoice.status === "paid" || invoice.has_installments
+            ? `Permanently delete invoice ${invoice.invoice_number}? Its payment records (income transactions and installments) will also be removed. This action cannot be undone.`
+            : `Permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`
+        }
         onConfirm={handleDelete}
       />
 

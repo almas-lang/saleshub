@@ -838,7 +838,11 @@ export function InvoiceList({
           open={!!deleteId}
           onOpenChange={(open) => !open && setDeleteId(null)}
           title="Delete Invoice"
-          description={`Permanently delete invoice ${deleteInvoice?.invoice_number ?? ""}? This action cannot be undone.`}
+          description={
+            deleteInvoice?.status === "paid" || deleteInvoice?.has_installments
+              ? `Permanently delete invoice ${deleteInvoice?.invoice_number ?? ""}? Its payment records (income transactions and installments) will also be removed. This action cannot be undone.`
+              : `Permanently delete invoice ${deleteInvoice?.invoice_number ?? ""}? This action cannot be undone.`
+          }
           onConfirm={() => {
             if (deleteId) handleDelete(deleteId);
             setDeleteId(null);
@@ -919,15 +923,13 @@ function InvoiceRowActions({
             Mark Paid
           </DropdownMenuItem>
         )}
-        {inv.status !== "paid" && (
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onClick={onDelete}
-          >
-            <Trash2 className="mr-2 size-3.5" />
-            Delete
-          </DropdownMenuItem>
-        )}
+        <DropdownMenuItem
+          className="text-destructive focus:text-destructive"
+          onClick={onDelete}
+        >
+          <Trash2 className="mr-2 size-3.5" />
+          Delete
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

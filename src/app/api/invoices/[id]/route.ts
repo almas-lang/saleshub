@@ -135,10 +135,9 @@ export async function DELETE(
   const { id } = await params;
   const supabase = await createClient();
 
-  // Only allow deleting draft or cancelled invoices
   const { data: invoice } = await supabase
     .from("invoices")
-    .select("status")
+    .select("status, contact_id")
     .eq("id", id)
     .single();
 
@@ -146,17 +145,29 @@ export async function DELETE(
     return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
   }
 
-  if (invoice.status === "paid") {
-    return NextResponse.json(
-      { error: "Cannot delete a paid invoice" },
-      { status: 400 }
-    );
+  // Remove linked income transactions first — the FK on transactions.invoice_id
+  // has no cascade and would block the delete
+  const { error: txnError } = await supabase
+    .from("transactions")
+    .delete()
+    .eq("invoice_id", id);
+
+  if (txnError) {
+    return NextResponse.json({ error: txnError.message }, { status: 500 });
   }
 
+  // Installments cascade via FK
   const { error } = await supabase.from("invoices").delete().eq("id", id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath("/finance");
+  revalidatePath("/analytics");
+  if (invoice.contact_id) {
+    revalidatePath(`/customers/${invoice.contact_id}`);
   }
 
   return NextResponse.json({ success: true });
