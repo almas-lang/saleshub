@@ -71,6 +71,7 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
     { amount: number; due_date: string; status: "pending" | "paid" }[]
   >([]);
   const [markInstPaidId, setMarkInstPaidId] = useState<string | null>(null);
+  const [deleteInstId, setDeleteInstId] = useState<string | null>(null);
   const [instPaidDate, setInstPaidDate] = useState<Date>(new Date());
   const [instPaymentRef, setInstPaymentRef] = useState("");
   const [markingInstPaid, setMarkingInstPaid] = useState(false);
@@ -149,6 +150,21 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
     }
     toast.success("Invoice deleted");
     router.push("/invoices");
+  }
+
+  async function handleDeleteInstallment() {
+    if (!deleteInstId) return;
+    const result = await safeFetch(
+      `/api/invoices/${invoice.id}/installments/${deleteInstId}`,
+      { method: "DELETE" }
+    );
+    if (!result.ok) {
+      toast.error(typeof result.error === "string" ? result.error : "Failed to delete installment");
+      return;
+    }
+    toast.success("Installment deleted");
+    setDeleteInstId(null);
+    router.refresh();
   }
 
   async function handleWriteOff() {
@@ -515,6 +531,15 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
                           >
                             <CheckCircle2 className="size-3" />
                           </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-1.5 text-xs text-destructive hover:text-destructive"
+                            title="Delete installment"
+                            onClick={() => setDeleteInstId(inst.id)}
+                          >
+                            <Trash2 className="size-3" />
+                          </Button>
                         </div>
                       )}
                     </div>
@@ -711,6 +736,19 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
             : `Permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`
         }
         onConfirm={handleDelete}
+      />
+
+      {/* Delete Installment Confirmation */}
+      <ConfirmDialog
+        open={!!deleteInstId}
+        onOpenChange={(open) => !open && setDeleteInstId(null)}
+        title="Delete Installment"
+        description={(() => {
+          const inst = invoice.installments?.find((i) => i.id === deleteInstId);
+          return `Delete installment #${inst?.installment_number ?? ""} (${formatCurrency(inst?.amount ?? 0)}) from ${invoice.invoice_number}? Reminders for it will stop and it will no longer count as outstanding.`;
+        })()}
+        onConfirm={handleDeleteInstallment}
+        destructive
       />
 
       {/* Write Off Confirmation */}

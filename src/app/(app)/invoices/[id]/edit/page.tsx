@@ -53,6 +53,12 @@ export default async function EditInvoicePage({
         <p className="text-sm text-muted-foreground">
           Editing {invoice.invoice_number}
         </p>
+        {invoice.has_installments && (
+          <p className="mt-1 text-sm text-amber-600">
+            This invoice has an installment schedule. Editing items here does not
+            change the schedule — manage installments on the invoice page.
+          </p>
+        )}
       </div>
       <InvoiceBuilder
         contacts={contactsForBuilder}

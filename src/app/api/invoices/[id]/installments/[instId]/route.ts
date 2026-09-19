@@ -125,3 +125,79 @@ export async function PATCH(
     all_paid: allPaid,
   });
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string; instId: string }> }
+) {
+  const { id, instId } = await params;
+  const supabase = await createClient();
+
+  const { data: installment, error: fetchError } = await supabase
+    .from("installments")
+    .select("id, installment_number, amount, status")
+    .eq("id", instId)
+    .eq("invoice_id", id)
+    .single();
+
+  if (fetchError || !installment) {
+    return NextResponse.json({ error: "Installment not found" }, { status: 404 });
+  }
+
+  if (installment.status === "paid") {
+    return NextResponse.json(
+      { error: "Cannot delete a paid installment — its payment is on record" },
+      { status: 400 }
+    );
+  }
+
+  const { error: deleteError } = await supabase
+    .from("installments")
+    .delete()
+    .eq("id", installment.id);
+
+  if (deleteError) {
+    return NextResponse.json({ error: deleteError.message }, { status: 500 });
+  }
+
+  const { data: invoice } = await supabase
+    .from("invoices")
+    .select("id, contact_id, status")
+    .eq("id", id)
+    .single();
+
+  const { data: remaining } = await supabase
+    .from("installments")
+    .select("id, status, paid_at")
+    .eq("invoice_id", id);
+
+  if (!remaining?.length) {
+    await supabase.from("invoices").update({ has_installments: false }).eq("id", id);
+  } else if (
+    remaining.every((i) => i.status === "paid") &&
+    invoice &&
+    !["paid", "cancelled", "written_off"].includes(invoice.status)
+  ) {
+    // Deleting the last unpaid installment leaves a fully-paid schedule
+    const lastPaidAt = remaining
+      .map((i) => i.paid_at)
+      .filter(Boolean)
+      .sort()
+      .pop();
+    await supabase
+      .from("invoices")
+      .update({
+        status: "paid",
+        paid_at: lastPaidAt ?? new Date().toISOString(),
+        payment_gateway: "manual",
+      })
+      .eq("id", id);
+  }
+
+  revalidatePath("/invoices");
+  revalidatePath(`/invoices/${id}`);
+  if (invoice?.contact_id) revalidatePath(`/customers/${invoice.contact_id}`);
+  revalidatePath("/analytics");
+
+  return NextResponse.json({ success: true });
+}
