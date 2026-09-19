@@ -10,6 +10,7 @@ const STATUS_CONFIG: Record<InvoiceStatus, { label: string; className: string }>
   paid: { label: "Paid", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   overdue: { label: "Overdue", className: "bg-red-50 text-red-700 border-red-200" },
   cancelled: { label: "Cancelled", className: "bg-muted text-muted-foreground line-through" },
+  written_off: { label: "Written Off", className: "bg-amber-50 text-amber-700 border-amber-200" },
 };
 
 export function InvoiceStatusBadge({ status }: { status: InvoiceStatus }) {

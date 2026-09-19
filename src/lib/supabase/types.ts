@@ -2178,8 +2178,8 @@ export type Database = {
         | "bounced"
         | "failed"
       financial_readiness: "ready" | "careful_but_open" | "not_ready"
-      installment_status: "pending" | "paid" | "overdue" | "cancelled"
-      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
+      installment_status: "pending" | "paid" | "overdue" | "cancelled" | "written_off"
+      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled" | "written_off"
       invoice_type: "estimate" | "invoice"
       payment_gateway: "cashfree" | "stripe" | "manual"
       sales_type:
@@ -2368,8 +2368,8 @@ export const Constants = {
         "failed",
       ],
       financial_readiness: ["ready", "careful_but_open", "not_ready"],
-      installment_status: ["pending", "paid", "overdue", "cancelled"],
-      invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
+      installment_status: ["pending", "paid", "overdue", "cancelled", "written_off"],
+      invoice_status: ["draft", "sent", "paid", "overdue", "cancelled", "written_off"],
       invoice_type: ["estimate", "invoice"],
       payment_gateway: ["cashfree", "stripe", "manual"],
       sales_type: [

@@ -16,6 +16,8 @@ import {
   CircleAlert,
   CalendarIcon,
   SplitSquareHorizontal,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
@@ -62,6 +64,7 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
   const [paidDate, setPaidDate] = useState<Date>(new Date());
   const [generatingLink, setGeneratingLink] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [installmentOpen, setInstallmentOpen] = useState(false);
   const [installmentCount, setInstallmentCount] = useState(2);
   const [installmentRows, setInstallmentRows] = useState<
@@ -74,6 +77,19 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
   const [convertOpen, setConvertOpen] = useState(false);
 
   const items = parseInvoiceItems(invoice.items);
+
+  // Closed invoices get no send/pay/write-off actions
+  const isClosed = ["paid", "cancelled", "written_off"].includes(invoice.status);
+
+  // Unpaid balance: sum of open installments, or full total for
+  // non-installment invoices that aren't paid
+  const unpaidBalance = invoice.has_installments
+    ? (invoice.installments ?? [])
+        .filter((i) => i.status === "pending" || i.status === "overdue")
+        .reduce((sum, i) => sum + Number(i.amount), 0)
+    : invoice.status === "paid"
+      ? 0
+      : invoice.total;
 
   const gst = calculateGST(items, null, invoice.gst_rate ?? 18);
   const contact = invoice.contacts;
@@ -133,6 +149,31 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
     }
     toast.success("Invoice deleted");
     router.push("/invoices");
+  }
+
+  async function handleWriteOff() {
+    const result = await safeFetch(`/api/invoices/${invoice.id}/write-off`, {
+      method: "POST",
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Remaining balance written off");
+    setWriteOffOpen(false);
+    router.refresh();
+  }
+
+  async function handleReopen() {
+    const result = await safeFetch(`/api/invoices/${invoice.id}/write-off`, {
+      method: "DELETE",
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Invoice reopened");
+    router.refresh();
   }
 
   async function handleGeneratePaymentLink(gateway: "cashfree" | "stripe") {
@@ -264,13 +305,13 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {invoice.status !== "paid" && invoice.status !== "cancelled" && (
+          {!isClosed && (
             <Button size="sm" onClick={() => setSendDialogOpen(true)} disabled={sending}>
               <Send className="mr-1.5 size-3.5" />
               {sending ? "Sending..." : "Send Invoice"}
             </Button>
           )}
-          {invoice.status !== "paid" && invoice.status !== "cancelled" && (
+          {!isClosed && (
             <>
               <Button
                 variant="outline"
@@ -316,6 +357,23 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
               Preview PDF
             </a>
           </Button>
+          {!isClosed && invoice.status !== "draft" && unpaidBalance > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-amber-700 hover:text-amber-700"
+              onClick={() => setWriteOffOpen(true)}
+            >
+              <Ban className="mr-1.5 size-3.5" />
+              Write Off
+            </Button>
+          )}
+          {invoice.status === "written_off" && (
+            <Button variant="outline" size="sm" onClick={handleReopen}>
+              <RotateCcw className="mr-1.5 size-3.5" />
+              Reopen
+            </Button>
+          )}
           {invoice.payment_link && (
             <Button
               variant="ghost"
@@ -408,29 +466,32 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
               <CardContent className="space-y-2">
                 {invoice.installments.map((inst: Installment) => {
                   const isPaid = inst.status === "paid";
+                  const isWrittenOff = inst.status === "written_off" || inst.status === "cancelled";
                   const isOverdue = inst.status === "overdue" || (!isPaid && inst.status === "pending" && new Date(inst.due_date) < new Date());
                   return (
                     <div key={inst.id} className="flex items-start gap-2 text-sm">
                       {isPaid ? (
                         <CircleCheck className="mt-0.5 size-4 text-emerald-500 shrink-0" />
+                      ) : isWrittenOff ? (
+                        <Ban className="mt-0.5 size-4 text-muted-foreground shrink-0" />
                       ) : isOverdue ? (
                         <CircleAlert className="mt-0.5 size-4 text-red-500 shrink-0" />
                       ) : (
                         <Clock className="mt-0.5 size-4 text-muted-foreground shrink-0" />
                       )}
-                      <div className="flex-1 min-w-0">
+                      <div className={cn("flex-1 min-w-0", isWrittenOff && "opacity-60")}>
                         <div className="flex justify-between">
                           <span className="font-medium">#{inst.installment_number}</span>
-                          <span className="font-medium">{formatCurrency(inst.amount)}</span>
+                          <span className={cn("font-medium", isWrittenOff && "line-through")}>{formatCurrency(inst.amount)}</span>
                         </div>
                         <div className="flex justify-between text-xs text-muted-foreground">
                           <span>Due {formatDate(inst.due_date)}</span>
-                          <span className={isPaid ? "text-emerald-600" : isOverdue ? "text-red-600" : ""}>
-                            {isPaid ? "Paid" : isOverdue ? "Overdue" : "Pending"}
+                          <span className={isPaid ? "text-emerald-600" : isWrittenOff ? "" : isOverdue ? "text-red-600" : ""}>
+                            {isPaid ? "Paid" : isWrittenOff ? "Written Off" : isOverdue ? "Overdue" : "Pending"}
                           </span>
                         </div>
                       </div>
-                      {!isPaid && (
+                      {!isPaid && !isWrittenOff && (
                         <div className="flex items-center gap-1 shrink-0">
                           <Button
                             variant="ghost"
@@ -650,6 +711,15 @@ export function InvoiceDetail({ invoice, teamMembers = [] }: InvoiceDetailProps)
             : `Permanently delete invoice ${invoice.invoice_number}? This action cannot be undone.`
         }
         onConfirm={handleDelete}
+      />
+
+      {/* Write Off Confirmation */}
+      <ConfirmDialog
+        open={writeOffOpen}
+        onOpenChange={setWriteOffOpen}
+        title="Write Off Balance"
+        description={`Write off the remaining ${formatCurrency(unpaidBalance)} on ${invoice.invoice_number}? The invoice will be marked written-off, payment reminders will stop, and all received payments stay on record. You can reopen it later if the customer pays.`}
+        onConfirm={handleWriteOff}
       />
 
       {/* Add Installments Dialog */}

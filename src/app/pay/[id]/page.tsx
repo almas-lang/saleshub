@@ -67,6 +67,26 @@ export default async function PayPage({
     }
   }
 
+  // Written-off/cancelled invoices must not fall through to a full-total
+  // charge (their installments are no longer pending)
+  if (invoice.status === "written_off" || invoice.status === "cancelled") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="mx-auto max-w-sm text-center">
+          <div className="mx-auto mb-4 flex size-16 items-center justify-center rounded-full bg-slate-200">
+            <svg className="size-8 text-slate-500" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-semibold">Payment Link Inactive</h1>
+          <p className="mt-2 text-sm text-slate-500">
+            This payment link for invoice {invoice.invoice_number} is no longer active. Please contact us if you&apos;d like to make a payment.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (invoice.status === "paid" && !targetInstallment) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-50">

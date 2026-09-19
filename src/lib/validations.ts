@@ -490,7 +490,7 @@ export const invoiceSchema = z.object({
   type: z.enum(["invoice", "estimate"]).default("invoice"),
   is_recurring: z.boolean().optional(),
   recurrence_day: z.number().int().min(1).max(28).optional().nullable(),
-  status: z.enum(["draft", "sent", "paid", "overdue", "cancelled"]).optional(),
+  status: z.enum(["draft", "sent", "paid", "overdue", "cancelled", "written_off"]).optional(),
   installments: z.array(installmentInputSchema).min(2).max(4).optional(),
 });
 

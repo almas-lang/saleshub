@@ -24,6 +24,8 @@ import {
   Bell,
   Download,
   Loader2,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { safeFetch } from "@/lib/fetch";
@@ -103,6 +105,7 @@ const STATUS_FILTERS: { label: string; value: string }[] = [
   { label: "Sent", value: "sent" },
   { label: "Paid", value: "paid" },
   { label: "Overdue", value: "overdue" },
+  { label: "Written Off", value: "written_off" },
 ];
 
 const PER_PAGE_OPTIONS = [10, 25, 50];
@@ -140,6 +143,7 @@ export function InvoiceList({
   });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [markPaidId, setMarkPaidId] = useState<string | null>(null);
+  const [writeOffId, setWriteOffId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   async function handleBulkExport() {
@@ -232,8 +236,33 @@ export function InvoiceList({
     router.refresh();
   }
 
+  async function handleWriteOff(id: string) {
+    const result = await safeFetch(`/api/invoices/${id}/write-off`, {
+      method: "POST",
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Remaining balance written off");
+    router.refresh();
+  }
+
+  async function handleReopen(id: string) {
+    const result = await safeFetch(`/api/invoices/${id}/write-off`, {
+      method: "DELETE",
+    });
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success("Invoice reopened");
+    router.refresh();
+  }
+
   const deleteInvoice = invoices.find((i) => i.id === deleteId);
   const markPaidInvoice = invoices.find((i) => i.id === markPaidId);
+  const writeOffInvoice = invoices.find((i) => i.id === writeOffId);
 
   return (
     <TooltipProvider>
@@ -643,6 +672,8 @@ export function InvoiceList({
                           onEdit={() => router.push(`/invoices/${inv.id}/edit`)}
                           onSend={() => handleSend(inv.id)}
                           onMarkPaid={() => setMarkPaidId(inv.id)}
+                          onWriteOff={() => setWriteOffId(inv.id)}
+                          onReopen={() => handleReopen(inv.id)}
                           onDelete={() => setDeleteId(inv.id)}
                         />
                       </TableCell>
@@ -702,6 +733,8 @@ export function InvoiceList({
                             }
                             onSend={() => handleSend(inv.id)}
                             onMarkPaid={() => setMarkPaidId(inv.id)}
+                            onWriteOff={() => setWriteOffId(inv.id)}
+                            onReopen={() => handleReopen(inv.id)}
                             onDelete={() => setDeleteId(inv.id)}
                           />
                         </div>
@@ -859,6 +892,16 @@ export function InvoiceList({
             setMarkPaidId(null);
           }}
         />
+        <ConfirmDialog
+          open={!!writeOffId}
+          onOpenChange={(open) => !open && setWriteOffId(null)}
+          title="Write Off Balance"
+          description={`Write off the remaining ${formatCurrency(writeOffInvoice?._balance ?? 0)} on ${writeOffInvoice?.invoice_number ?? ""}? The invoice will be marked written-off, payment reminders will stop, and all received payments stay on record. You can reopen it later if the customer pays.`}
+          onConfirm={() => {
+            if (writeOffId) handleWriteOff(writeOffId);
+            setWriteOffId(null);
+          }}
+        />
       </div>
     </TooltipProvider>
   );
@@ -873,6 +916,8 @@ function InvoiceRowActions({
   onEdit,
   onSend,
   onMarkPaid,
+  onWriteOff,
+  onReopen,
   onDelete,
 }: {
   inv: InvoiceWithPending;
@@ -880,8 +925,11 @@ function InvoiceRowActions({
   onEdit: () => void;
   onSend: () => void;
   onMarkPaid: () => void;
+  onWriteOff: () => void;
+  onReopen: () => void;
   onDelete: () => void;
 }) {
+  const isClosed = ["paid", "cancelled", "written_off"].includes(inv.status);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -894,7 +942,7 @@ function InvoiceRowActions({
           <Eye className="mr-2 size-3.5" />
           View
         </DropdownMenuItem>
-        {inv.status !== "paid" && inv.status !== "cancelled" && (
+        {!isClosed && (
           <DropdownMenuItem onClick={onEdit}>
             <Pencil className="mr-2 size-3.5" />
             Edit
@@ -917,10 +965,22 @@ function InvoiceRowActions({
             Preview PDF
           </a>
         </DropdownMenuItem>
-        {inv.status !== "paid" && inv.status !== "cancelled" && (
+        {!isClosed && (
           <DropdownMenuItem onClick={onMarkPaid}>
             <CheckCircle2 className="mr-2 size-3.5" />
             Mark Paid
+          </DropdownMenuItem>
+        )}
+        {!isClosed && inv.status !== "draft" && inv._balance > 0 && (
+          <DropdownMenuItem onClick={onWriteOff}>
+            <Ban className="mr-2 size-3.5" />
+            Write Off
+          </DropdownMenuItem>
+        )}
+        {inv.status === "written_off" && (
+          <DropdownMenuItem onClick={onReopen}>
+            <RotateCcw className="mr-2 size-3.5" />
+            Reopen
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
